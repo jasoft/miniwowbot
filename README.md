@@ -56,11 +56,14 @@ from ocr_helper import OCRHelper
 # 初始化
 ocr_helper = OCRHelper(output_dir="output")
 
-# 基本用法：查找并点击第1个匹配的文字
+# 基本用法：查找并点击第1个匹配的文字（默认启用缓存）
 success = ocr_helper.find_and_click_text("确定", confidence_threshold=0.8)
 
 # 多匹配功能：点击第2个"确定"按钮
 success = ocr_helper.find_and_click_text("确定", confidence_threshold=0.8, occurrence=2)
+
+# 禁用缓存：强制重新识别（适用于动态内容）
+success = ocr_helper.find_and_click_text("免费", confidence_threshold=0.8, use_cache=False)
 
 # 截图并查找文字
 result = ocr_helper.capture_and_find_text("设置", confidence_threshold=0.7)

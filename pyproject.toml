@@ -9,4 +9,5 @@ dependencies = [
     "coloredlogs>=15.0.1",
     "paddleocr>=3.2.0",
     "paddlepaddle>=3.2.0",
+    "pillow>=11.3.0",
 ]

@@ -567,6 +567,7 @@ dependencies = [
     { name = "coloredlogs" },
     { name = "paddleocr" },
     { name = "paddlepaddle" },
+    { name = "pillow" },
 ]
 
 [package.metadata]
@@ -575,6 +576,7 @@ requires-dist = [
     { name = "coloredlogs", specifier = ">=15.0.1" },
     { name = "paddleocr", specifier = ">=3.2.0" },
     { name = "paddlepaddle", specifier = ">=3.2.0" },
+    { name = "pillow", specifier = ">=11.3.0" },
 ]
 
 [[package]]

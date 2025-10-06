@@ -7,8 +7,9 @@ from paddleocr import PaddleOCR
 import json
 import os
 import time
-import hashlib
+import cv2
 from airtest.core.api import *
+from airtest.aircv.cal_confidence import cal_ccoeff_confidence
 import logging
 import coloredlogs
 
@@ -47,6 +48,16 @@ class OCRHelper:
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
 
+        # 初始化缓存
+        # 格式: [(image_path, json_file_path), ...]
+        self.ocr_cache = []
+        self.cache_dir = os.path.join(self.output_dir, "cache")
+        if not os.path.exists(self.cache_dir):
+            os.makedirs(self.cache_dir)
+
+        # 缓存相似度阈值（95%以上认为是同一张图）
+        self.cache_similarity_threshold = 0.95
+
         # 配置彩色日志
         self.logger = logging.getLogger(f"{__name__}.OCRHelper")
         # 防止日志重复：移除已有的 handlers
@@ -67,6 +78,87 @@ class OCRHelper:
             },
         )
 
+    def _find_similar_cached_image(self, current_image_path):
+        """
+        查找缓存中是否有相似的图片
+
+        Args:
+            current_image_path (str): 当前图片路径
+
+        Returns:
+            str: 缓存的 JSON 文件路径，如果没有找到则返回 None
+        """
+        try:
+            current_img = cv2.imread(current_image_path)
+            if current_img is None:
+                return None
+
+            # 遍历缓存，查找相似图片
+            for cached_img_path, cached_json_path in self.ocr_cache:
+                if not os.path.exists(cached_img_path) or not os.path.exists(
+                    cached_json_path
+                ):
+                    continue
+
+                cached_img = cv2.imread(cached_img_path)
+                if cached_img is None:
+                    continue
+
+                # 调整图片尺寸一致以便比较
+                if current_img.shape != cached_img.shape:
+                    cached_img = cv2.resize(
+                        cached_img, (current_img.shape[1], current_img.shape[0])
+                    )
+
+                # 计算相似度
+                similarity = cal_ccoeff_confidence(current_img, cached_img)
+
+                if similarity >= self.cache_similarity_threshold:
+                    self.logger.info(
+                        f"💾 找到相似缓存图片 (相似度: {similarity * 100:.1f}%)"
+                    )
+                    return cached_json_path
+
+            return None
+        except Exception as e:
+            self.logger.error(f"查找相似缓存图片失败: {e}")
+            return None
+
+    def _save_to_cache(self, image_path, json_file):
+        """
+        保存图片和 OCR 结果到缓存
+
+        Args:
+            image_path (str): 图片路径
+            json_file (str): JSON 文件路径
+        """
+        try:
+            import shutil
+
+            # 为缓存创建唯一的文件名
+            cache_id = len(self.ocr_cache)
+            cache_image_name = f"cache_{cache_id}.png"
+            cache_json_name = f"cache_{cache_id}_res.json"
+
+            cache_image_path = os.path.join(self.cache_dir, cache_image_name)
+            cache_json_path = os.path.join(self.cache_dir, cache_json_name)
+
+            # 复制图片到缓存目录
+            shutil.copy2(image_path, cache_image_path)
+
+            # 复制 JSON 到缓存目录
+            if os.path.exists(json_file):
+                shutil.copy2(json_file, cache_json_path)
+                # 保存缓存记录
+                self.ocr_cache.append((cache_image_path, cache_json_path))
+                self.logger.debug(
+                    f"💾 缓存已保存 (图片数: {len(self.ocr_cache)}, JSON: {cache_json_name})"
+                )
+            else:
+                self.logger.error(f"JSON 文件不存在，无法缓存: {json_file}")
+        except Exception as e:
+            self.logger.error(f"保存缓存失败: {e}")
+
     def _predict_with_timing(self, image_path):
         """
         执行 OCR 识别并记录耗时
@@ -81,14 +173,57 @@ class OCRHelper:
         result = self.ocr.predict(image_path)
         elapsed_time = time.time() - start_time
 
-        # 获取文件名（不含路径）
         filename = os.path.basename(image_path)
         self.logger.info(f"⏱️ OCR识别耗时: {elapsed_time:.3f}秒 (文件: {filename})")
 
         return result
 
+    def _get_or_create_ocr_result(self, image_path, use_cache=True):
+        """
+        获取或创建 OCR 识别结果（带缓存）
+
+        Args:
+            image_path (str): 图像文件路径
+            use_cache (bool): 是否使用缓存，默认为 True
+
+        Returns:
+            str: JSON 文件路径
+        """
+        # 如果启用缓存，检查缓存中是否有相似图片
+        if use_cache:
+            cached_json = self._find_similar_cached_image(image_path)
+            if cached_json:
+                return cached_json
+
+        # 缓存未命中或禁用缓存，执行 OCR 识别
+        result = self._predict_with_timing(image_path)
+
+        if result and len(result) > 0:
+            # 先保存到 output 目录（标准流程）
+            for res in result:
+                res.save_to_json(self.output_dir)
+
+            # 获取 JSON 文件路径
+            json_file = os.path.join(
+                self.output_dir,
+                os.path.basename(image_path).replace(".png", "_res.json"),
+            )
+
+            # 如果启用缓存，同时保存到缓存
+            if use_cache and os.path.exists(json_file):
+                self._save_to_cache(image_path, json_file)
+
+            return json_file
+
+        return None
+
     def find_text_in_image(
-        self, image_path, target_text, confidence_threshold=0.5, occurrence=1
+        self,
+        image_path,
+        target_text,
+        confidence_threshold=0.5,
+        occurrence=1,
+        use_cache=True,
     ):
         """
         在指定图像中查找目标文字的位置
@@ -98,6 +233,7 @@ class OCRHelper:
             target_text (str): 要查找的目标文字
             confidence_threshold (float): 置信度阈值 (0-1)
             occurrence (int): 指定点击第几个出现的文字 (1-based)，默认为1
+            use_cache (bool): 是否使用缓存，默认为 True
 
         Returns:
             dict: 包含以下信息的字典
@@ -110,10 +246,10 @@ class OCRHelper:
                 - selected_index (int): 实际选择的索引 (1-based)
         """
         try:
-            # OCR 识别
-            result = self._predict_with_timing(image_path)
+            # 获取或创建 OCR 结果（带缓存）
+            json_file = self._get_or_create_ocr_result(image_path, use_cache=use_cache)
 
-            if not result or len(result) == 0:
+            if not json_file:
                 self.logger.warning(f"OCR识别结果为空: {image_path}")
                 return {
                     "found": False,
@@ -125,15 +261,7 @@ class OCRHelper:
                     "selected_index": 0,
                 }
 
-            # 保存识别结果到JSON
-            for res in result:
-                res.save_to_json(self.output_dir)
-
-            # 从结果中查找目标文字
-            json_file = os.path.join(
-                self.output_dir,
-                os.path.basename(image_path).replace(".png", "_res.json"),
-            )
+            # 从 JSON 中查找目标文字
             return self._find_text_in_json(
                 json_file, target_text, confidence_threshold, occurrence
             )
@@ -156,6 +284,7 @@ class OCRHelper:
         confidence_threshold=0.5,
         screenshot_path="/tmp/screenshot.png",
         occurrence=1,
+        use_cache=True,
     ):
         """
         截图并查找目标文字的位置
@@ -165,6 +294,7 @@ class OCRHelper:
             confidence_threshold (float): 置信度阈值 (0-1)
             screenshot_path (str): 截图保存路径
             occurrence (int): 指定点击第几个出现的文字 (1-based)，默认为1
+            use_cache (bool): 是否使用缓存，默认为 True
 
         Returns:
             dict: 包含查找结果的字典，格式同find_text_in_image
@@ -176,7 +306,11 @@ class OCRHelper:
 
             # 在截图中查找文字
             return self.find_text_in_image(
-                screenshot_path, target_text, confidence_threshold, occurrence
+                screenshot_path,
+                target_text,
+                confidence_threshold,
+                occurrence,
+                use_cache,
             )
 
         except Exception as e:
@@ -197,6 +331,7 @@ class OCRHelper:
         confidence_threshold=0.5,
         screenshot_path="/tmp/screenshot.png",
         occurrence=1,
+        use_cache=True,
     ):
         """
         截图、查找文字并点击其中心点
@@ -206,12 +341,13 @@ class OCRHelper:
             confidence_threshold (float): 置信度阈值 (0-1)
             screenshot_path (str): 截图保存路径
             occurrence (int): 指定点击第几个出现的文字 (1-based)，默认为1
+            use_cache (bool): 是否使用缓存，默认为 True
 
         Returns:
             bool: 是否成功找到并点击
         """
         result = self.capture_and_find_text(
-            target_text, confidence_threshold, screenshot_path, occurrence
+            target_text, confidence_threshold, screenshot_path, occurrence, use_cache
         )
 
         if result["found"]:

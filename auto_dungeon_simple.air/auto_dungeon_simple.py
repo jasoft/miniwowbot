@@ -212,7 +212,9 @@ def find_text_with_paddleocr(text, similarity_threshold=0.6):
         return None
 
 
-def find_text_and_click(text, timeout=10, similarity_threshold=0.7, occurrence=1):
+def find_text_and_click(
+    text, timeout=10, similarity_threshold=0.7, occurrence=1, use_cache=True
+):
     """
     使用 OCRHelper 查找文本并点击
     :param text: 要查找的文本
@@ -230,7 +232,10 @@ def find_text_and_click(text, timeout=10, similarity_threshold=0.7, occurrence=1
     while time.time() - start_time < timeout:
         # 使用 OCRHelper 查找并点击文本
         if ocr_helper.find_and_click_text(
-            text, confidence_threshold=similarity_threshold, occurrence=occurrence
+            text,
+            confidence_threshold=similarity_threshold,
+            occurrence=occurrence,
+            use_cache=use_cache,
         ):
             if occurrence > 1:
                 logger.info(f"✅ 成功点击: {text} (第{occurrence}个)")
@@ -263,7 +268,7 @@ def click_free_button():
     free_words = ["免费"]
 
     for word in free_words:
-        if find_text_and_click(word, timeout=3):
+        if find_text_and_click(word, timeout=3, use_cache=False):
             logger.info(f"💰 点击了免费按钮: {word}")
 
             return True
