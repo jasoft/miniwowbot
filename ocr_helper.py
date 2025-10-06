@@ -48,17 +48,7 @@ class OCRHelper:
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
 
-        # 初始化缓存
-        # 格式: [(image_path, json_file_path), ...]
-        self.ocr_cache = []
-        self.cache_dir = os.path.join(self.output_dir, "cache")
-        if not os.path.exists(self.cache_dir):
-            os.makedirs(self.cache_dir)
-
-        # 缓存相似度阈值（95%以上认为是同一张图）
-        self.cache_similarity_threshold = 0.95
-
-        # 配置彩色日志
+        # 配置彩色日志（需要先初始化，因为缓存加载时会用到）
         self.logger = logging.getLogger(f"{__name__}.OCRHelper")
         # 防止日志重复：移除已有的 handlers
         self.logger.handlers.clear()
@@ -77,6 +67,56 @@ class OCRHelper:
                 "critical": {"color": "red", "bold": True},
             },
         )
+
+        # 初始化缓存
+        # 格式: [(image_path, json_file_path), ...]
+        self.ocr_cache = []
+        self.cache_dir = os.path.join(self.output_dir, "cache")
+        if not os.path.exists(self.cache_dir):
+            os.makedirs(self.cache_dir)
+
+        # 缓存相似度阈值（95%以上认为是同一张图）
+        self.cache_similarity_threshold = 0.95
+
+        # 加载已有的缓存（需要在 logger 初始化之后）
+        self._load_existing_cache()
+
+    def _load_existing_cache(self):
+        """
+        加载缓存目录中已有的缓存文件
+        """
+        try:
+            if not os.path.exists(self.cache_dir):
+                return
+
+            # 查找所有缓存文件对
+            cache_files = os.listdir(self.cache_dir)
+            cache_pairs = {}
+
+            # 将图片和 JSON 文件配对
+            for filename in cache_files:
+                if filename.startswith("cache_") and filename.endswith(".png"):
+                    # 提取缓存 ID
+                    cache_id = filename.replace("cache_", "").replace(".png", "")
+                    json_filename = f"cache_{cache_id}_res.json"
+
+                    image_path = os.path.join(self.cache_dir, filename)
+                    json_path = os.path.join(self.cache_dir, json_filename)
+
+                    # 检查对应的 JSON 文件是否存在
+                    if os.path.exists(json_path):
+                        cache_pairs[cache_id] = (image_path, json_path)
+
+            # 按 ID 排序并加载到缓存列表
+            for cache_id in sorted(
+                cache_pairs.keys(), key=lambda x: int(x) if x.isdigit() else 0
+            ):
+                self.ocr_cache.append(cache_pairs[cache_id])
+
+            if self.ocr_cache:
+                self.logger.info(f"💾 加载了 {len(self.ocr_cache)} 个缓存文件")
+        except Exception as e:
+            self.logger.error(f"加载缓存失败: {e}")
 
     def _find_similar_cached_image(self, current_image_path):
         """

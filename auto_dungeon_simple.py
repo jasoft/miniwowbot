@@ -7,7 +7,6 @@ from airtest.core.api import (
     wait,
     sleep,
     touch,
-    device,
     exists,
     Template,
 )
@@ -17,9 +16,11 @@ import os
 import logging
 import coloredlogs
 
-# 导入自定义的OCR工具类
+# 导入自定义的OCR工具类、数据库模块和配置
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from ocr_helper import OCRHelper
+from database import DungeonProgressDB
+from dungeon_config import OCR_CORRECTION_MAP, ZONE_DUNGEONS
 
 CLICK_INTERVAL = 1
 # 配置彩色日志
@@ -50,131 +51,9 @@ coloredlogs.install(
 airtest_logger = logging.getLogger("airtest")
 airtest_logger.setLevel(logging.ERROR)
 
-
-zone_dungeons = {
-    # 风暴群岛
-    "风暴群岛": [
-        "真理之地",
-        "预言神殿",
-        "海底王宫",
-        "泰坦密室",
-        "黑暗庄园",
-        "海底囚牢",
-        "地精岛",
-        "泰坦遗迹",
-        "海盗监狱",
-        "巨魔陵墓",
-        "毒蛇神庙",
-        "腐化沼泽",
-        "海港城",
-    ],
-    # 军团领域
-    "军团领域": [
-        "大墓地密室",
-        "流放王座",
-        "毁灭之地",
-        "大墓地圣殿",
-        "封印地窟",
-        "魔能宫殿",
-        "魔能要塞",
-        "魔法高台",
-        "地底巢穴",
-        "风暴绿洲",
-        "渡鸦堡垒",
-        "梦魇丛林",
-        "守护者大殿",
-    ],
-    # 暗影大陆
-    "暗影大陆": [
-        "钢铁码头",
-        "食人魔王国",
-        "黑暗熔炉",
-        "通天峰",
-        "熔渣车间",
-        "食人魔矿井",
-        "木精圣地",
-        "鲜血庭院",
-        "钢铁车站",
-        "神圣陵墓",
-        "兽人墓地",
-        "毁灭高台",
-    ],
-    # 迷雾大陆
-    "迷雾大陆": [
-        "兽人圣殿",
-        "恐魔之心",
-        "古魔宝库",
-        "兽人都城",
-        "古魔宫殿",
-        "风暴之巅",
-        "酿酒厂",
-        "风暴王座",
-        "青龙寺",
-        "白虎寺",
-        "日落关",
-        "玄牛寺",
-    ],
-    # 元素之地
-    "元素之地": [
-        "火焰宫殿",
-        "守护者神殿",
-        "黑龙宫殿",
-        "黑暗堡垒",
-        "潮汐宫殿",
-        "黑暗监狱",
-        "泰坦密室",
-        "大地神殿",
-        "失落之城",
-        "天空之城",
-        "黑石熔炉",
-    ],
-    # 冰封大陆
-    "冰封大陆": [
-        "泰坦基地",
-        "冠军试炼",
-        "寒冰堡垒",
-        "寒冰王座",
-        "灵魂熔炉",
-        "瘟疫之城",
-        "古代大厅",
-        "古代王国",
-        "巨魔要塞",
-        "峡湾城堡",
-        "蓝龙巢穴",
-    ],
-    # 虚空领域
-    "虚空领域": [
-        "魔法之井",
-        "虚空要塞",
-        "海底神殿",
-        "守护者之塔上层",
-        "黑暗神殿",
-        "守护者之塔下层",
-        "圣山战场",
-        "虚空舰",
-        "沼泽水库",
-        "山丘城堡",
-        "地狱火堡垒",
-        "亡者之城",
-    ],
-    # 东部大陆
-    "东部大陆": [
-        "亡灵要塞",
-        "黑龙巢穴",
-        "火焰之心",
-        "巨石密室",
-        "诅咒教堂",
-        "盗贼矿井",
-        "机械要塞",
-        "巨魔墓地",
-        "噩梦洞穴",
-        "野猪人高地",
-        "水晶庭院",
-        "龙人塔",
-        "精灵遗迹",
-        "沉没的神庙",
-    ],
-}
+# 使用配置文件中的副本字典
+# 如果需要修改副本列表或 OCR 纠正映射，请编辑 dungeon_config.py
+zone_dungeons = ZONE_DUNGEONS
 
 
 # 初始化设备
@@ -217,6 +96,8 @@ def find_text_and_click(
 ):
     """
     使用 OCRHelper 查找文本并点击
+    支持 OCR 纠正：如果找不到原文本，会尝试查找 OCR 可能识别错误的文本
+
     :param text: 要查找的文本
     :param timeout: 超时时间（秒）
     :param similarity_threshold: 相似度阈值
@@ -229,20 +110,37 @@ def find_text_and_click(
         logger.info(f"🔍 查找文本: {text}")
     start_time = time.time()
 
+    # 准备要尝试的文本列表：[原文本, OCR可能识别的错误文本]
+    texts_to_try = [text]
+
+    # 检查是否有对应的 OCR 纠正映射（反向查找）
+    for ocr_text, correct_text in OCR_CORRECTION_MAP.items():
+        if correct_text == text:
+            texts_to_try.append(ocr_text)
+            logger.debug(f"💡 将同时尝试查找 OCR 可能识别的文本: {ocr_text}")
+            break
+
     while time.time() - start_time < timeout:
-        # 使用 OCRHelper 查找并点击文本
-        if ocr_helper.find_and_click_text(
-            text,
-            confidence_threshold=similarity_threshold,
-            occurrence=occurrence,
-            use_cache=use_cache,
-        ):
-            if occurrence > 1:
-                logger.info(f"✅ 成功点击: {text} (第{occurrence}个)")
-            else:
-                logger.info(f"✅ 成功点击: {text}")
-            sleep(CLICK_INTERVAL)  # 每个点击后面停顿一下等待界面刷新
-            return True
+        # 尝试所有可能的文本
+        for try_text in texts_to_try:
+            # 使用 OCRHelper 查找并点击文本
+            if ocr_helper.find_and_click_text(
+                try_text,
+                confidence_threshold=similarity_threshold,
+                occurrence=occurrence,
+                use_cache=use_cache,
+            ):
+                if try_text != text:
+                    logger.info(
+                        f"✅ 通过 OCR 纠正找到并点击: {text} (OCR识别为: {try_text})"
+                    )
+                else:
+                    if occurrence > 1:
+                        logger.info(f"✅ 成功点击: {text} (第{occurrence}个)")
+                    else:
+                        logger.info(f"✅ 成功点击: {text}")
+                sleep(CLICK_INTERVAL)  # 每个点击后面停顿一下等待界面刷新
+                return True
 
     if occurrence > 1:
         logger.warning(f"❌ 未找到: {text} (第{occurrence}个)")
@@ -344,8 +242,11 @@ def back_to_main():
         click_back()
 
 
-def process_dungeon(dungeon_name, index, total):
-    """处理单个副本, 返回是否成功完成"""
+def process_dungeon(dungeon_name, zone_name, index, total, db):
+    """处理单个副本, 返回是否成功完成
+
+    注意：调用此函数前应该已经检查过是否已通关
+    """
     logger.info(f"\n🎯 [{index}/{total}] 处理副本: {dungeon_name}")
 
     # 点击副本名称
@@ -358,10 +259,16 @@ def process_dungeon(dungeon_name, index, total):
         # 进入副本战斗，退出后会回到主界面
         wait_for_main()
         logger.info(f"✅ 完成: {dungeon_name}")
+
+        # 记录通关状态
+        db.mark_dungeon_completed(zone_name, dungeon_name)
+
         sleep(CLICK_INTERVAL)
         return True
     else:
-        logger.warning("⚠️ 无免费按钮，返回")
+        # 没有免费按钮，说明今天已经通关过了，记录状态
+        logger.warning("⚠️ 无免费按钮，标记为已完成")
+        db.mark_dungeon_completed(zone_name, dungeon_name)
         click_back()
 
     return False
@@ -373,43 +280,71 @@ def main():
     logger.info("🎮 副本自动遍历脚本")
     logger.info("=" * 60 + "\n")
 
-    total_dungeons = sum(len(dungeons) for dungeons in zone_dungeons.values())
-    logger.info(f"📊 总计: {len(zone_dungeons)} 个区域, {total_dungeons} 个副本\n")
+    # 初始化数据库
+    with DungeonProgressDB() as db:
+        # 清理旧记录
+        db.cleanup_old_records(days_to_keep=7)
 
-    dungeon_index = 0
-    processed_dungeons = 0
+        # 显示今天已通关的副本
+        completed_count = db.get_today_completed_count()
+        if completed_count > 0:
+            logger.info(f"📊 今天已通关 {completed_count} 个副本")
+            completed_dungeons = db.get_today_completed_dungeons()
+            for zone, dungeon in completed_dungeons[:5]:  # 只显示前5个
+                logger.info(f"  ✅ {zone} - {dungeon}")
+            if len(completed_dungeons) > 5:
+                logger.info(f"  ... 还有 {len(completed_dungeons) - 5} 个")
+            logger.info("")
 
-    # 遍历所有区域
-    back_to_main()
-    open_map()
-    for zone_idx, (zone_name, dungeons) in enumerate(zone_dungeons.items(), 1):
-        logger.info(f"\n{'#' * 60}")
-        logger.info(f"# 🌍 [{zone_idx}/{len(zone_dungeons)}] 区域: {zone_name}")
-        logger.info(f"# 🎯 副本数: {len(dungeons)}")
-        logger.info(f"{'#' * 60}")
+        total_dungeons = sum(len(dungeons) for dungeons in zone_dungeons.values())
+        remaining_dungeons = total_dungeons - completed_count
+        logger.info(f"📊 总计: {len(zone_dungeons)} 个区域, {total_dungeons} 个副本")
+        logger.info(f"📊 剩余: {remaining_dungeons} 个副本待通关\n")
 
-        # 遍历副本
-        for dungeon_name in dungeons:
-            dungeon_index += 1
-            # 切换区域
-            if not switch_to_zone(zone_name):
-                logger.warning(f"⏭️ 跳过区域: {zone_name}")
-                continue
+        dungeon_index = 0
+        processed_dungeons = 0
 
-            # 完成副本后会回到主界面，需要重新打开地图
-            if process_dungeon(dungeon_name, dungeon_index, total_dungeons):
-                processed_dungeons += 1
-                # 每完成3个副本就卖垃圾
-                if processed_dungeons % 3 == 0:
-                    sell_trashes()
+        # 遍历所有区域
+        back_to_main()
+        open_map()
+        for zone_idx, (zone_name, dungeons) in enumerate(zone_dungeons.items(), 1):
+            logger.info(f"\n{'#' * 60}")
+            logger.info(f"# 🌍 [{zone_idx}/{len(zone_dungeons)}] 区域: {zone_name}")
+            logger.info(f"# 🎯 副本数: {len(dungeons)}")
+            logger.info(f"{'#' * 60}")
 
-                open_map()
+            # 遍历副本
+            for dungeon_name in dungeons:
+                dungeon_index += 1
 
-        logger.info(f"\n✅ 完成区域: {zone_name}")
+                # 先检查是否已通关，如果已通关则跳过，不需要切换区域
+                if db.is_dungeon_completed(zone_name, dungeon_name):
+                    logger.info(
+                        f"⏭️ [{dungeon_index}/{total_dungeons}] 已通关，跳过: {dungeon_name}"
+                    )
+                    continue
 
-    logger.info("\n" + "=" * 60)
-    logger.info("🎉 全部完成！")
-    logger.info("=" * 60 + "\n")
+                # 切换区域
+                if not switch_to_zone(zone_name):
+                    logger.warning(f"⏭️ 跳过区域: {zone_name}")
+                    continue
+
+                # 完成副本后会回到主界面，需要重新打开地图
+                if process_dungeon(
+                    dungeon_name, zone_name, dungeon_index, total_dungeons, db
+                ):
+                    processed_dungeons += 1
+                    # 每完成3个副本就卖垃圾
+                    if processed_dungeons % 3 == 0:
+                        sell_trashes()
+
+                    open_map()
+
+            logger.info(f"\n✅ 完成区域: {zone_name}")
+
+        logger.info("\n" + "=" * 60)
+        logger.info(f"🎉 全部完成！今天共通关 {db.get_today_completed_count()} 个副本")
+        logger.info("=" * 60 + "\n")
 
 
 if __name__ == "__main__":
