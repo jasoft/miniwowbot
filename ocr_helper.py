@@ -6,6 +6,8 @@ OCR Helper Class - 基于PaddleOCR的文字识别和定位工具类
 from paddleocr import PaddleOCR
 import json
 import os
+import time
+import hashlib
 from airtest.core.api import *
 import logging
 import coloredlogs
@@ -65,6 +67,26 @@ class OCRHelper:
             },
         )
 
+    def _predict_with_timing(self, image_path):
+        """
+        执行 OCR 识别并记录耗时
+
+        Args:
+            image_path (str): 图像文件路径
+
+        Returns:
+            OCR 识别结果
+        """
+        start_time = time.time()
+        result = self.ocr.predict(image_path)
+        elapsed_time = time.time() - start_time
+
+        # 获取文件名（不含路径）
+        filename = os.path.basename(image_path)
+        self.logger.info(f"⏱️ OCR识别耗时: {elapsed_time:.3f}秒 (文件: {filename})")
+
+        return result
+
     def find_text_in_image(
         self, image_path, target_text, confidence_threshold=0.5, occurrence=1
     ):
@@ -89,7 +111,7 @@ class OCRHelper:
         """
         try:
             # OCR 识别
-            result = self.ocr.predict(image_path)
+            result = self._predict_with_timing(image_path)
 
             if not result or len(result) == 0:
                 self.logger.warning(f"OCR识别结果为空: {image_path}")
@@ -355,7 +377,7 @@ class OCRHelper:
         """
         try:
             # OCR 识别
-            result = self.ocr.predict(image_path)
+            result = self._predict_with_timing(image_path)
 
             if not result or len(result) == 0:
                 self.logger.warning(f"OCR识别结果为空: {image_path}")
@@ -439,7 +461,7 @@ class OCRHelper:
         """
         try:
             # OCR 识别
-            result = self.ocr.predict(image_path)
+            result = self._predict_with_timing(image_path)
 
             if not result or len(result) == 0:
                 self.logger.warning(f"OCR识别结果为空: {image_path}")

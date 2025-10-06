@@ -21,6 +21,7 @@ import coloredlogs
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from ocr_helper import OCRHelper
 
+CLICK_INTERVAL = 1
 # 配置彩色日志
 logger = logging.getLogger(__name__)
 # 防止日志重复：移除已有的 handlers
@@ -211,7 +212,7 @@ def find_text_with_paddleocr(text, similarity_threshold=0.6):
         return None
 
 
-def find_text_and_click(text, timeout=10, similarity_threshold=0.9, occurrence=1):
+def find_text_and_click(text, timeout=10, similarity_threshold=0.7, occurrence=1):
     """
     使用 OCRHelper 查找文本并点击
     :param text: 要查找的文本
@@ -235,6 +236,7 @@ def find_text_and_click(text, timeout=10, similarity_threshold=0.9, occurrence=1
                 logger.info(f"✅ 成功点击: {text} (第{occurrence}个)")
             else:
                 logger.info(f"✅ 成功点击: {text}")
+            sleep(CLICK_INTERVAL)  # 每个点击后面停顿一下等待界面刷新
             return True
 
     if occurrence > 1:
@@ -247,9 +249,8 @@ def find_text_and_click(text, timeout=10, similarity_threshold=0.9, occurrence=1
 def click_back():
     """点击返回按钮（左上角）"""
     try:
-        width, height = device().get_current_resolution()
-        back_pos = (int(width * 0.08), int(height * 0.08))
-        touch(back_pos)
+        touch((360, 117))
+        sleep(CLICK_INTERVAL)  # 等待界面刷新
         logger.info("🔙 点击返回按钮")
         return True
     except Exception as e:
@@ -264,13 +265,7 @@ def click_free_button():
     for word in free_words:
         if find_text_and_click(word, timeout=3):
             logger.info(f"💰 点击了免费按钮: {word}")
-            wait(
-                Template(
-                    r"tpl1759654885996.png",
-                    record_pos=(0.432, -0.732),
-                    resolution=(720, 1280),
-                )
-            )
+
             return True
 
     logger.warning("⚠️ 未找到免费按钮")
@@ -278,25 +273,30 @@ def click_free_button():
 
 
 def open_map():
-    if exists(
+    while not exists(
         Template(
             r"images/tpl1759679976634.png",
             record_pos=(0.432, -0.732),
             resolution=(720, 1280),
         )
     ):
-        touch((350, 50))
-        logger.info("🗺️ 打开地图")
+        click_back()
+
+    touch((350, 50))
+    logger.info("🗺️ 打开地图")
+    sleep(CLICK_INTERVAL)
 
 
 def wait_for_main():
     """等待回到主界面"""
+    logger.info("等待战斗结束...")
     wait(
         Template(
             r"images/tpl1759679976634.png",
             record_pos=(0.432, -0.732),
             resolution=(720, 1280),
-        )
+        ),
+        timeout=180,
     )
 
 
@@ -324,17 +324,24 @@ def switch_to_zone(zone_name):
 
 
 def sell_trashes():
+    logger.info("💰 卖垃圾")
     click_back()
     find_text_and_click("装备")
     find_text_and_click("整理售卖")
     find_text_and_click("出售")
     click_back()
+    click_back()
+
+
+def back_to_main():
+    logger.info("🔙 返回主界面")
+    for _ in range(3):
+        click_back()
 
 
 def process_dungeon(dungeon_name, index, total):
-    """处理单个副本"""
+    """处理单个副本, 返回是否成功完成"""
     logger.info(f"\n🎯 [{index}/{total}] 处理副本: {dungeon_name}")
-    open_map()
 
     # 点击副本名称
     if not find_text_and_click(dungeon_name, timeout=5):
@@ -343,17 +350,16 @@ def process_dungeon(dungeon_name, index, total):
 
     # 尝试点击免费按钮
     if click_free_button():
-        # 进入副本战斗，退出后会回到主界面，这里需要再次打开地图
+        # 进入副本战斗，退出后会回到主界面
         wait_for_main()
         logger.info(f"✅ 完成: {dungeon_name}")
-        sleep(1)
-        # 可能需要返回
-        click_back()
+        sleep(CLICK_INTERVAL)
+        return True
     else:
         logger.warning("⚠️ 无免费按钮，返回")
         click_back()
 
-    return True
+    return False
 
 
 def main():
@@ -366,8 +372,10 @@ def main():
     logger.info(f"📊 总计: {len(zone_dungeons)} 个区域, {total_dungeons} 个副本\n")
 
     dungeon_index = 0
+    processed_dungeons = 0
 
     # 遍历所有区域
+    back_to_main()
     open_map()
     for zone_idx, (zone_name, dungeons) in enumerate(zone_dungeons.items(), 1):
         logger.info(f"\n{'#' * 60}")
@@ -378,14 +386,19 @@ def main():
         # 遍历副本
         for dungeon_name in dungeons:
             dungeon_index += 1
-            if dungeon_index % 3 == 0:
-                sell_trashes()
             # 切换区域
             if not switch_to_zone(zone_name):
                 logger.warning(f"⏭️ 跳过区域: {zone_name}")
                 continue
 
-            process_dungeon(dungeon_name, dungeon_index, total_dungeons)
+            # 完成副本后会回到主界面，需要重新打开地图
+            if process_dungeon(dungeon_name, dungeon_index, total_dungeons):
+                processed_dungeons += 1
+                # 每完成3个副本就卖垃圾
+                if processed_dungeons % 3 == 0:
+                    sell_trashes()
+
+                open_map()
 
         logger.info(f"\n✅ 完成区域: {zone_name}")
 
