@@ -14,7 +14,7 @@ import logging
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from airtest.core.api import connect_device, auto_setup  # noqa: E402
-from auto_dungeon_simple import select_character, find_text_and_click  # noqa: E402
+from auto_dungeon import select_character, find_text_and_click  # noqa: E402
 
 # 配置日志
 logger = logging.getLogger(__name__)

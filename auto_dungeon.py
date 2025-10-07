@@ -6,7 +6,7 @@ import os
 import logging
 import coloredlogs
 import argparse
-
+import random
 
 from airtest.core.api import (
     wait,
@@ -57,8 +57,12 @@ zone_dungeons = None
 ocr_helper = None
 
 SETTINGS_TEMPLATE = Template(
-    r"images/tpl1759679976634.png",
-    record_pos=(0.432, -0.732),
+    r"images/settings_button.png",
+    resolution=(720, 1280),
+)
+
+GIFTS_TEMPLATE = Template(
+    r"images/gifts_button.png",
     resolution=(720, 1280),
 )
 
@@ -175,8 +179,13 @@ def click_free_button():
     return False
 
 
+def is_main_world():
+    """检查是否在主世界"""
+    return exists(GIFTS_TEMPLATE)
+
+
 def open_map():
-    while not exists(SETTINGS_TEMPLATE):
+    while not is_main_world():
         click_back()
 
     touch((350, 50))
@@ -187,10 +196,12 @@ def open_map():
 def auto_combat():
     """自动战斗"""
     logger.info("自动战斗")
-    while not exists(SETTINGS_TEMPLATE):
-        for i in range(5):
-            touch((100 + i * 130, 560))
-            sleep(0.05)
+    while not is_main_world():
+        positions = [(100 + i * 130, 560) for i in range(5)]
+        random.shuffle(positions)
+        for pos in positions:
+            touch(pos)
+            sleep(0.2)
 
 
 def select_character(char_class):
@@ -205,7 +216,7 @@ def select_character(char_class):
     # 打开设置
     back_to_main()
 
-    find_text_and_click("设置")
+    touch(SETTINGS_TEMPLATE)
     sleep(1)
 
     # 返回角色选择界面
@@ -238,7 +249,7 @@ def wait_for_main():
     """等待回到主界面"""
     logger.info("等待战斗结束...")
     wait(
-        SETTINGS_TEMPLATE,
+        GIFTS_TEMPLATE,
         timeout=180,
     )
 
@@ -274,6 +285,7 @@ def sell_trashes():
     find_text_and_click("出售")
     click_back()
     click_back()
+    find_text_and_click("战斗")
 
 
 def back_to_main():
@@ -433,6 +445,7 @@ def main():
         logger.info("\n" + "=" * 60)
         logger.info(f"🎉 全部完成！今天共通关 {db.get_today_completed_count()} 个副本")
         logger.info("=" * 60 + "\n")
+        back_to_main()
 
 
 if __name__ == "__main__":
