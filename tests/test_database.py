@@ -158,5 +158,105 @@ class TestDatabaseContextManager:
                 os.remove(db_path)
 
 
+class TestMultiConfig:
+    """测试多配置功能"""
+
+    def test_different_configs_isolated(self, temp_db):
+        """测试不同配置的数据隔离"""
+        db_path = temp_db.db_path
+
+        # 配置1: default
+        with DungeonProgressDB(db_path, "default") as db:
+            db.mark_dungeon_completed("风暴群岛", "真理之地")
+            assert db.get_today_completed_count() == 1
+
+        # 配置2: main_character
+        with DungeonProgressDB(db_path, "main_character") as db:
+            db.mark_dungeon_completed("军团领域", "大墓地密室")
+            assert db.get_today_completed_count() == 1
+
+        # 验证隔离
+        with DungeonProgressDB(db_path, "default") as db:
+            assert db.get_today_completed_count() == 1
+            assert db.is_dungeon_completed("风暴群岛", "真理之地")
+            assert not db.is_dungeon_completed("军团领域", "大墓地密室")
+
+        with DungeonProgressDB(db_path, "main_character") as db:
+            assert db.get_today_completed_count() == 1
+            assert db.is_dungeon_completed("军团领域", "大墓地密室")
+            assert not db.is_dungeon_completed("风暴群岛", "真理之地")
+
+    def test_config_name_in_queries(self, temp_db):
+        """测试配置名称在查询中的使用"""
+        db_path = temp_db.db_path
+
+        # 添加不同配置的数据
+        with DungeonProgressDB(db_path, "config1") as db:
+            db.mark_dungeon_completed("风暴群岛", "真理之地")
+            db.mark_dungeon_completed("风暴群岛", "预言神殿")
+
+        with DungeonProgressDB(db_path, "config2") as db:
+            db.mark_dungeon_completed("风暴群岛", "真理之地")
+
+        # 验证统计
+        with DungeonProgressDB(db_path, "config1") as db:
+            assert db.get_today_completed_count() == 2
+            dungeons = db.get_today_completed_dungeons()
+            assert len(dungeons) == 2
+
+        with DungeonProgressDB(db_path, "config2") as db:
+            assert db.get_today_completed_count() == 1
+            dungeons = db.get_today_completed_dungeons()
+            assert len(dungeons) == 1
+
+    def test_clear_today_only_affects_current_config(self, temp_db):
+        """测试清除今天的记录只影响当前配置"""
+        db_path = temp_db.db_path
+
+        # 添加不同配置的数据
+        with DungeonProgressDB(db_path, "config1") as db:
+            db.mark_dungeon_completed("风暴群岛", "真理之地")
+
+        with DungeonProgressDB(db_path, "config2") as db:
+            db.mark_dungeon_completed("军团领域", "大墓地密室")
+
+        # 清除 config1 的数据
+        with DungeonProgressDB(db_path, "config1") as db:
+            deleted = db.clear_today()
+            assert deleted == 1
+            assert db.get_today_completed_count() == 0
+
+        # 验证 config2 的数据未受影响
+        with DungeonProgressDB(db_path, "config2") as db:
+            assert db.get_today_completed_count() == 1
+
+    def test_zone_stats_per_config(self, temp_db):
+        """测试区域统计按配置分离"""
+        db_path = temp_db.db_path
+
+        # 配置1: 多个区域
+        with DungeonProgressDB(db_path, "config1") as db:
+            db.mark_dungeon_completed("风暴群岛", "真理之地")
+            db.mark_dungeon_completed("风暴群岛", "预言神殿")
+            db.mark_dungeon_completed("军团领域", "大墓地密室")
+
+        # 配置2: 单个区域
+        with DungeonProgressDB(db_path, "config2") as db:
+            db.mark_dungeon_completed("风暴群岛", "真理之地")
+
+        # 验证统计
+        with DungeonProgressDB(db_path, "config1") as db:
+            stats = db.get_zone_stats()
+            assert len(stats) == 2
+            zone_dict = dict(stats)
+            assert zone_dict["风暴群岛"] == 2
+            assert zone_dict["军团领域"] == 1
+
+        with DungeonProgressDB(db_path, "config2") as db:
+            stats = db.get_zone_stats()
+            assert len(stats) == 1
+            assert stats[0] == ("风暴群岛", 1)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

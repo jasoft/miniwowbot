@@ -32,6 +32,7 @@ class BaseModel(Model):
 class DungeonProgress(BaseModel):
     """副本通关进度模型"""
 
+    config_name = CharField(index=True, default="default")  # 配置名称
     date = CharField(index=True)  # 日期 (YYYY-MM-DD)
     zone_name = CharField(index=True)  # 区域名称
     dungeon_name = CharField()  # 副本名称
@@ -40,15 +41,24 @@ class DungeonProgress(BaseModel):
 
     class Meta:
         table_name = "dungeon_progress"
-        indexes = ((("date", "zone_name", "dungeon_name"), True),)  # 唯一索引
+        indexes = (
+            (("config_name", "date", "zone_name", "dungeon_name"), True),
+        )  # 唯一索引
 
 
 class DungeonProgressDB:
     """副本通关进度数据库管理类"""
 
-    def __init__(self, db_path="database/dungeon_progress.db"):
-        """初始化数据库连接"""
+    def __init__(self, db_path="database/dungeon_progress.db", config_name="default"):
+        """
+        初始化数据库连接
+
+        Args:
+            db_path: 数据库文件路径
+            config_name: 配置名称，用于区分不同角色
+        """
         self.db_path = db_path
+        self.config_name = config_name
         self._init_db()
 
     def _init_db(self):
@@ -57,6 +67,7 @@ class DungeonProgressDB:
         db.connect()
         db.create_tables([DungeonProgress], safe=True)
         logger.info(f"📊 数据库初始化完成: {self.db_path}")
+        logger.info(f"🎮 当前配置: {self.config_name}")
 
     def get_today_date(self):
         """获取今天的日期字符串"""
@@ -67,7 +78,8 @@ class DungeonProgressDB:
         today = self.get_today_date()
         try:
             record = DungeonProgress.get(
-                (DungeonProgress.date == today)
+                (DungeonProgress.config_name == self.config_name)
+                & (DungeonProgress.date == today)
                 & (DungeonProgress.zone_name == zone_name)
                 & (DungeonProgress.dungeon_name == dungeon_name)
             )
@@ -82,6 +94,7 @@ class DungeonProgressDB:
 
         # 使用 insert 或 replace
         DungeonProgress.insert(
+            config_name=self.config_name,
             date=today,
             zone_name=zone_name,
             dungeon_name=dungeon_name,
@@ -89,6 +102,7 @@ class DungeonProgressDB:
             completed_at=now,
         ).on_conflict(
             conflict_target=[
+                DungeonProgress.config_name,
                 DungeonProgress.date,
                 DungeonProgress.zone_name,
                 DungeonProgress.dungeon_name,
@@ -106,7 +120,11 @@ class DungeonProgressDB:
         today = self.get_today_date()
         return (
             DungeonProgress.select()
-            .where((DungeonProgress.date == today) & (DungeonProgress.completed == 1))
+            .where(
+                (DungeonProgress.config_name == self.config_name)
+                & (DungeonProgress.date == today)
+                & (DungeonProgress.completed == 1)
+            )
             .count()
         )
 
@@ -115,7 +133,11 @@ class DungeonProgressDB:
         today = self.get_today_date()
         records = (
             DungeonProgress.select()
-            .where((DungeonProgress.date == today) & (DungeonProgress.completed == 1))
+            .where(
+                (DungeonProgress.config_name == self.config_name)
+                & (DungeonProgress.date == today)
+                & (DungeonProgress.completed == 1)
+            )
             .order_by(DungeonProgress.completed_at)
         )
         return [(r.zone_name, r.dungeon_name) for r in records]
@@ -139,7 +161,11 @@ class DungeonProgressDB:
                 DungeonProgress.zone_name,
                 fn.COUNT(DungeonProgress.id).alias("count"),
             )
-            .where((DungeonProgress.date == today) & (DungeonProgress.completed == 1))
+            .where(
+                (DungeonProgress.config_name == self.config_name)
+                & (DungeonProgress.date == today)
+                & (DungeonProgress.completed == 1)
+            )
             .group_by(DungeonProgress.zone_name)
             .order_by(fn.COUNT(DungeonProgress.id).desc())
         )
@@ -153,7 +179,8 @@ class DungeonProgressDB:
             count = (
                 DungeonProgress.select()
                 .where(
-                    (DungeonProgress.date == target_date)
+                    (DungeonProgress.config_name == self.config_name)
+                    & (DungeonProgress.date == target_date)
                     & (DungeonProgress.completed == 1)
                 )
                 .count()
@@ -162,18 +189,29 @@ class DungeonProgressDB:
         return stats
 
     def clear_today(self):
-        """清除今天的记录"""
+        """清除今天的记录（仅当前配置）"""
         today = self.get_today_date()
         deleted_count = (
-            DungeonProgress.delete().where(DungeonProgress.date == today).execute()
+            DungeonProgress.delete()
+            .where(
+                (DungeonProgress.config_name == self.config_name)
+                & (DungeonProgress.date == today)
+            )
+            .execute()
         )
-        logger.info(f"🗑️ 已清除今天的 {deleted_count} 条记录")
+        logger.info(
+            f"🗑️ 已清除今天的 {deleted_count} 条记录（配置: {self.config_name}）"
+        )
         return deleted_count
 
     def clear_all(self):
-        """清除所有记录"""
-        deleted_count = DungeonProgress.delete().execute()
-        logger.info(f"🗑️ 已清除所有 {deleted_count} 条记录")
+        """清除所有记录（仅当前配置）"""
+        deleted_count = (
+            DungeonProgress.delete()
+            .where(DungeonProgress.config_name == self.config_name)
+            .execute()
+        )
+        logger.info(f"🗑️ 已清除所有 {deleted_count} 条记录（配置: {self.config_name}）")
         return deleted_count
 
     def close(self):

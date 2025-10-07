@@ -1,0 +1,122 @@
+{
+    "description": "小号配置 - 只打简单副本",
+    "ocr_correction_map": {
+        "梦魔丛林": "梦魇丛林"
+    },
+    "class": "德鲁伊",
+    "zone_dungeons": {
+        "风暴群岛": [
+            { "name": "真理之地", "selected": false },
+            { "name": "预言神殿", "selected": false },
+            { "name": "海底王宫", "selected": false },
+            { "name": "泰坦密室", "selected": false },
+            { "name": "黑暗庄园", "selected": false },
+            { "name": "海底囚牢", "selected": false },
+            { "name": "地精岛", "selected": false },
+            { "name": "泰坦遗迹", "selected": false },
+            { "name": "海盗监狱", "selected": false },
+            { "name": "巨魔陵墓", "selected": false },
+            { "name": "毒蛇神庙", "selected": false },
+            { "name": "腐化沼泽", "selected": false },
+            { "name": "海港城", "selected": false }
+        ],
+        "军团领域": [
+            { "name": "大墓地密室", "selected": false },
+            { "name": "流放王座", "selected": false },
+            { "name": "毁灭之地", "selected": false },
+            { "name": "大墓地圣殿", "selected": false },
+            { "name": "封印地窟", "selected": false },
+            { "name": "魔能宫殿", "selected": false },
+            { "name": "魔能要塞", "selected": false },
+            { "name": "魔法高台", "selected": false },
+            { "name": "地底巢穴", "selected": false },
+            { "name": "风暴绿洲", "selected": false },
+            { "name": "渡鸦堡垒", "selected": false },
+            { "name": "梦魇丛林", "selected": false }
+        ],
+        "暗影大陆": [
+            { "name": "钢铁码头", "selected": false },
+            { "name": "食人魔王国", "selected": false },
+            { "name": "黑暗熔炉", "selected": false },
+            { "name": "通天峰", "selected": false },
+            { "name": "熔渣车间", "selected": false },
+            { "name": "食人魔矿井", "selected": false },
+            { "name": "木精圣地", "selected": false },
+            { "name": "鲜血庭院", "selected": false },
+            { "name": "钢铁车站", "selected": false },
+            { "name": "神圣陵墓", "selected": false },
+            { "name": "兽人墓地", "selected": false },
+            { "name": "毁灭高台", "selected": false }
+        ],
+        "迷雾大陆": [
+            { "name": "兽人圣殿", "selected": false },
+            { "name": "恐魔之心", "selected": false },
+            { "name": "古魔宝库", "selected": false },
+            { "name": "兽人都城", "selected": false },
+            { "name": "古魔宫殿", "selected": false },
+            { "name": "风暴之巅", "selected": false },
+            { "name": "酿酒厂", "selected": false },
+            { "name": "风暴王座", "selected": false },
+            { "name": "青龙寺", "selected": false },
+            { "name": "白虎寺", "selected": false },
+            { "name": "日落关", "selected": false },
+            { "name": "玄牛寺", "selected": false }
+        ],
+        "元素之地": [
+            { "name": "火焰宫殿", "selected": false },
+            { "name": "守护者神殿", "selected": false },
+            { "name": "黑龙宫殿", "selected": false },
+            { "name": "黑暗堡垒", "selected": false },
+            { "name": "潮汐宫殿", "selected": false },
+            { "name": "黑暗监狱", "selected": false },
+            { "name": "泰坦密室", "selected": false },
+            { "name": "大地神殿", "selected": false },
+            { "name": "失落之城", "selected": false },
+            { "name": "天空之城", "selected": false },
+            { "name": "黑石熔炉", "selected": false }
+        ],
+        "冰封大陆": [
+            { "name": "泰坦基地", "selected": false },
+            { "name": "冠军试炼", "selected": false },
+            { "name": "寒冰堡垒", "selected": false },
+            { "name": "寒冰王座", "selected": false },
+            { "name": "灵魂熔炉", "selected": false },
+            { "name": "瘟疫之城", "selected": false },
+            { "name": "古代大厅", "selected": false },
+            { "name": "古代王国", "selected": false },
+            { "name": "巨魔要塞", "selected": false },
+            { "name": "峡湾城堡", "selected": false },
+            { "name": "蓝龙巢穴", "selected": false }
+        ],
+        "虚空领域": [
+            { "name": "魔法之井", "selected": false },
+            { "name": "虚空要塞", "selected": false },
+            { "name": "海底神殿", "selected": false },
+            { "name": "守护者之塔上层", "selected": false },
+            { "name": "黑暗神殿", "selected": false },
+            { "name": "守护者之塔下层", "selected": false },
+            { "name": "圣山战场", "selected": false },
+            { "name": "虚空舰", "selected": false },
+            { "name": "沼泽水库", "selected": false },
+            { "name": "山丘城堡", "selected": false },
+            { "name": "地狱火堡垒", "selected": false },
+            { "name": "亡者之城", "selected": false }
+        ],
+        "东部大陆": [
+            { "name": "亡灵要塞", "selected": true },
+            { "name": "黑龙巢穴", "selected": false },
+            { "name": "火焰之心", "selected": false },
+            { "name": "巨石密室", "selected": false },
+            { "name": "诅咒教堂", "selected": false },
+            { "name": "盗贼矿井", "selected": false },
+            { "name": "机械要塞", "selected": false },
+            { "name": "巨魔墓地", "selected": false },
+            { "name": "噩梦洞穴", "selected": false },
+            { "name": "野猪人高地", "selected": false },
+            { "name": "水晶庭院", "selected": false },
+            { "name": "龙人塔", "selected": false },
+            { "name": "精灵遗迹", "selected": false },
+            { "name": "沉没的神庙", "selected": false }
+        ]
+    }
+}

@@ -1,5 +1,192 @@
 # 更新日志
 
+## [4.1.0] - 2025-01-07
+
+### ✨ 新增功能：角色职业选择
+
+#### 核心功能
+- ✅ 配置文件支持 `class` 字段指定角色职业
+- ✅ 自动选择角色并等待加载完成
+- ✅ 支持战士、法师、刺客、猎人、圣骑士等职业
+
+#### 实现细节
+- ✅ 完善 `select_character(char_class)` 函数
+  - 使用 OCR 查找职业文字位置
+  - 点击文字上方 30 像素的角色头像
+  - 等待角色加载（约 10 秒）
+  - 调用 `wait_for_main()` 等待回到主界面
+- ✅ 配置加载器添加 `get_char_class()` 方法
+- ✅ 主程序在初始化后自动选择角色
+
+#### 配置文件变化
+- 新增 `class` 字段（可选）：指定角色职业名称
+- 示例：`"class": "战士"`
+- 如果未配置，跳过角色选择
+
+#### 测试更新
+- ✅ 添加 `test_get_char_class()` 测试
+- ✅ 更新测试以使用新的配置文件（warrior.json, mage.json 等）
+- ✅ 所有 20 个测试通过
+
+## [4.0.0] - 2025-01-16
+
+### 🎉 重大更新：多角色配置支持
+
+#### 核心功能
+- ✅ 支持从 JSON 文件加载副本配置
+- ✅ 不同角色使用不同的配置文件
+- ✅ 通过命令行参数指定配置文件
+- ✅ 数据库添加配置名称字段，区分不同角色的进度
+
+#### 新增文件
+- ✅ `config_loader.py` - 配置加载器模块
+- ✅ `configs/default.json` - 默认配置（所有副本）
+- ✅ `configs/main_character.json` - 主力角色配置
+- ✅ `configs/alt_character.json` - 小号配置
+
+#### 数据库改进
+- ✅ `DungeonProgress` 模型添加 `config_name` 字段
+- ✅ 唯一索引更新为 `(config_name, date, zone_name, dungeon_name)`
+- ✅ 所有查询和统计方法支持配置名称过滤
+- ✅ 清理操作仅影响当前配置的数据
+
+#### 主程序更新
+- ✅ 支持 `-c/--config` 命令行参数指定配置文件
+- ✅ 默认使用 `configs/default.json`
+- ✅ 动态加载配置和初始化
+
+#### 进度查看工具更新
+- ✅ 支持 `-c/--config` 参数查看指定配置的进度
+- ✅ 默认查看 `default` 配置
+
+### 📖 使用说明
+
+#### 运行不同角色配置
+
+```bash
+# 使用默认配置
+python auto_dungeon_simple.py
+
+# 使用主力角色配置
+python auto_dungeon_simple.py -c configs/main_character.json
+
+# 使用小号配置
+python auto_dungeon_simple.py -c configs/alt_character.json
+```
+
+#### 查看不同角色进度
+
+```bash
+# 查看默认配置进度
+python view_progress.py
+
+# 查看主力角色进度
+python view_progress.py -c main_character
+
+# 查看小号进度
+python view_progress.py -c alt_character
+```
+
+#### 创建自定义配置
+
+复制现有配置文件并修改：
+
+```bash
+cp configs/default.json configs/my_character.json
+# 编辑 configs/my_character.json
+python auto_dungeon_simple.py -c configs/my_character.json
+```
+
+### 🔧 配置文件格式
+
+```json
+{
+  "description": "配置描述",
+  "ocr_correction_map": {
+    "梦魔丛林": "梦魇丛林"
+  },
+  "zone_dungeons": {
+    "风暴群岛": [
+      {"name": "真理之地", "selected": true},
+      {"name": "预言神殿", "selected": false}
+    ]
+  }
+}
+```
+
+### ⚠️ 重要提示
+
+- 数据库结构已更新，旧数据会自动迁移（`config_name` 默认为 "default"）
+- 不同配置的进度完全独立，互不影响
+- 配置文件名（不含扩展名）会作为配置名称存储在数据库中
+
+---
+
+## [3.2.0] - 2025-01-16
+
+### ✨ 新增功能
+
+#### 副本选定功能
+- ✅ 副本配置新增 `selected` 字段，支持选择性打副本
+- ✅ 未选定的副本会自动跳过，不会进入战斗
+- ✅ 新增 `get_all_selected_dungeons()` - 获取所有选定的副本
+- ✅ 新增 `get_selected_dungeon_count()` - 获取选定的副本总数
+- ✅ 新增 `get_selected_dungeons_by_zone()` - 获取指定区域的选定副本
+- ✅ 新增 `is_dungeon_selected()` - 检查副本是否被选定
+- ✅ 新增 `set_dungeon_selected()` - 设置副本的选定状态
+
+### 🔧 优化改进
+
+#### 配置文件优化
+- ✅ 副本配置从字符串列表改为字典列表
+- ✅ 每个副本包含 `name` 和 `selected` 两个字段
+- ✅ 默认所有副本都被选定（`selected: True`）
+- ✅ 保持向后兼容，所有辅助函数正常工作
+
+#### 主程序优化
+- ✅ 自动跳过未选定的副本
+- ✅ 日志显示跳过原因（未选定/已通关）
+- ✅ 统计信息更准确
+
+### 🧪 测试完善
+
+#### 新增测试用例
+- ✅ 测试所有副本都有 `selected` 字段
+- ✅ 测试获取选定副本功能
+- ✅ 测试副本选定状态检查
+- ✅ 测试副本选定状态设置
+- ✅ 所有测试通过（28/28）
+
+### 📖 使用说明
+
+#### 如何选择性打副本
+
+编辑 `dungeon_config.py`，将不想打的副本的 `selected` 设置为 `False`：
+
+```python
+ZONE_DUNGEONS = {
+    "风暴群岛": [
+        {"name": "真理之地", "selected": True},   # 会打
+        {"name": "预言神殿", "selected": False},  # 跳过
+        {"name": "海底王宫", "selected": True},   # 会打
+    ],
+}
+```
+
+或者使用代码动态设置：
+
+```python
+from dungeon_config import set_dungeon_selected
+
+# 取消选定某个副本
+set_dungeon_selected("预言神殿", False)
+
+# 重新选定某个副本
+set_dungeon_selected("预言神殿", True)
+```
+
+---
+
 ## [3.1.0] - 2025-01-16
 
 ### 🎯 项目结构优化

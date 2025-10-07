@@ -14,8 +14,15 @@ from database import DungeonProgressDB
 class ProgressViewer:
     """进度查看器"""
 
-    def __init__(self, db_path="dungeon_progress.db"):
-        self.db = DungeonProgressDB(db_path)
+    def __init__(self, db_path="database/dungeon_progress.db", config_name="default"):
+        """
+        初始化进度查看器
+
+        Args:
+            db_path: 数据库文件路径
+            config_name: 配置名称
+        """
+        self.db = DungeonProgressDB(db_path, config_name)
 
     def show_today_progress(self):
         """显示今天的通关进度"""
@@ -91,7 +98,16 @@ class ProgressViewer:
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(description="副本通关进度查看工具")
-    parser.add_argument("--db", default="dungeon_progress.db", help="数据库文件路径")
+    parser.add_argument(
+        "--db", default="database/dungeon_progress.db", help="数据库文件路径"
+    )
+    parser.add_argument(
+        "-c",
+        "--config",
+        type=str,
+        default="default",
+        help="配置名称 (默认: default)",
+    )
     parser.add_argument("--today", action="store_true", help="显示今天的通关记录")
     parser.add_argument("--recent", type=int, metavar="DAYS", help="显示最近N天的统计")
     parser.add_argument("--zones", action="store_true", help="显示各区域统计")
@@ -100,7 +116,7 @@ def main():
 
     args = parser.parse_args()
 
-    viewer = ProgressViewer(args.db)
+    viewer = ProgressViewer(args.db, args.config)
 
     try:
         # 如果没有指定任何参数，显示默认信息

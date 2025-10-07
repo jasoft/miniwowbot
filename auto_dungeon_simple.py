@@ -1,26 +1,29 @@
 # -*- encoding=utf8 -*-
 __author__ = "Airtest"
+import time
+import sys
+import os
+import logging
+import coloredlogs
+import argparse
+
 
 from airtest.core.api import (
-    connect_device,
-    auto_setup,
     wait,
     sleep,
     touch,
     exists,
     Template,
 )
-import time
-import sys
-import os
-import logging
-import coloredlogs
 
-# 导入自定义的OCR工具类、数据库模块和配置
+# 设置 Airtest 日志级别
+airtest_logger = logging.getLogger("airtest")
+airtest_logger.setLevel(logging.ERROR)
+
+# 导入自定义的数据库模块和配置
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from ocr_helper import OCRHelper
-from database import DungeonProgressDB
-from dungeon_config import OCR_CORRECTION_MAP, ZONE_DUNGEONS
+from database import DungeonProgressDB  # noqa: E402
+from config_loader import load_config  # noqa: E402
 
 CLICK_INTERVAL = 1
 # 配置彩色日志
@@ -47,21 +50,17 @@ coloredlogs.install(
     },
 )
 
-# 设置 Airtest 日志级别
-airtest_logger = logging.getLogger("airtest")
-airtest_logger.setLevel(logging.ERROR)
 
-# 使用配置文件中的副本字典
-# 如果需要修改副本列表或 OCR 纠正映射，请编辑 dungeon_config.py
-zone_dungeons = ZONE_DUNGEONS
+# 全局变量，将在 main 函数中初始化
+config_loader = None
+zone_dungeons = None
+ocr_helper = None
 
-
-# 初始化设备
-connect_device("Android:///")
-auto_setup(__file__)
-
-# 初始化OCR工具类
-ocr_helper = OCRHelper(output_dir="output")
+SETTINGS_TEMPLATE = Template(
+    r"images/tpl1759679976634.png",
+    record_pos=(0.432, -0.732),
+    resolution=(720, 1280),
+)
 
 
 def find_text_with_paddleocr(text, similarity_threshold=0.6):
@@ -114,11 +113,12 @@ def find_text_and_click(
     texts_to_try = [text]
 
     # 检查是否有对应的 OCR 纠正映射（反向查找）
-    for ocr_text, correct_text in OCR_CORRECTION_MAP.items():
-        if correct_text == text:
-            texts_to_try.append(ocr_text)
-            logger.debug(f"💡 将同时尝试查找 OCR 可能识别的文本: {ocr_text}")
-            break
+    if config_loader:
+        for ocr_text, correct_text in config_loader.get_ocr_correction_map().items():
+            if correct_text == text:
+                texts_to_try.append(ocr_text)
+                logger.debug(f"💡 将同时尝试查找 OCR 可能识别的文本: {ocr_text}")
+                break
 
     while time.time() - start_time < timeout:
         # 尝试所有可能的文本
@@ -176,13 +176,7 @@ def click_free_button():
 
 
 def open_map():
-    while not exists(
-        Template(
-            r"images/tpl1759679976634.png",
-            record_pos=(0.432, -0.732),
-            resolution=(720, 1280),
-        )
-    ):
+    while not exists(SETTINGS_TEMPLATE):
         click_back()
 
     touch((350, 50))
@@ -190,15 +184,61 @@ def open_map():
     sleep(CLICK_INTERVAL)
 
 
+def auto_combat():
+    """自动战斗"""
+    logger.info("自动战斗")
+    while not exists(SETTINGS_TEMPLATE):
+        for i in range(5):
+            touch((100 + i * 130, 560))
+            sleep(0.05)
+
+
+def select_character(char_class):
+    """
+    选择角色
+
+    Args:
+        char_class: 角色职业名称（如：战士、法师、刺客等）
+    """
+    logger.info(f"⚔️ 选择角色: {char_class}")
+
+    # 打开设置
+    back_to_main()
+
+    find_text_and_click("设置")
+    sleep(1)
+
+    # 返回角色选择界面
+    find_text_and_click("返回角色选择界面")
+    sleep(10)
+
+    # 查找职业文字位置
+    logger.info(f"🔍 查找职业: {char_class}")
+    pos = find_text_with_paddleocr(char_class, similarity_threshold=0.6)
+
+    if pos:
+        # 点击文字上方 60 像素的位置
+        click_x = pos[0]
+        click_y = pos[1] - 60
+        logger.info(f"👆 点击角色位置: ({click_x}, {click_y})")
+        touch((click_x, click_y))
+        sleep(1)
+
+        # 等待回到主界面
+        logger.info(f"✅ 成功选择角色: {char_class}")
+    else:
+        logger.error(f"❌ 未找到职业: {char_class}")
+        raise Exception(f"无法找到职业: {char_class}")
+
+    find_text_and_click("进入游戏")
+    wait_for_main()
+
+
 def wait_for_main():
     """等待回到主界面"""
     logger.info("等待战斗结束...")
     wait(
-        Template(
-            r"images/tpl1759679976634.png",
-            record_pos=(0.432, -0.732),
-            resolution=(720, 1280),
-        ),
+        SETTINGS_TEMPLATE,
         timeout=180,
     )
 
@@ -257,7 +297,7 @@ def process_dungeon(dungeon_name, zone_name, index, total, db):
     # 尝试点击免费按钮
     if click_free_button():
         # 进入副本战斗，退出后会回到主界面
-        wait_for_main()
+        auto_combat()
         logger.info(f"✅ 完成: {dungeon_name}")
 
         # 记录通关状态
@@ -276,12 +316,51 @@ def process_dungeon(dungeon_name, zone_name, index, total, db):
 
 def main():
     """主函数"""
+    global config_loader, zone_dungeons, ocr_helper
+
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description="副本自动遍历脚本")
+    parser.add_argument(
+        "-c",
+        "--config",
+        type=str,
+        default="configs/default.json",
+        help="配置文件路径 (默认: configs/default.json)",
+    )
+    args = parser.parse_args()
+
     logger.info("\n" + "=" * 60)
     logger.info("🎮 副本自动遍历脚本")
     logger.info("=" * 60 + "\n")
 
+    # 加载配置
+    try:
+        config_loader = load_config(args.config)
+        zone_dungeons = config_loader.get_zone_dungeons()
+    except Exception as e:
+        logger.error(f"❌ 加载配置失败: {e}")
+        sys.exit(1)
+
+    # 初始化设备
+    from airtest.core.api import connect_device, auto_setup
+
+    connect_device("Android:///")
+    auto_setup(__file__)
+
+    # 初始化OCR工具类
+    from ocr_helper import OCRHelper
+
+    ocr_helper = OCRHelper(output_dir="output")
+
+    # 选择角色（如果配置了职业）
+    char_class = config_loader.get_char_class()
+    if char_class:
+        select_character(char_class)
+    else:
+        logger.info("⚠️ 未配置角色职业，跳过角色选择")
+
     # 初始化数据库
-    with DungeonProgressDB() as db:
+    with DungeonProgressDB(config_name=config_loader.get_config_name()) as db:
         # 清理旧记录
         db.cleanup_old_records(days_to_keep=7)
 
@@ -314,8 +393,17 @@ def main():
             logger.info(f"{'#' * 60}")
 
             # 遍历副本
-            for dungeon_name in dungeons:
+            for dungeon_dict in dungeons:
+                dungeon_name = dungeon_dict["name"]
+                is_selected = dungeon_dict["selected"]
                 dungeon_index += 1
+
+                # 检查是否选定该副本
+                if not is_selected:
+                    logger.info(
+                        f"⏭️ [{dungeon_index}/{total_dungeons}] 未选定，跳过: {dungeon_name}"
+                    )
+                    continue
 
                 # 先检查是否已通关，如果已通关则跳过，不需要切换区域
                 if db.is_dungeon_completed(zone_name, dungeon_name):

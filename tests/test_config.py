@@ -16,12 +16,17 @@ from dungeon_config import (
     ZONE_DUNGEONS,
     correct_ocr_text,
     get_all_dungeons,
+    get_all_selected_dungeons,
     get_dungeon_count,
+    get_selected_dungeon_count,
     get_zone_count,
     get_dungeons_by_zone,
+    get_selected_dungeons_by_zone,
     is_valid_zone,
     is_valid_dungeon,
     get_zone_by_dungeon,
+    is_dungeon_selected,
+    set_dungeon_selected,
 )
 
 
@@ -67,7 +72,11 @@ class TestZoneDungeons:
             assert isinstance(dungeons, list)
             assert len(dungeons) > 0
             for dungeon in dungeons:
-                assert isinstance(dungeon, str)
+                assert isinstance(dungeon, dict)
+                assert "name" in dungeon
+                assert "selected" in dungeon
+                assert isinstance(dungeon["name"], str)
+                assert isinstance(dungeon["selected"], bool)
 
     def test_specific_zones_exist(self):
         """测试特定区域存在"""
@@ -76,8 +85,10 @@ class TestZoneDungeons:
 
     def test_specific_dungeons_exist(self):
         """测试特定副本存在"""
-        assert "真理之地" in ZONE_DUNGEONS["风暴群岛"]
-        assert "梦魇丛林" in ZONE_DUNGEONS["军团领域"]
+        storm_dungeons = [d["name"] for d in ZONE_DUNGEONS["风暴群岛"]]
+        legion_dungeons = [d["name"] for d in ZONE_DUNGEONS["军团领域"]]
+        assert "真理之地" in storm_dungeons
+        assert "梦魇丛林" in legion_dungeons
 
 
 class TestHelperFunctions:
@@ -112,7 +123,9 @@ class TestHelperFunctions:
         dungeons = get_dungeons_by_zone("风暴群岛")
         assert isinstance(dungeons, list)
         assert len(dungeons) > 0
-        assert "真理之地" in dungeons
+        # 现在返回的是字典列表，需要检查 name 字段
+        dungeon_names = [d["name"] for d in dungeons]
+        assert "真理之地" in dungeon_names
 
     def test_get_dungeons_by_zone_invalid(self):
         """测试获取指定区域的副本列表（无效区域）"""
@@ -176,6 +189,64 @@ class TestOCRCorrectionIntegration:
             assert not is_valid_dungeon(ocr_text)
 
 
+class TestDungeonSelection:
+    """测试副本选定功能"""
+
+    def test_all_dungeons_have_selected_field(self):
+        """测试所有副本都有 selected 字段"""
+        for zone_name, dungeons in ZONE_DUNGEONS.items():
+            for dungeon in dungeons:
+                assert "selected" in dungeon
+                assert isinstance(dungeon["selected"], bool)
+
+    def test_get_all_selected_dungeons(self):
+        """测试获取所有选定的副本"""
+        selected = get_all_selected_dungeons()
+        assert isinstance(selected, list)
+        # 默认所有副本都应该被选定
+        all_dungeons = get_all_dungeons()
+        assert len(selected) == len(all_dungeons)
+
+    def test_get_selected_dungeon_count(self):
+        """测试获取选定的副本总数"""
+        count = get_selected_dungeon_count()
+        assert isinstance(count, int)
+        assert count > 0
+        # 默认应该等于总副本数
+        assert count == get_dungeon_count()
+
+    def test_get_selected_dungeons_by_zone(self):
+        """测试获取指定区域的选定副本"""
+        selected = get_selected_dungeons_by_zone("风暴群岛")
+        assert isinstance(selected, list)
+        # 默认所有副本都应该被选定
+        all_dungeons = get_dungeons_by_zone("风暴群岛")
+        assert len(selected) == len(all_dungeons)
+
+    def test_is_dungeon_selected(self):
+        """测试检查副本是否被选定"""
+        # 默认所有副本都应该被选定
+        assert is_dungeon_selected("真理之地") is True
+        assert is_dungeon_selected("梦魇丛林") is True
+        # 不存在的副本应该返回 False
+        assert is_dungeon_selected("不存在的副本") is False
+
+    def test_set_dungeon_selected(self):
+        """测试设置副本的选定状态"""
+        # 取消选定
+        result = set_dungeon_selected("真理之地", False)
+        assert result is True
+        assert is_dungeon_selected("真理之地") is False
+
+        # 重新选定
+        result = set_dungeon_selected("真理之地", True)
+        assert result is True
+        assert is_dungeon_selected("真理之地") is True
+
+        # 设置不存在的副本应该返回 False
+        result = set_dungeon_selected("不存在的副本", False)
+        assert result is False
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-

@@ -8,7 +8,7 @@ import json
 import os
 import time
 import cv2
-from airtest.core.api import *
+from airtest.core.api import snapshot, touch
 from airtest.aircv.cal_confidence import cal_ccoeff_confidence
 import logging
 import coloredlogs
@@ -23,6 +23,8 @@ class OCRHelper:
         use_doc_orientation_classify=False,
         use_doc_unwarping=False,
         use_textline_orientation=False,
+        resize_image=True,
+        max_width=960,
     ):
         """
         初始化OCR Helper
@@ -32,16 +34,21 @@ class OCRHelper:
             use_doc_orientation_classify (bool): 是否使用文档方向分类模型
             use_doc_unwarping (bool): 是否使用文本图像矫正模型
             use_textline_orientation (bool): 是否使用文本行方向分类模型
+            resize_image (bool): 是否自动缩小图片以提升速度
+            max_width (int): 图片最大宽度，默认960（建议在640-960之间）
         """
         self.output_dir = output_dir
+        self.resize_image = resize_image
+        self.max_width = max_width
+
         self.ocr = PaddleOCR(
-            use_doc_orientation_classify=False,
-            use_doc_unwarping=False,
-            use_textline_orientation=False,
+            use_doc_orientation_classify=use_doc_orientation_classify,
+            use_doc_unwarping=use_doc_unwarping,
+            use_textline_orientation=use_textline_orientation,
             text_detection_model_name="PP-OCRv5_mobile_det",
             text_recognition_model_name="PP-OCRv5_mobile_rec",
             lang="ch",
-            cpu_threads=16,
+            cpu_threads=4,  # M4 效率核心，减少线程竞争
         )
 
         # 创建输出目录
@@ -55,7 +62,7 @@ class OCRHelper:
         self.logger.propagate = False
 
         coloredlogs.install(
-            level="DEBUG",
+            level="INFO",
             logger=self.logger,
             fmt="%(asctime)s %(name)s %(levelname)s %(message)s",
             datefmt="%H:%M:%S",
@@ -199,6 +206,51 @@ class OCRHelper:
         except Exception as e:
             self.logger.error(f"保存缓存失败: {e}")
 
+    def _resize_image_for_ocr(self, image_path):
+        """
+        调整图片大小以加速 OCR 识别
+
+        Args:
+            image_path (str): 原始图片路径
+
+        Returns:
+            str: 调整后的图片路径（如果需要调整），否则返回原路径
+        """
+        if not self.resize_image:
+            return image_path
+
+        try:
+            img = cv2.imread(image_path)
+            if img is None:
+                return image_path
+
+            height, width = img.shape[:2]
+
+            # 如果图片宽度大于最大宽度，进行缩放
+            if width > self.max_width:
+                scale = self.max_width / width
+                new_width = self.max_width
+                new_height = int(height * scale)
+
+                # 缩小图片
+                resized_img = cv2.resize(
+                    img, (new_width, new_height), interpolation=cv2.INTER_AREA
+                )
+
+                # 保存到临时文件
+                temp_path = image_path.replace(".png", "_resized.png")
+                cv2.imwrite(temp_path, resized_img)
+
+                self.logger.debug(
+                    f"🔧 图片已缩小: {width}x{height} -> {new_width}x{new_height}"
+                )
+                return temp_path
+
+            return image_path
+        except Exception as e:
+            self.logger.warning(f"图片缩放失败: {e}，使用原图")
+            return image_path
+
     def _predict_with_timing(self, image_path):
         """
         执行 OCR 识别并记录耗时
@@ -209,12 +261,22 @@ class OCRHelper:
         Returns:
             OCR 识别结果
         """
+        # 预处理：缩小图片
+        processed_image_path = self._resize_image_for_ocr(image_path)
+
         start_time = time.time()
-        result = self.ocr.predict(image_path)
+        result = self.ocr.predict(processed_image_path)
         elapsed_time = time.time() - start_time
 
         filename = os.path.basename(image_path)
         self.logger.info(f"⏱️ OCR识别耗时: {elapsed_time:.3f}秒 (文件: {filename})")
+
+        # 清理临时文件
+        if processed_image_path != image_path and os.path.exists(processed_image_path):
+            try:
+                os.remove(processed_image_path)
+            except Exception:
+                pass
 
         return result
 

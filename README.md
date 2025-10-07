@@ -1,10 +1,13 @@
 # 副本自动遍历脚本
 
-自动遍历游戏副本，支持进度保存和 OCR 识别纠正。
+自动遍历游戏副本，支持多角色配置、进度保存和 OCR 识别纠正。
 
 ## 功能特性
 
+- ✅ 多角色配置支持（新增）
+- ✅ JSON 配置文件管理
 - ✅ 自动遍历所有副本
+- ✅ 选择性打副本
 - ✅ 记录每天的通关进度
 - ✅ 智能跳过已通关副本
 - ✅ OCR 识别纠正
@@ -21,29 +24,84 @@ uv pip install peewee pytest
 ### 运行脚本
 
 ```bash
+# 使用默认配置
 python auto_dungeon_simple.py
+
+# 使用主力角色配置
+python auto_dungeon_simple.py -c configs/main_character.json
+
+# 使用小号配置
+python auto_dungeon_simple.py -c configs/alt_character.json
 ```
 
 ### 查看进度
 
 ```bash
+# 查看默认配置进度
 python view_progress.py
+
+# 查看主力角色进度
+python view_progress.py -c main_character
+
+# 查看小号进度
+python view_progress.py -c alt_character
 ```
 
 ## 配置
 
-### 修改副本列表
+### 多角色配置（新增）
 
-编辑 `dungeon_config.py` 中的 `ZONE_DUNGEONS`。
+#### 创建配置文件
 
-### 添加 OCR 纠正
+复制现有配置并修改：
 
-编辑 `dungeon_config.py` 中的 `OCR_CORRECTION_MAP`：
+```bash
+cp configs/default.json configs/my_character.json
+```
 
-```python
-OCR_CORRECTION_MAP = {
-    "梦魔丛林": "梦魇丛林",  # OCR 把"魇"识别成"魔"
-    # 添加更多纠正规则...
+编辑 `configs/my_character.json`：
+
+```json
+{
+  "description": "我的角色配置",
+  "ocr_correction_map": {
+    "梦魔丛林": "梦魇丛林"
+  },
+  "zone_dungeons": {
+    "风暴群岛": [
+      {"name": "真理之地", "selected": true},
+      {"name": "预言神殿", "selected": false},
+      {"name": "海底王宫", "selected": true}
+    ]
+  }
+}
+```
+
+#### 使用配置
+
+```bash
+python auto_dungeon_simple.py -c configs/my_character.json
+```
+
+### 预设配置
+
+- `configs/default.json` - 默认配置，所有副本都打
+- `configs/main_character.json` - 主力角色配置，选择性打副本
+- `configs/alt_character.json` - 小号配置，打简单副本
+
+### 配置文件格式
+
+```json
+{
+  "description": "配置描述（可选）",
+  "ocr_correction_map": {
+    "OCR错误文本": "正确文本"
+  },
+  "zone_dungeons": {
+    "区域名称": [
+      {"name": "副本名称", "selected": true}
+    ]
+  }
 }
 ```
 
