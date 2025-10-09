@@ -227,3 +227,79 @@ class DungeonProgressDB:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """支持 with 语句"""
         self.close()
+
+    def get_all_configs(self):
+        """获取所有配置名称"""
+        query = (
+            DungeonProgress.select(DungeonProgress.config_name)
+            .distinct()
+            .order_by(DungeonProgress.config_name)
+        )
+        return [r.config_name for r in query]
+
+    def get_config_stats(self, config_name, target_date=None):
+        """
+        获取指定配置的统计信息
+
+        Args:
+            config_name: 配置名称
+            target_date: 目标日期，默认为今天
+
+        Returns:
+            dict: 包含统计信息的字典
+        """
+        if target_date is None:
+            target_date = self.get_today_date()
+
+        # 总通关数
+        total_count = (
+            DungeonProgress.select()
+            .where(
+                (DungeonProgress.config_name == config_name)
+                & (DungeonProgress.date == target_date)
+                & (DungeonProgress.completed == 1)
+            )
+            .count()
+        )
+
+        # 各区域统计
+        zone_stats = (
+            DungeonProgress.select(
+                DungeonProgress.zone_name,
+                fn.COUNT(DungeonProgress.id).alias("count"),
+            )
+            .where(
+                (DungeonProgress.config_name == config_name)
+                & (DungeonProgress.date == target_date)
+                & (DungeonProgress.completed == 1)
+            )
+            .group_by(DungeonProgress.zone_name)
+            .order_by(fn.COUNT(DungeonProgress.id).desc())
+        )
+
+        return {
+            "config_name": config_name,
+            "total_count": total_count,
+            "zone_stats": [(r.zone_name, r.count) for r in zone_stats],
+        }
+
+    def get_all_configs_stats(self, target_date=None):
+        """
+        获取所有配置的统计信息
+
+        Args:
+            target_date: 目标日期，默认为今天
+
+        Returns:
+            list: 包含所有配置统计信息的列表
+        """
+        if target_date is None:
+            target_date = self.get_today_date()
+
+        configs = self.get_all_configs()
+        stats = []
+        for config in configs:
+            config_stat = self.get_config_stats(config, target_date)
+            stats.append(config_stat)
+
+        return stats

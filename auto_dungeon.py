@@ -60,6 +60,7 @@ SETTINGS_TEMPLATE = Template(
     r"images/settings_button.png",
     resolution=(720, 1280),
 )
+SETTINGS_POINT = (669, 107)
 
 GIFTS_TEMPLATE = Template(
     r"images/gifts_button.png",
@@ -185,8 +186,7 @@ def is_main_world():
 
 
 def open_map():
-    while not is_main_world():
-        click_back()
+    back_to_main()
 
     touch((350, 50))
     logger.info("🗺️ 打开地图")
@@ -213,15 +213,35 @@ def select_character(char_class):
     """
     logger.info(f"⚔️ 选择角色: {char_class}")
 
-    # 打开设置
-    back_to_main()
+    # 检查是否存在错误对话框
+    error_templates = [
+        Template(r"images/error_duplogin.png", resolution=(720, 1280)),
+        Template(r"images/error_network.png", resolution=(720, 1280)),
+    ]
 
-    touch(SETTINGS_TEMPLATE)
-    sleep(1)
+    ok_button_template = Template(r"images/ok_button.png", resolution=(720, 1280))
 
-    # 返回角色选择界面
-    find_text_and_click("返回角色选择界面")
-    sleep(10)
+    for error_template in error_templates:
+        if exists(error_template):
+            logger.warning("⚠️ 检测到错误对话框")
+            if exists(ok_button_template):
+                touch(ok_button_template)
+                logger.info("✅ 点击OK按钮关闭错误对话框")
+                sleep(1)
+            break
+
+    if not exists(
+        Template(r"images/enter_game_button.png", resolution=(720, 1280))
+    ):  # 如果不在选择角色界面，返回选择界面
+        back_to_main()
+        touch(SETTINGS_POINT)
+        sleep(1)
+
+        # 返回角色选择界面
+        find_text_and_click("返回角色选择界面")
+        wait(Template(r"images/enter_game_button.png", resolution=(720, 1280)), 10)
+    else:
+        logger.info("已在角色选择界面")
 
     # 查找职业文字位置
     logger.info(f"🔍 查找职业: {char_class}")
@@ -290,7 +310,7 @@ def sell_trashes():
 
 def back_to_main():
     logger.info("🔙 返回主界面")
-    for _ in range(3):
+    while not is_main_world():
         click_back()
 
 
@@ -353,25 +373,7 @@ def main():
         logger.error(f"❌ 加载配置失败: {e}")
         sys.exit(1)
 
-    # 初始化设备
-    from airtest.core.api import connect_device, auto_setup
-
-    connect_device("Android:///")
-    auto_setup(__file__)
-
-    # 初始化OCR工具类
-    from ocr_helper import OCRHelper
-
-    ocr_helper = OCRHelper(output_dir="output")
-
-    # 选择角色（如果配置了职业）
-    char_class = config_loader.get_char_class()
-    if char_class:
-        select_character(char_class)
-    else:
-        logger.info("⚠️ 未配置角色职业，跳过角色选择")
-
-    # 初始化数据库
+    # 初始化数据库（先检查进度）
     with DungeonProgressDB(config_name=config_loader.get_config_name()) as db:
         # 清理旧记录
         db.cleanup_old_records(days_to_keep=7)
@@ -387,17 +389,49 @@ def main():
                 logger.info(f"  ... 还有 {len(completed_dungeons) - 5} 个")
             logger.info("")
 
+        # 计算选定的副本总数
+        total_selected_dungeons = sum(
+            sum(1 for d in dungeons if d.get("selected", True))
+            for dungeons in zone_dungeons.values()
+        )
         total_dungeons = sum(len(dungeons) for dungeons in zone_dungeons.values())
-        remaining_dungeons = total_dungeons - completed_count
+
         logger.info(f"📊 总计: {len(zone_dungeons)} 个区域, {total_dungeons} 个副本")
+        logger.info(f"📊 选定: {total_selected_dungeons} 个副本")
+        logger.info(f"📊 已完成: {completed_count} 个副本")
+
+        # 检查是否所有选定的副本都已完成
+        if completed_count >= total_selected_dungeons:
+            logger.info("\n" + "=" * 60)
+            logger.info("🎉 今天所有选定的副本都已完成！")
+            logger.info("=" * 60)
+            logger.info("💤 无需执行任何操作，脚本退出")
+            return
+
+        remaining_dungeons = total_selected_dungeons - completed_count
         logger.info(f"📊 剩余: {remaining_dungeons} 个副本待通关\n")
 
+    # 初始化设备和OCR（只有在需要执行时才初始化）
+    from airtest.core.api import connect_device, auto_setup
+    from ocr_helper import OCRHelper
+
+    connect_device("Android:///")
+    auto_setup(__file__)
+    ocr_helper = OCRHelper(output_dir="output")
+
+    # 选择角色（如果配置了职业）
+    char_class = config_loader.get_char_class()
+    if char_class:
+        select_character(char_class)
+    else:
+        logger.info("⚠️ 未配置角色职业，跳过角色选择")
+
+    # 重新打开数据库连接执行副本遍历
+    with DungeonProgressDB(config_name=config_loader.get_config_name()) as db:
         dungeon_index = 0
         processed_dungeons = 0
 
         # 遍历所有区域
-        back_to_main()
-        open_map()
         for zone_idx, (zone_name, dungeons) in enumerate(zone_dungeons.items(), 1):
             logger.info(f"\n{'#' * 60}")
             logger.info(f"# 🌍 [{zone_idx}/{len(zone_dungeons)}] 区域: {zone_name}")
@@ -425,6 +459,7 @@ def main():
                     continue
 
                 # 切换区域
+                open_map()
                 if not switch_to_zone(zone_name):
                     logger.warning(f"⏭️ 跳过区域: {zone_name}")
                     continue

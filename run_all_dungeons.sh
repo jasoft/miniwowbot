@@ -18,13 +18,13 @@ cd "$SCRIPT_DIR"
 
 # 所有可用的角色配置
 CHARACTERS=(
-    "warrior"
     "paladin"
     "mage"
     "rogue"
     "hunter"
     "warlock"
     "druid"
+    "warrior"
 )
 
 # 角色中文名称映射
