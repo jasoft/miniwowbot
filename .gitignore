@@ -9,3 +9,7 @@ wheels/
 # Virtual environments
 .venv
 output/
+
+# Private configuration files (contains sensitive data like account numbers)
+test_accounts.json
+accounts.json

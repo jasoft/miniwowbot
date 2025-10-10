@@ -1,0 +1,17 @@
+{
+  "accounts": [
+    {
+      "name": "account1",
+      "phone": "13800138000",
+      "run_script": "./run_all_dungeons.sh",
+      "description": "第一个账号"
+    },
+    {
+      "name": "account2",
+      "phone": "13900139000",
+      "run_script": "./run_all_dungeons.sh mate_alt",
+      "description": "第二个账号，使用 mate_alt 配置"
+    }
+  ]
+}
+

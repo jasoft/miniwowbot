@@ -8,13 +8,7 @@ import coloredlogs
 import argparse
 import random
 
-from airtest.core.api import (
-    wait,
-    sleep,
-    touch,
-    exists,
-    Template,
-)
+from airtest.core.api import wait, sleep, touch, exists, Template, stop_app, start_app
 
 # 设置 Airtest 日志级别
 airtest_logger = logging.getLogger("airtest")
@@ -68,50 +62,45 @@ GIFTS_TEMPLATE = Template(
 )
 
 
-def find_text_with_paddleocr(text, similarity_threshold=0.6):
-    """
-    使用 OCRHelper 查找文本并返回位置
-    :param text: 要查找的文本
-    :param similarity_threshold: 相似度阈值（0-1）
-    :return: 文本中心位置 (x, y) 或 None
-    """
-    try:
-        # 使用OCRHelper截图并查找文字
-        result = ocr_helper.capture_and_find_text(
-            text, confidence_threshold=similarity_threshold
-        )
-
-        if result["found"]:
-            logger.info(
-                f"找到文本: '{result['text']}' (置信度: {result['confidence']:.2f}) 位置: {result['center']}"
-            )
-            return result["center"]
-        else:
-            logger.warning(f"未找到文本: '{text}'")
-            return None
-
-    except Exception as e:
-        logger.error(f"OCR 识别错误: {e}")
-        return None
-
-
-def find_text_and_click(
-    text, timeout=10, similarity_threshold=0.7, occurrence=1, use_cache=True
+def find_text(
+    text,
+    timeout=10,
+    similarity_threshold=0.7,
+    occurrence=1,
+    use_cache=True,
+    regions=None,
+    raise_exception=True,
 ):
     """
-    使用 OCRHelper 查找文本并点击
+    使用 OCRHelper 查找文本
     支持 OCR 纠正：如果找不到原文本，会尝试查找 OCR 可能识别错误的文本
 
     :param text: 要查找的文本
     :param timeout: 超时时间（秒）
     :param similarity_threshold: 相似度阈值
-    :param occurrence: 指定点击第几个出现的文字 (1-based)，默认为1
-    :return: 是否成功
+    :param occurrence: 指定第几个出现的文字 (1-based)，默认为1
+    :param use_cache: 是否使用缓存
+    :param regions: 要搜索的区域列表 (1-9)，None表示全屏搜索
+    :param raise_exception: 超时后是否抛出异常，默认True
+    :return: OCR识别结果字典，包含 center, text, confidence 等信息
+    :raises TimeoutError: 如果超时且 raise_exception=True
     """
+    # 检查 ocr_helper 是否已初始化
+    if ocr_helper is None:
+        error_msg = "❌ OCR助手未初始化，无法查找文本"
+        logger.error(error_msg)
+        if raise_exception:
+            raise RuntimeError(error_msg)
+        return None
+
+    region_desc = ""
+    if regions:
+        region_desc = f" [区域{regions}]"
+
     if occurrence > 1:
-        logger.info(f"🔍 查找文本: {text} (第{occurrence}个)")
+        logger.info(f"🔍 查找文本: {text} (第{occurrence}个){region_desc}")
     else:
-        logger.info(f"🔍 查找文本: {text}")
+        logger.info(f"🔍 查找文本: {text}{region_desc}")
     start_time = time.time()
 
     # 准备要尝试的文本列表：[原文本, OCR可能识别的错误文本]
@@ -128,30 +117,92 @@ def find_text_and_click(
     while time.time() - start_time < timeout:
         # 尝试所有可能的文本
         for try_text in texts_to_try:
-            # 使用 OCRHelper 查找并点击文本
-            if ocr_helper.find_and_click_text(
+            # 使用 OCRHelper 查找文本
+            result = ocr_helper.capture_and_find_text(
                 try_text,
                 confidence_threshold=similarity_threshold,
                 occurrence=occurrence,
                 use_cache=use_cache,
-            ):
+                regions=regions,
+            )
+
+            if result and result.get("found"):
                 if try_text != text:
                     logger.info(
-                        f"✅ 通过 OCR 纠正找到并点击: {text} (OCR识别为: {try_text})"
+                        f"✅ 通过 OCR 纠正找到文本: {text} (OCR识别为: {try_text}){region_desc}"
                     )
                 else:
                     if occurrence > 1:
-                        logger.info(f"✅ 成功点击: {text} (第{occurrence}个)")
+                        logger.info(
+                            f"✅ 找到文本: {text} (第{occurrence}个){region_desc}"
+                        )
                     else:
-                        logger.info(f"✅ 成功点击: {text}")
-                sleep(CLICK_INTERVAL)  # 每个点击后面停顿一下等待界面刷新
-                return True
+                        logger.info(f"✅ 找到文本: {text}{region_desc}")
+                return result
 
+        # 短暂休眠避免CPU占用过高
+        sleep(0.1)
+
+    # 超时处理
+    error_msg = f"❌ 超时未找到文本: {text}"
     if occurrence > 1:
-        logger.warning(f"❌ 未找到: {text} (第{occurrence}个)")
-    else:
-        logger.warning(f"❌ 未找到: {text}")
-    return False
+        error_msg = f"❌ 超时未找到文本: {text} (第{occurrence}个)"
+
+    logger.warning(error_msg)
+
+    if raise_exception:
+        raise TimeoutError(error_msg)
+
+    return None
+
+
+def find_text_and_click(
+    text,
+    timeout=10,
+    similarity_threshold=0.7,
+    occurrence=1,
+    use_cache=True,
+    regions=None,
+):
+    """
+    使用 OCRHelper 查找文本并点击
+    支持 OCR 纠正：如果找不到原文本，会尝试查找 OCR 可能识别错误的文本
+
+    :param text: 要查找的文本
+    :param timeout: 超时时间（秒）
+    :param similarity_threshold: 相似度阈值
+    :param occurrence: 指定点击第几个出现的文字 (1-based)，默认为1
+    :param use_cache: 是否使用缓存
+    :param regions: 要搜索的区域列表 (1-9)，None表示全屏搜索
+    :return: 是否成功
+    """
+    try:
+        # 调用 find_text 查找文本（不抛出异常）
+        result = find_text(
+            text=text,
+            timeout=timeout,
+            similarity_threshold=similarity_threshold,
+            occurrence=occurrence,
+            use_cache=use_cache,
+            regions=regions,
+            raise_exception=False,
+        )
+
+        if result and result.get("found"):
+            # 点击找到的位置
+            center = result["center"]
+            touch(center)
+            sleep(CLICK_INTERVAL)  # 每个点击后面停顿一下等待界面刷新
+
+            region_desc = f" [区域{regions}]" if regions else ""
+            logger.info(f"✅ 成功点击: {text}{region_desc} at {center}")
+            return True
+
+        return False
+
+    except Exception as e:
+        logger.error(f"❌ 查找并点击文本时出错: {e}")
+        return False
 
 
 def click_back():
@@ -245,9 +296,11 @@ def select_character(char_class):
 
     # 查找职业文字位置
     logger.info(f"🔍 查找职业: {char_class}")
-    pos = find_text_with_paddleocr(char_class, similarity_threshold=0.6)
+    result = find_text(char_class, similarity_threshold=0.6)
 
-    if pos:
+    if result and result.get("found"):
+        # 点击找到的位置
+        pos = result["center"]
         # 点击文字上方 60 像素的位置
         click_x = pos[0]
         click_y = pos[1] - 60
@@ -300,12 +353,27 @@ def switch_to_zone(zone_name):
 def sell_trashes():
     logger.info("💰 卖垃圾")
     click_back()
-    find_text_and_click("装备")
-    find_text_and_click("整理售卖")
+    find_text_and_click("装备", regions=[7, 8, 9])
+    find_text_and_click("整理售卖", regions=[7, 8, 9])
     find_text_and_click("出售")
     click_back()
     click_back()
-    find_text_and_click("战斗")
+    find_text_and_click("战斗", regions=[7, 8, 9])
+
+
+def switch_account(account_name):
+    logger.info(f"切换账号: {account_name}")
+    stop_app("com.ms.ysjyzr")
+    sleep(2)
+    start_app("com.ms.ysjyzr")
+    find_text("进入游戏", timeout=20, regions=[5])
+    touch((14, 43))
+    sleep(2)
+    find_text_and_click("切换账号", regions=[2, 3])
+    find_text("最近登录", timeout=20)
+    touch((572, 599))  # 下拉箭头
+    find_text_and_click(account_name)
+    touch((356, 732))  # 登录按钮
 
 
 def back_to_main():
@@ -359,11 +427,43 @@ def main():
         default="configs/default.json",
         help="配置文件路径 (默认: configs/default.json)",
     )
+    parser.add_argument(
+        "--load-account",
+        type=str,
+        help="加载指定账号后退出（账号名称，如：18502542158）",
+    )
     args = parser.parse_args()
 
-    logger.info("\n" + "=" * 60)
-    logger.info("🎮 副本自动遍历脚本")
-    logger.info("=" * 60 + "\n")
+    # 如果只是加载账号，则不需要显示副本信息
+    if not args.load_account:
+        logger.info("\n" + "=" * 60)
+        logger.info("🎮 副本自动遍历脚本")
+        logger.info("=" * 60 + "\n")
+
+    # 处理加载账号模式
+    if args.load_account:
+        logger.info("\n" + "=" * 60)
+        logger.info("🔄 账号加载模式")
+        logger.info("=" * 60 + "\n")
+        logger.info(f"📱 目标账号: {args.load_account}")
+
+        # 初始化设备和OCR
+        from airtest.core.api import connect_device, auto_setup
+        from ocr_helper import OCRHelper
+
+        connect_device("Android:///")
+        auto_setup(__file__)
+        ocr_helper = OCRHelper(output_dir="output")
+
+        # 切换账号
+        try:
+            switch_account(args.load_account)
+            logger.info(f"✅ 成功加载账号: {args.load_account}")
+            logger.info("=" * 60 + "\n")
+            return
+        except Exception as e:
+            logger.error(f"❌ 加载账号失败: {e}")
+            sys.exit(1)
 
     # 加载配置
     try:

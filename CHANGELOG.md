@@ -1,5 +1,320 @@
 # 更新日志
 
+## [4.8.0] - 2025-01-10
+
+### 🎨 新增工具：游戏画面区域划分工具
+
+#### 新增脚本
+- ✅ `show_regions.py` - 可视化显示游戏画面的9个区域划分
+
+#### 功能特性
+**区域划分**：
+- 将游戏画面分成 3x3 网格（共9个区域）
+- 显示区域编号和分割线
+- 输出每个区域的坐标信息
+
+**交互功能**：
+- 按数字键 `1-9` 高亮显示对应区域
+- 按 `R` 键刷新截图
+- 按 `S` 键保存当前图像
+- 按空格键重置视图
+- 按 `ESC` 或 `Q` 键退出
+
+**输出文件**：
+- `/tmp/game_screenshot.png` - 原始截图
+- `/tmp/game_regions.png` - 区域划分图
+- `/tmp/game_regions_highlighted.png` - 高亮图像（可选）
+
+#### 使用方法
+```bash
+# 运行工具
+uv run show_regions.py
+
+# 查看区域划分
+# 按数字键 1-9 高亮显示对应区域
+# 按 R 刷新截图
+# 按 S 保存图像
+```
+
+#### 区域布局
+```
++-----+-----+-----+
+|  1  |  2  |  3  |  顶部
++-----+-----+-----+
+|  4  |  5  |  6  |  中部
++-----+-----+-----+
+|  7  |  8  |  9  |  底部
++-----+-----+-----+
+```
+
+#### 应用场景
+- ✅ 确定 UI 元素所在区域
+- ✅ 优化 OCR 识别性能
+- ✅ 避免文字误识别
+- ✅ 调试 OCR 区域参数
+
+#### 文档
+- ✅ `README_SHOW_REGIONS.md` - 详细使用说明
+
+## [4.7.0] - 2025-01-10
+
+### 🔄 新增功能：多账号自动切换
+
+#### 新增命令行参数
+- ✅ `--load-account` - 加载指定账号后退出
+
+#### 使用方法
+```bash
+# 加载账号并退出
+uv run auto_dungeon.py --load-account 18502542158
+```
+
+#### 🔒 安全改进：账号配置文件
+**账号信息不再硬编码在脚本中，改为从配置文件读取**
+
+1. **配置文件**：`accounts.json`（已添加到 `.gitignore`，不会提交到 GitHub）
+2. **示例文件**：`accounts.json.example`（可以提交到 GitHub）
+
+**配置文件格式**：
+```json
+{
+  "accounts": [
+    {
+      "name": "main",
+      "phone": "18502542158",
+      "run_script": "./run_all_dungeons.sh",
+      "description": "主账号"
+    },
+    {
+      "name": "mate_alt",
+      "phone": "15371008673",
+      "run_script": "./run_all_dungeons.sh mate_alt",
+      "description": "副账号"
+    }
+  ]
+}
+```
+
+**首次使用**：
+```bash
+# 1. 复制示例文件
+cp accounts.json.example accounts.json
+
+# 2. 编辑 accounts.json 填入真实账号信息
+# 3. 运行脚本
+./cron_run_all_dungeons.sh
+```
+
+#### 自动化脚本改进
+**cron_run_all_dungeons.sh** 现在支持：
+
+- ✅ 从 `accounts.json` 读取账号配置
+- ✅ 支持任意数量的账号
+- ✅ 每个账号可配置不同的运行脚本
+- ✅ 自动检查配置文件是否存在
+- ✅ 自动检查 `jq` 工具是否安装
+
+#### 执行流程
+脚本会自动遍历所有账号：
+1. 读取账号配置
+2. 加载账号
+3. 运行对应的副本脚本
+4. 记录每个账号的执行结果
+
+#### 日志改进
+- ✅ 显示账号名称和描述
+- ✅ 分别记录每个账号的退出代码
+- ✅ 统计成功/失败数量
+- ✅ 任一账号失败则整体失败
+- ✅ 失败时发送系统通知
+- ✅ **同时输出到控制台和日志文件**（使用 `tee` 命令）
+
+#### 依赖要求
+- ✅ 需要安装 `jq` 工具：`brew install jq`
+
+#### 调试支持
+现在可以在运行时实时查看输出：
+```bash
+# 直接运行脚本，可以在控制台看到实时输出
+./cron_run_all_dungeons.sh
+
+# 输出会同时保存到日志文件
+# 日志位置: ~/cron_logs/dungeons_YYYY-MM-DD_HH-MM-SS.log
+```
+
+## [4.6.0] - 2025-01-09
+
+### 🛠️ 新增工具：坐标调试工具集
+
+#### 调试工具
+- ✅ `debug_coordinate_issue.py` - 验证坐标计算逻辑
+- ✅ `debug_switch_account_coordinates.py` - 对比截图坐标差异
+- ✅ `debug_switch_account.py` - 调试版 switch_account，保存每步截图
+
+#### 功能特性
+**坐标验证**：
+- 验证区域边界计算
+- 验证坐标转换公式
+- 对比静态图片和实际截图
+
+**截图对比**：
+```bash
+# 对比两张截图的坐标差异
+python debug_switch_account_coordinates.py /tmp/s2.png /tmp/screenshot.png
+```
+
+**调试运行**：
+```bash
+# 保存每一步的截图
+python debug_switch_account.py 18502542158
+```
+
+**输出文件**（保存在 `/tmp/debug_switch_account/`）：
+- 每个步骤的截图
+- 带坐标标注的图片
+- 差异可视化图片
+
+#### 改进
+- ✅ `find_text_and_click` 现在会记录点击坐标
+- ✅ 日志输出格式：`✅ 成功点击: 文字 [区域] at (x, y)`
+
+#### 问题排查
+**问题**：switch_account 中查找"切换账号"时坐标偏移
+
+**原因**：实际运行时截取的界面与测试图片不同
+
+**解决**：使用调试工具保存实际截图进行对比
+
+## [4.5.0] - 2025-01-09
+
+### 🎨 新增工具：OCR 区域可视化
+
+#### 新增脚本
+- ✅ `visualize_ocr_regions.py` - OCR 区域可视化工具
+- ✅ 自动识别图片中 9 个区域的所有文字
+- ✅ 用彩色方框标注识别到的文字
+- ✅ 显示每个文字的坐标位置
+- ✅ 生成标注后的图片供调试使用
+
+#### 功能特性
+```bash
+python visualize_ocr_regions.py
+```
+
+**输出文件**：
+- `/tmp/s2_annotated.png` - 完整标注图片
+- `/tmp/s2_annotated_small.png` - 50% 缩放图片
+- `/tmp/region_1_debug.png` ~ `/tmp/region_9_debug.png` - 各区域截图
+
+**标注内容**：
+- 彩色边界框（每个区域不同颜色）
+- 文字中心点标记
+- 文字内容和坐标标签：`文字(x,y)`
+- 区域分割线和编号
+
+#### 区域颜色
+- 区域 1：蓝色 | 区域 2：绿色 | 区域 3：红色
+- 区域 4：青色 | 区域 5：品红 | 区域 6：黄色
+- 区域 7：紫色 | 区域 8：橙色 | 区域 9：天蓝色
+
+#### 示例输出
+```
+✅ 图像尺寸: 720x1280
+📍 区域 1: ✅ 识别到 15 个文字
+📍 区域 2: ✅ 识别到 9 个文字
+📍 区域 3: ✅ 识别到 7 个文字
+...
+✅ 总共识别到 44 个文字
+```
+
+#### 文档
+- ✅ `docs/OCR_VISUALIZATION.md` - 详细使用指南
+
+## [4.4.0] - 2025-01-09
+
+### 🐛 Bug 修复：OCR 区域识别
+
+#### 问题
+- OCR 区域搜索功能无法识别任何文字
+- `OCRResult` 对象访问方式不正确
+
+#### 修复
+- ✅ 修复 `_find_text_in_regions` 方法，支持 `OCRResult` 对象的字典访问方式
+- ✅ 添加调试功能：`debug_save_path` 参数可保存区域截图
+- ✅ 支持三种访问方式：属性访问、字典访问、`OCRResult` 对象访问
+
+#### 调试功能
+```python
+# 保存区域截图用于调试
+result = ocr.find_text_in_image(
+    image_path="/tmp/s1.png",
+    target_text="战斗",
+    regions=[7, 8, 9],
+    debug_save_path="/tmp/region_debug.png"  # 保存区域截图
+)
+```
+
+#### 测试验证
+- ✅ 新增 `tests/test_ocr_debug.py` - OCR 区域调试测试（5个测试）
+- ✅ 成功识别 /tmp/s1.png 中区域 [7,8,9] 的所有文字
+- ✅ 验证坐标转换正确（区域坐标 → 原图坐标）
+- ✅ 识别结果：
+  - "随从" - 坐标 (66, 1212)
+  - "装备" - 坐标 (196, 1212)
+  - "战斗" - 坐标 (361, 1244)
+  - "专业" - 坐标 (523, 1211)
+  - "主城" - 坐标 (654, 1211)
+
+#### 技术细节
+- `OCRResult` 对象可以作为字典访问：`res["rec_texts"]`
+- 区域偏移正确应用：区域 [7,8,9] 偏移 (0, 852)
+- 坐标转换公式：`原图坐标 = 区域坐标 + 偏移量`
+
+## [4.3.0] - 2025-01-09
+
+### 🔒 安全改进：测试账号配置
+
+#### 新增功能
+- ✅ **测试账号配置文件**：从 `test_accounts.json` 读取测试账号
+- ✅ **隐私保护**：配置文件已添加到 `.gitignore`，不会提交到 Git
+- ✅ **示例文件**：提供 `test_accounts.json.example` 作为模板
+- ✅ **自动加载**：测试自动从配置文件加载账号，无需硬编码
+
+#### 配置文件
+```json
+{
+  "accounts": [
+    "account1",
+    "account2"
+  ]
+}
+```
+
+#### 使用方法
+```python
+# 在测试中使用
+accounts = load_test_accounts()
+if accounts:
+    switch_account(accounts[0])
+```
+
+#### 安全特性
+- ✅ 真实账号不会被提交到 Git 仓库
+- ✅ 每个开发者维护自己的配置文件
+- ✅ 配置文件缺失时测试会跳过并提示
+- ✅ 支持 JSON 格式验证和错误提示
+
+#### 相关文件
+- `test_accounts.json` - 真实账号配置（已忽略）
+- `test_accounts.json.example` - 配置模板（会提交）
+- `.gitignore` - 添加了账号配置文件的忽略规则
+- `docs/TEST_ACCOUNTS_SETUP.md` - 详细配置指南
+
+#### 测试更新
+- ✅ `test_switch_account_real_device` - 使用配置文件中的第一个账号
+- ✅ `test_switch_account_execution_time` - 使用配置文件中的第一个账号
+- ✅ `test_switch_account_multiple_calls` - 使用配置文件中的所有账号（最多2个）
+
 ## [4.2.0] - 2025-01-09
 
 ### 🚀 新增功能：OCR 区域搜索
@@ -12,11 +327,23 @@
 - ✅ 性能提升 3-9 倍（取决于区域数量）
 - ✅ 支持跨区域文字识别（如底部工具栏的长文字）
 
+#### 代码重构
+- ✅ **新增 `find_text()` 函数**：查找文本并返回结果，支持超时异常
+- ✅ **重构 `find_text_and_click()`**：内部调用 `find_text()` 避免代码冗余
+- ✅ 两个函数都支持 `regions` 参数
+- ✅ `find_text()` 支持 `raise_exception` 参数控制超时行为
+
 #### API 更新
 所有主要方法都新增了 `regions` 参数：
+
+**OCRHelper 类方法**：
 - ✅ `find_text_in_image(regions=[1, 2, 3])` - 在图像的指定区域搜索
 - ✅ `capture_and_find_text(regions=[5])` - 截图并在指定区域搜索
 - ✅ `find_and_click_text(regions=[7, 8, 9])` - 在指定区域搜索并点击
+
+**auto_dungeon.py 函数**：
+- ✅ `find_text(text, timeout=10, regions=[7, 8, 9], raise_exception=True)` - 查找文本，支持超时异常
+- ✅ `find_text_and_click(text, timeout=10, regions=[7, 8, 9])` - 查找并点击文本
 
 #### 区域编号
 ```
@@ -35,6 +362,8 @@
 这样可以避免切断跨区域的文字，提高识别准确率。
 
 #### 使用示例
+
+**OCRHelper 类方法**：
 ```python
 # 在右上角搜索设置按钮（区域3）
 ocr.find_and_click_text("设置", regions=[3])
@@ -49,6 +378,25 @@ ocr.find_and_click_text("确定", regions=[5])
 ocr.find_and_click_text("背包", regions=[1, 4, 7])
 ```
 
+**auto_dungeon.py 函数**：
+```python
+# 查找文本（超时抛出异常）
+try:
+    result = find_text("免费", timeout=5, regions=[7, 8, 9])
+    print(f"找到文本，位置: {result['center']}")
+except TimeoutError:
+    print("超时未找到文本")
+
+# 查找文本（超时不抛出异常）
+result = find_text("免费", timeout=5, regions=[7, 8, 9], raise_exception=False)
+if result:
+    print(f"找到文本，位置: {result['center']}")
+
+# 查找并点击文本
+if find_text_and_click("免费", timeout=5, regions=[7, 8, 9]):
+    print("成功点击")
+```
+
 #### 性能对比
 | 搜索范围 | 区域数量 | 相对速度 | 适用场景 |
 |---------|---------|---------|---------|
@@ -57,9 +405,12 @@ ocr.find_and_click_text("背包", regions=[1, 4, 7])
 | 三个区域 | 3 | 3x | 大致知道位置 |
 
 #### 新增文件
-- ✅ `tests/test_ocr_regions.py` - 区域功能测试（10个测试用例）
+- ✅ `tests/test_ocr_regions.py` - 区域功能测试（15个测试用例）
+- ✅ `tests/test_find_text.py` - find_text 和 find_text_and_click 测试（9个测试用例）
 - ✅ `examples/ocr_region_example.py` - 使用示例
 - ✅ `docs/OCR_REGION_SEARCH.md` - 详细文档
+- ✅ `docs/OCR_REGION_SUMMARY.md` - 功能总结
+- ✅ `docs/AUTO_DUNGEON_REGIONS.md` - auto_dungeon.py 区域搜索使用指南
 
 #### 内部实现
 - ✅ `_merge_regions()` - 合并多个区域为连续矩形
@@ -71,13 +422,23 @@ ocr.find_and_click_text("背包", regions=[1, 4, 7])
 - ✅ `_empty_result()` - 统一的空结果返回
 
 #### 测试覆盖
+
+**OCR 区域功能测试（15个）**：
 - ✅ 区域合并测试（4个）- 单区域、水平、垂直、矩形合并
 - ✅ 区域边界计算测试（4个）- 全屏、单区域、水平合并、垂直合并
 - ✅ 区域提取测试（3个）- 单区域、水平合并、垂直合并
 - ✅ 坐标调整测试（1个）
 - ✅ 区域搜索API测试（2个）
 - ✅ 空结果测试（1个）
-- ✅ 所有测试通过（15/15）
+
+**find_text 函数测试（9个）**：
+- ✅ 超时异常测试（1个）
+- ✅ 超时不抛异常测试（1个）
+- ✅ regions 参数测试（1个）
+- ✅ find_text_and_click 测试（3个）
+- ✅ 代码重构一致性测试（3个）
+
+**总计**：24个测试，全部通过 ✅
 
 #### 向后兼容
 - ✅ 所有现有代码无需修改

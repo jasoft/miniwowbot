@@ -175,7 +175,10 @@ class OCRHelper:
         return (x, y, w, h)
 
     def _extract_region(
-        self, image: Any, regions: Optional[List[int]] = None
+        self,
+        image: Any,
+        regions: Optional[List[int]] = None,
+        debug_save_path: Optional[str] = None,
     ) -> Tuple[Any, Tuple[int, int]]:
         """
         从图像中提取指定的区域（合并后的单个区域）
@@ -183,6 +186,7 @@ class OCRHelper:
         Args:
             image: OpenCV图像对象
             regions: 要提取的区域列表（1-9），会被合并成一个连续的矩形
+            debug_save_path: 调试用，保存区域截图的路径
 
         Returns:
             (region_image, (offset_x, offset_y))
@@ -194,6 +198,16 @@ class OCRHelper:
         x, y, w, h = self._get_region_bounds((height, width), regions)
 
         region_img = image[y : y + h, x : x + w]
+
+        # 调试：保存区域截图
+        if debug_save_path:
+            import cv2
+
+            cv2.imwrite(debug_save_path, region_img)
+            self.logger.info(f"🔍 调试：区域截图已保存到 {debug_save_path}")
+            self.logger.info(f"   区域范围: x={x}, y={y}, w={w}, h={h}")
+            self.logger.info(f"   原图尺寸: {width}x{height}")
+
         return region_img, (x, y)
 
     def _adjust_coordinates_to_full_image(
@@ -454,6 +468,7 @@ class OCRHelper:
         occurrence=1,
         use_cache=True,
         regions: Optional[List[int]] = None,
+        debug_save_path: Optional[str] = None,
     ):
         """
         在指定图像中查找目标文字的位置
@@ -469,6 +484,7 @@ class OCRHelper:
                                           1 2 3
                                           4 5 6
                                           7 8 9
+            debug_save_path (str, optional): 调试用，保存区域截图的路径
 
         Returns:
             dict: 包含以下信息的字典
@@ -489,6 +505,7 @@ class OCRHelper:
                     confidence_threshold,
                     occurrence,
                     regions,
+                    debug_save_path,
                 )
 
             # 获取或创建 OCR 结果（带缓存）
@@ -530,6 +547,7 @@ class OCRHelper:
         confidence_threshold: float,
         occurrence: int,
         regions: List[int],
+        debug_save_path: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         在指定区域中查找文字（内部方法）
@@ -540,6 +558,7 @@ class OCRHelper:
             confidence_threshold: 置信度阈值
             occurrence: 指定第几个出现的文字
             regions: 要搜索的区域列表（会被合并成一个连续的矩形）
+            debug_save_path: 调试用，保存区域截图的路径
 
         Returns:
             查找结果字典
@@ -552,7 +571,7 @@ class OCRHelper:
                 return self._empty_result()
 
             # 提取合并后的区域
-            region_img, offset = self._extract_region(image, regions)
+            region_img, offset = self._extract_region(image, regions, debug_save_path)
             if region_img is None:
                 self.logger.warning("未能提取区域")
                 return self._empty_result()
@@ -574,9 +593,25 @@ class OCRHelper:
             # 收集所有匹配结果
             all_matches = []
             for res in result:
-                rec_texts = res.rec_texts if hasattr(res, "rec_texts") else []
-                rec_scores = res.rec_scores if hasattr(res, "rec_scores") else []
-                dt_polys = res.dt_polys if hasattr(res, "dt_polys") else []
+                # 支持两种访问方式：属性访问和字典访问
+                if hasattr(res, "rec_texts"):
+                    rec_texts = res.rec_texts
+                    rec_scores = res.rec_scores
+                    dt_polys = res.dt_polys
+                elif isinstance(res, dict):
+                    rec_texts = res.get("rec_texts", [])
+                    rec_scores = res.get("rec_scores", [])
+                    dt_polys = res.get("dt_polys", [])
+                else:
+                    # 尝试作为字典访问（OCRResult 对象）
+                    try:
+                        rec_texts = res["rec_texts"]
+                        rec_scores = res["rec_scores"]
+                        dt_polys = res["dt_polys"]
+                    except (KeyError, TypeError):
+                        rec_texts = []
+                        rec_scores = []
+                        dt_polys = []
 
                 # 查找匹配的文字
                 for i, (text, score) in enumerate(zip(rec_texts, rec_scores)):
