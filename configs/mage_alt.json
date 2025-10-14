@@ -54,7 +54,7 @@
             { "name": "古魔宝库", "selected": true },
             { "name": "兽人都城", "selected": true },
             { "name": "古魔宫殿", "selected": false },
-            { "name": "风暴之巅", "selected": true },
+            { "name": "风暴之巅", "selected": false },
             { "name": "酿酒厂", "selected": false },
             { "name": "风暴王座", "selected": true },
             { "name": "青龙寺", "selected": false },
@@ -85,7 +85,7 @@
             { "name": "古代大厅", "selected": false },
             { "name": "古代王国", "selected": false },
             { "name": "巨魔要塞", "selected": false },
-            { "name": "峡湾城堡", "selected": true },
+            { "name": "峡湾城堡", "selected": false },
             { "name": "蓝龙巢穴", "selected": true }
         ],
         "虚空领域": [

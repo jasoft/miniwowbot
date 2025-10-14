@@ -24,7 +24,11 @@ CHARACTERS=(
     "hunter"
     "warlock"
     "druid"
+    "monk"
     "warrior"
+    "shaman"
+    "priest"
+    "deathknight"
 )
 
 # 角色中文名称映射
@@ -36,6 +40,10 @@ declare -A CHARACTER_NAMES=(
     ["hunter"]="猎人"
     ["warlock"]="术士"
     ["druid"]="德鲁伊"
+    ["monk"]="武僧"
+    ["shaman"]="萨满祭司"
+    ["priest"]="牧师"
+    ["deathknight"]="死亡骑士"
 )
 
 # 打印带颜色的消息

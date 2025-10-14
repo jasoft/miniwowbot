@@ -164,7 +164,7 @@ class TestSwitchAccountIntegration:
             accounts = accounts * 2  # 重复使用第一个账号
 
         success_count = 0
-        total_attempts = min(2, len(accounts))  # 最多测试2个账号
+        total_attempts = min(5, len(accounts))  # 最多测试5个账号
 
         for i in range(total_attempts):
             try:

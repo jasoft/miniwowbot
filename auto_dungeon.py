@@ -8,7 +8,16 @@ import coloredlogs
 import argparse
 import random
 
-from airtest.core.api import wait, sleep, touch, exists, Template, stop_app, start_app
+from airtest.core.api import (
+    wait,
+    sleep,
+    touch,
+    exists,
+    swipe,
+    Template,
+    stop_app,
+    start_app,
+)
 
 # 设置 Airtest 日志级别
 airtest_logger = logging.getLogger("airtest")
@@ -174,7 +183,7 @@ def find_text_and_click(
     :param occurrence: 指定点击第几个出现的文字 (1-based)，默认为1
     :param use_cache: 是否使用缓存
     :param regions: 要搜索的区域列表 (1-9)，None表示全屏搜索
-    :return: 是否成功
+    :return: 成功返回 find_text 的结果字典，失败返回 False
     """
     try:
         # 调用 find_text 查找文本（不抛出异常）
@@ -196,13 +205,13 @@ def find_text_and_click(
 
             region_desc = f" [区域{regions}]" if regions else ""
             logger.info(f"✅ 成功点击: {text}{region_desc} at {center}")
-            return True
+            return result
 
         return False
 
     except Exception as e:
-        logger.error(f"❌ 查找并点击文本时出错: {e}")
         return False
+        logger.error(f"❌ 查找并点击文本时出错: {e}")
 
 
 def click_back():
@@ -358,7 +367,6 @@ def sell_trashes():
     find_text_and_click("出售")
     click_back()
     click_back()
-    find_text_and_click("战斗", regions=[7, 8, 9])
 
 
 def switch_account(account_name):
@@ -366,13 +374,30 @@ def switch_account(account_name):
     stop_app("com.ms.ysjyzr")
     sleep(2)
     start_app("com.ms.ysjyzr")
-    find_text("进入游戏", timeout=20, regions=[5])
-    touch((14, 43))
-    sleep(2)
-    find_text_and_click("切换账号", regions=[2, 3])
-    find_text("最近登录", timeout=20)
+    try:
+        find_text("进入游戏", timeout=20, regions=[5])
+        touch((14, 43))
+        sleep(2)
+        find_text_and_click("切换账号", regions=[2, 3])
+    except Exception:
+        logger.warning("⚠️ 未找到切换账号按钮，可能处于登录界面")
+        pass
+    find_text("最近登录", timeout=20, regions=[5])
     touch((572, 599))  # 下拉箭头
-    find_text_and_click(account_name)
+
+    success = False
+    for _ in range(10):
+        if find_text_and_click(
+            account_name, occurrence=2, use_cache=False, regions=[4, 5, 6, 7, 8, 9]
+        ):
+            success = True
+            break
+        swipe((480, 800), (480, 700))
+
+    if not success:
+        raise Exception(
+            f"Failed to find and click account '{account_name}' after 10 tries"
+        )
     touch((356, 732))  # 登录按钮
 
 
@@ -380,6 +405,22 @@ def back_to_main():
     logger.info("🔙 返回主界面")
     while not is_main_world():
         click_back()
+    find_text_and_click("战斗", regions=[8])
+
+
+def daily_collect():
+    """
+    领取每日挂机奖励
+    """
+    back_to_main()
+    res = find_text_and_click("战斗", regions=[8])
+    if res:
+        touch((res["center"].x, res["center"].y - 50))  # 点箱子
+        find_text_and_click("收下")
+        find_text_and_click("确定")
+        logger.info("✅ 领取成功")
+    else:
+        logger.warning("⚠️ 未找到领取按钮")
 
 
 def process_dungeon(dungeon_name, zone_name, index, total, db):
@@ -393,6 +434,7 @@ def process_dungeon(dungeon_name, zone_name, index, total, db):
     if not find_text_and_click(dungeon_name, timeout=5):
         logger.warning(f"⏭️ 跳过: {dungeon_name}")
         return False
+    sleep(2)  # 等待界面刷新
 
     # 尝试点击免费按钮
     if click_free_button():
@@ -558,7 +600,8 @@ def main():
                     )
                     continue
 
-                # 切换区域
+                # 正式开始挂机
+                daily_collect()
                 open_map()
                 if not switch_to_zone(zone_name):
                     logger.warning(f"⏭️ 跳过区域: {zone_name}")
@@ -572,8 +615,7 @@ def main():
                     # 每完成3个副本就卖垃圾
                     if processed_dungeons % 3 == 0:
                         sell_trashes()
-
-                    open_map()
+                        back_to_main()
 
             logger.info(f"\n✅ 完成区域: {zone_name}")
 

@@ -9,6 +9,8 @@ wheels/
 # Virtual environments
 .venv
 output/
+yolo_training_images/
+analyzed_screenshots/
 
 # Private configuration files (contains sensitive data like account numbers)
 test_accounts.json

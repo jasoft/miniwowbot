@@ -85,7 +85,7 @@
             { "name": "古代大厅", "selected": false },
             { "name": "古代王国", "selected": false },
             { "name": "巨魔要塞", "selected": false },
-            { "name": "峡湾城堡", "selected": true },
+            { "name": "峡湾城堡", "selected": false },
             { "name": "蓝龙巢穴", "selected": true }
         ],
         "虚空领域": [

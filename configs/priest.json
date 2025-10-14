@@ -3,7 +3,7 @@
     "ocr_correction_map": {
         "梦魔丛林": "梦魇丛林"
     },
-    "class": "猎人",
+    "class": "牧师",
     "zone_dungeons": {
         "风暴群岛": [
             { "name": "真理之地", "selected": false },
@@ -86,11 +86,11 @@
             { "name": "古代王国", "selected": false },
             { "name": "巨魔要塞", "selected": false },
             { "name": "峡湾城堡", "selected": false },
-            { "name": "蓝龙巢穴", "selected": true }
+            { "name": "蓝龙巢穴", "selected": false }
         ],
         "虚空领域": [
             { "name": "魔法之井", "selected": false },
-            { "name": "虚空要塞", "selected": true },
+            { "name": "虚空要塞", "selected": false },
             { "name": "海底神殿", "selected": false },
             { "name": "守护者之塔上层", "selected": false },
             { "name": "黑暗神殿", "selected": false },
@@ -100,7 +100,7 @@
             { "name": "沼泽水库", "selected": false },
             { "name": "山丘城堡", "selected": false },
             { "name": "地狱火堡垒", "selected": false },
-            { "name": "亡者之城", "selected": true }
+            { "name": "亡者之城", "selected": false }
         ],
         "东部大陆": [
             { "name": "亡灵要塞", "selected": true },
