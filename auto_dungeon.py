@@ -7,6 +7,10 @@ import logging
 import coloredlogs
 import argparse
 import random
+import subprocess
+import platform
+import requests
+import urllib.parse
 
 from airtest.core.api import (
     wait,
@@ -27,8 +31,26 @@ airtest_logger.setLevel(logging.ERROR)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import DungeonProgressDB  # noqa: E402
 from config_loader import load_config  # noqa: E402
+from system_config_loader import load_system_config  # noqa: E402
+from coordinates import (  # noqa: E402
+    SETTINGS_BUTTON,
+    BACK_BUTTON,
+    MAP_BUTTON,
+    ACCOUNT_AVATAR,
+    SKILL_POSITIONS,
+    DAILY_REWARD_BOX_OFFSET_Y,
+    DAILY_REWARD_CONFIRM,
+    CLOSE_ZONE_MENU,
+    ACCOUNT_DROPDOWN_ARROW,
+    ACCOUNT_LIST_SWIPE_START,
+    ACCOUNT_LIST_SWIPE_END,
+    LOGIN_BUTTON,
+    QUICK_AFK_COLLECT_BUTTON,
+)
 
 CLICK_INTERVAL = 1
+STOP_FILE = ".stop_dungeon"  # 停止标记文件路径
+
 # 配置彩色日志
 logger = logging.getLogger(__name__)
 # 防止日志重复：移除已有的 handlers
@@ -56,14 +78,204 @@ coloredlogs.install(
 
 # 全局变量，将在 main 函数中初始化
 config_loader = None
+system_config = None
 zone_dungeons = None
 ocr_helper = None
+
+
+def check_bluestacks_running():
+    """
+    检查BlueStacks模拟器是否正在运行
+
+    Returns:
+        bool: 如果BlueStacks正在运行返回True，否则返回False
+    """
+    try:
+        system = platform.system()
+        if system == "Darwin":  # macOS
+            result = subprocess.run(
+                ["pgrep", "-f", "BlueStacks"], capture_output=True, text=True, timeout=5
+            )
+            return result.returncode == 0
+        elif system == "Windows":
+            result = subprocess.run(
+                ["tasklist", "/FI", "IMAGENAME eq HD-Player.exe"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            return "HD-Player.exe" in result.stdout
+        else:  # Linux
+            result = subprocess.run(
+                ["pgrep", "-f", "bluestacks"], capture_output=True, text=True, timeout=5
+            )
+            return result.returncode == 0
+    except Exception as e:
+        logger.warning(f"⚠️ 检查BlueStacks状态失败: {e}")
+        return False
+
+
+def start_bluestacks():
+    """
+    启动BlueStacks模拟器
+
+    Returns:
+        bool: 启动成功返回True，失败返回False
+    """
+    try:
+        system = platform.system()
+        logger.info("🚀 正在启动BlueStacks模拟器...")
+
+        if system == "Darwin":  # macOS
+            # macOS上通过open命令启动应用
+            subprocess.Popen(
+                ["open", "-a", "BlueStacks"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        elif system == "Windows":
+            # Windows上启动BlueStacks
+            # 常见安装路径
+            paths = [
+                r"C:\Program Files\BlueStacks_nxt\HD-Player.exe",
+                r"C:\Program Files (x86)\BlueStacks_nxt\HD-Player.exe",
+                r"C:\Program Files\BlueStacks\HD-Player.exe",
+                r"C:\Program Files (x86)\BlueStacks\HD-Player.exe",
+            ]
+            for path in paths:
+                if os.path.exists(path):
+                    subprocess.Popen(
+                        [path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                    )
+                    break
+            else:
+                logger.error("❌ 未找到BlueStacks安装路径")
+                return False
+        else:  # Linux
+            # Linux上通过命令启动
+            subprocess.Popen(
+                ["bluestacks"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+
+        # 等待模拟器启动
+        logger.info("⏳ 等待模拟器启动...")
+        max_wait_time = 60  # 最多等待60秒
+        wait_interval = 5
+        elapsed = 0
+
+        while elapsed < max_wait_time:
+            time.sleep(wait_interval)
+            elapsed += wait_interval
+            if check_bluestacks_running():
+                logger.info(f"✅ BlueStacks已启动 (耗时 {elapsed} 秒)")
+                # 额外等待一段时间让模拟器完全就绪
+                logger.info("⏳ 等待模拟器完全就绪...")
+                time.sleep(10)
+                return True
+            logger.info(f"⏳ 继续等待... ({elapsed}/{max_wait_time}秒)")
+
+        logger.error("❌ BlueStacks启动超时")
+        return False
+
+    except Exception as e:
+        logger.error(f"❌ 启动BlueStacks失败: {e}")
+        return False
+
+
+def ensure_adb_connection():
+    """
+    确保ADB连接已建立
+    无论模拟器是否刚启动，都执行一次adb devices来建立连接
+
+    Returns:
+        bool: 连接成功返回True，失败返回False
+    """
+    try:
+        logger.info("🔌 执行 adb devices 建立连接...")
+        result = subprocess.run(
+            ["adb", "devices"], capture_output=True, text=True, timeout=10
+        )
+
+        if result.returncode == 0:
+            # 检查是否有设备连接
+            lines = result.stdout.strip().split("\n")
+            devices = [line for line in lines if "\tdevice" in line]
+
+            if devices:
+                logger.info(f"✅ 发现 {len(devices)} 个设备:")
+                for device in devices:
+                    logger.info(f"  📱 {device}")
+                return True
+            else:
+                logger.warning("⚠️ 未发现已连接的设备")
+                # 即使没有设备，也返回True，让后续的connect_device处理
+                return True
+        else:
+            logger.error(f"❌ adb devices 执行失败: {result.stderr}")
+            return False
+
+    except FileNotFoundError:
+        logger.error("❌ 未找到adb命令，请确保Android SDK已安装并配置环境变量")
+        return False
+    except Exception as e:
+        logger.error(f"❌ 执行adb devices失败: {e}")
+        return False
+
+
+def check_and_start_emulator():
+    """
+    检查模拟器状态并在需要时启动
+    无论是否启动，都会执行adb devices建立连接
+
+    Returns:
+        bool: 准备成功返回True，失败返回False
+    """
+    logger.info("\n" + "=" * 60)
+    logger.info("🔍 检查BlueStacks模拟器状态")
+    logger.info("=" * 60)
+
+    # 检查模拟器是否运行
+    if check_bluestacks_running():
+        logger.info("✅ BlueStacks模拟器已在运行")
+    else:
+        logger.info("⚠️ BlueStacks模拟器未运行")
+        if not start_bluestacks():
+            logger.error("❌ 无法启动BlueStacks模拟器")
+            return False
+
+    # 无论模拟器是否刚启动，都执行adb devices
+    if not ensure_adb_connection():
+        logger.error("❌ 建立ADB连接失败")
+        return False
+
+    logger.info("=" * 60 + "\n")
+    return True
+
+
+def check_stop_signal():
+    """
+    检查是否存在停止信号文件
+
+    Returns:
+        bool: 如果存在停止文件返回 True，否则返回 False
+    """
+    if os.path.exists(STOP_FILE):
+        logger.warning(f"\n⛔ 检测到停止信号文件: {STOP_FILE}")
+        logger.warning("⛔ 正在优雅地停止执行...")
+        # 删除停止文件
+        try:
+            os.remove(STOP_FILE)
+            logger.info("✅ 已删除停止信号文件")
+        except Exception as e:
+            logger.error(f"❌ 删除停止文件失败: {e}")
+        return True
+    return False
+
 
 SETTINGS_TEMPLATE = Template(
     r"images/settings_button.png",
     resolution=(720, 1280),
 )
-SETTINGS_POINT = (669, 107)
 
 GIFTS_TEMPLATE = Template(
     r"images/gifts_button.png",
@@ -217,7 +429,7 @@ def find_text_and_click(
 def click_back():
     """点击返回按钮（左上角）"""
     try:
-        touch((360, 117))
+        touch(BACK_BUTTON)
         sleep(CLICK_INTERVAL)  # 等待界面刷新
         logger.info("🔙 点击返回按钮")
         return True
@@ -240,6 +452,64 @@ def click_free_button():
     return False
 
 
+def send_bark_notification(title, message, level="active"):
+    """
+    发送 Bark 通知
+
+    :param title: 通知标题
+    :param message: 通知内容
+    :param level: 通知级别，可选值: active(默认), timeSensitive, passive
+    :return: 是否发送成功
+    """
+    if not system_config or not system_config.is_bark_enabled():
+        logger.debug("🔕 Bark 通知未启用，跳过发送")
+        return False
+
+    bark_config = system_config.get_bark_config()
+    server = bark_config.get("server")
+
+    if not server:
+        logger.warning("⚠️ Bark 服务器地址未配置")
+        return False
+
+    try:
+        # 构造 Bark URL
+        # 格式: https://api.day.app/{device_key}/{title}/{body}?group={group}&level={level}
+        encoded_title = urllib.parse.quote(title)
+        encoded_message = urllib.parse.quote(message)
+
+        # 如果 server 已经包含完整路径，直接使用
+        if "?" in server or server.endswith("/"):
+            url = f"{server.rstrip('/')}/{encoded_title}/{encoded_message}"
+        else:
+            url = f"{server}/{encoded_title}/{encoded_message}"
+
+        # 添加可选参数
+        params = {}
+        if bark_config.get("group"):
+            params["group"] = bark_config["group"]
+        if level:
+            params["level"] = level
+
+        # 发送请求
+        logger.info(f"📱 发送 Bark 通知: {title}")
+        response = requests.get(url, params=params, timeout=10)
+
+        if response.status_code == 200:
+            logger.info("✅ Bark 通知发送成功")
+            return True
+        else:
+            logger.warning(f"⚠️ Bark 通知发送失败，状态码: {response.status_code}")
+            return False
+
+    except requests.exceptions.Timeout:
+        logger.warning("⚠️ Bark 通知发送超时")
+        return False
+    except Exception as e:
+        logger.error(f"❌ 发送 Bark 通知失败: {e}")
+        return False
+
+
 def is_main_world():
     """检查是否在主世界"""
     return exists(GIFTS_TEMPLATE)
@@ -248,7 +518,7 @@ def is_main_world():
 def open_map():
     back_to_main()
 
-    touch((350, 50))
+    touch(MAP_BUTTON)
     logger.info("🗺️ 打开地图")
     sleep(CLICK_INTERVAL)
 
@@ -257,7 +527,7 @@ def auto_combat():
     """自动战斗"""
     logger.info("自动战斗")
     while not is_main_world():
-        positions = [(100 + i * 130, 560) for i in range(5)]
+        positions = SKILL_POSITIONS.copy()
         random.shuffle(positions)
         for pos in positions:
             touch(pos)
@@ -294,7 +564,7 @@ def select_character(char_class):
         Template(r"images/enter_game_button.png", resolution=(720, 1280))
     ):  # 如果不在选择角色界面，返回选择界面
         back_to_main()
-        touch(SETTINGS_POINT)
+        touch(SETTINGS_BUTTON)
         sleep(1)
 
         # 返回角色选择界面
@@ -328,12 +598,54 @@ def select_character(char_class):
 
 
 def wait_for_main():
-    """等待回到主界面"""
-    logger.info("等待战斗结束...")
-    wait(
-        GIFTS_TEMPLATE,
-        timeout=180,
-    )
+    """
+    等待回到主界面
+    如果 5 分钟（300秒）还没执行结束，则中断执行并发送通知
+    """
+    logger.info("⏳ 等待战斗结束...")
+    timeout = 300  # 5 分钟超时
+    start_time = time.time()
+
+    try:
+        # 使用较短的循环检查，以便能及时中断
+        check_interval = 5  # 每5秒检查一次
+        while time.time() - start_time < timeout:
+            if exists(GIFTS_TEMPLATE):
+                elapsed = time.time() - start_time
+                logger.info(f"✅ 战斗结束，用时 {elapsed:.1f} 秒")
+                return True
+
+            # 检查是否有停止信号
+            if check_stop_signal():
+                logger.warning("⛔ 收到停止信号，中断等待")
+                send_bark_notification(
+                    "副本助手", "收到停止信号，已中断执行", level="timeSensitive"
+                )
+                raise KeyboardInterrupt("收到停止信号")
+
+            time.sleep(check_interval)
+
+        # 超时处理
+        elapsed = time.time() - start_time
+        error_msg = f"战斗超时（{elapsed:.1f}秒 > {timeout}秒），可能卡住了"
+        logger.error(f"❌ {error_msg}")
+
+        # 发送 Bark 通知
+        send_bark_notification("副本助手 - 超时警告", error_msg, level="timeSensitive")
+
+        # 抛出超时异常
+        raise TimeoutError(error_msg)
+
+    except TimeoutError:
+        raise
+    except KeyboardInterrupt:
+        raise
+    except Exception as e:
+        logger.error(f"❌ 等待主界面时出错: {e}")
+        send_bark_notification(
+            "副本助手 - 错误", f"等待主界面时出错: {str(e)}", level="timeSensitive"
+        )
+        raise
 
 
 def switch_to_zone(zone_name):
@@ -352,7 +664,7 @@ def switch_to_zone(zone_name):
     # 点击区域名称
     if find_text_and_click(zone_name, timeout=10, occurrence=2):
         logger.info(f"✅ 成功切换到: {zone_name}")
-        touch((80, 212))  # 关闭切换菜单
+        touch(CLOSE_ZONE_MENU)  # 关闭切换菜单
         return True
 
     logger.error(f"❌ 切换失败: {zone_name}")
@@ -362,9 +674,16 @@ def switch_to_zone(zone_name):
 def sell_trashes():
     logger.info("💰 卖垃圾")
     click_back()
-    find_text_and_click("装备", regions=[7, 8, 9])
-    find_text_and_click("整理售卖", regions=[7, 8, 9])
-    find_text_and_click("出售")
+    if find_text_and_click("装备", regions=[7, 8, 9]):
+        if find_text_and_click("整理售卖", regions=[7, 8, 9]):
+            if find_text_and_click("出售"):
+                logger.info("✅ 成功完成装备售卖流程")
+            else:
+                raise Exception("❌ 点击'出售'按钮失败")
+        else:
+            raise Exception("❌ 点击'整理售卖'按钮失败")
+    else:
+        raise Exception("❌ 点击'装备'按钮失败")
     click_back()
     click_back()
 
@@ -376,14 +695,14 @@ def switch_account(account_name):
     start_app("com.ms.ysjyzr")
     try:
         find_text("进入游戏", timeout=20, regions=[5])
-        touch((14, 43))
+        touch(ACCOUNT_AVATAR)
         sleep(2)
         find_text_and_click("切换账号", regions=[2, 3])
     except Exception:
         logger.warning("⚠️ 未找到切换账号按钮，可能处于登录界面")
         pass
     find_text("最近登录", timeout=20, regions=[5])
-    touch((572, 599))  # 下拉箭头
+    touch(ACCOUNT_DROPDOWN_ARROW)  # 下拉箭头
 
     success = False
     for _ in range(10):
@@ -392,13 +711,13 @@ def switch_account(account_name):
         ):
             success = True
             break
-        swipe((480, 800), (480, 700))
+        swipe(ACCOUNT_LIST_SWIPE_START, ACCOUNT_LIST_SWIPE_END)
 
     if not success:
         raise Exception(
             f"Failed to find and click account '{account_name}' after 10 tries"
         )
-    touch((356, 732))  # 登录按钮
+    touch(LOGIN_BUTTON)  # 登录按钮
 
 
 def back_to_main():
@@ -411,16 +730,51 @@ def back_to_main():
 def daily_collect():
     """
     领取每日挂机奖励
+    如果配置启用了快速挂机，还会执行快速挂机领取
     """
     back_to_main()
     res = find_text_and_click("战斗", regions=[8])
     if res:
-        touch((res["center"].x, res["center"].y - 50))  # 点箱子
-        find_text_and_click("收下")
-        find_text_and_click("确定")
-        logger.info("✅ 领取成功")
+        touch(
+            (res["center"][0], res["center"][1] + DAILY_REWARD_BOX_OFFSET_Y)
+        )  # 点箱子
+        sleep(CLICK_INTERVAL)
+        touch(DAILY_REWARD_CONFIRM)
+        sleep(CLICK_INTERVAL)
+        find_text_and_click("确定", regions=[5])
+        logger.info("✅ 每日挂机奖励领取成功")
+
+        # 如果启用了快速挂机，执行快速挂机领取
+        if config_loader and config_loader.is_quick_afk_enabled():
+            logger.info("⚡ 开始快速挂机领取")
+            if find_text_and_click("快速挂机", regions=[4, 5, 6, 7, 8, 9]):
+                for i in range(10):
+                    touch(QUICK_AFK_COLLECT_BUTTON)  # "领取" 按钮
+                    sleep(1)
+                logger.info("✅ 快速挂机领取完成")
+            else:
+                logger.warning("⚠️ 未找到快速挂机按钮")
+        else:
+            logger.info("⏭️ 未启用快速挂机，跳过")
+
     else:
-        logger.warning("⚠️ 未找到领取按钮")
+        logger.warning("⚠️ 未找到战斗按钮")
+        raise Exception("领取每日奖励失败")
+
+    # 随从
+    back_to_main()
+    res = find_text_and_click("随从", regions=[7])
+    if res:
+        # 点箱子
+        touch((res["center"][0], res["center"][1] + DAILY_REWARD_BOX_OFFSET_Y))
+        sleep(CLICK_INTERVAL)
+        touch(DAILY_REWARD_CONFIRM)
+        sleep(CLICK_INTERVAL)
+        find_text_and_click("确定", regions=[5])
+        logger.info("✅ 随从奖励领取成功")
+    else:
+        logger.warning("⚠️ 未找到随从按钮")
+        raise Exception("领取随从奖励失败")
 
 
 def process_dungeon(dungeon_name, zone_name, index, total, db):
@@ -456,12 +810,14 @@ def process_dungeon(dungeon_name, zone_name, index, total, db):
     return False
 
 
-def main():
-    """主函数"""
-    global config_loader, zone_dungeons, ocr_helper
-
-    # 解析命令行参数
+def parse_arguments():
+    """解析命令行参数"""
     parser = argparse.ArgumentParser(description="副本自动遍历脚本")
+    parser.add_argument(
+        "--skip-emulator-check",
+        action="store_true",
+        help="跳过模拟器检查和启动（用于测试或特殊情况）",
+    )
     parser.add_argument(
         "-c",
         "--config",
@@ -474,86 +830,19 @@ def main():
         type=str,
         help="加载指定账号后退出（账号名称，如：18502542158）",
     )
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    # 如果只是加载账号，则不需要显示副本信息
-    if not args.load_account:
-        logger.info("\n" + "=" * 60)
-        logger.info("🎮 副本自动遍历脚本")
-        logger.info("=" * 60 + "\n")
 
-    # 处理加载账号模式
-    if args.load_account:
-        logger.info("\n" + "=" * 60)
-        logger.info("🔄 账号加载模式")
-        logger.info("=" * 60 + "\n")
-        logger.info(f"📱 目标账号: {args.load_account}")
+def handle_load_account_mode(account_name):
+    """处理账号加载模式"""
+    global ocr_helper
 
-        # 初始化设备和OCR
-        from airtest.core.api import connect_device, auto_setup
-        from ocr_helper import OCRHelper
+    logger.info("\n" + "=" * 60)
+    logger.info("🔄 账号加载模式")
+    logger.info("=" * 60 + "\n")
+    logger.info(f"📱 目标账号: {account_name}")
 
-        connect_device("Android:///")
-        auto_setup(__file__)
-        ocr_helper = OCRHelper(output_dir="output")
-
-        # 切换账号
-        try:
-            switch_account(args.load_account)
-            logger.info(f"✅ 成功加载账号: {args.load_account}")
-            logger.info("=" * 60 + "\n")
-            return
-        except Exception as e:
-            logger.error(f"❌ 加载账号失败: {e}")
-            sys.exit(1)
-
-    # 加载配置
-    try:
-        config_loader = load_config(args.config)
-        zone_dungeons = config_loader.get_zone_dungeons()
-    except Exception as e:
-        logger.error(f"❌ 加载配置失败: {e}")
-        sys.exit(1)
-
-    # 初始化数据库（先检查进度）
-    with DungeonProgressDB(config_name=config_loader.get_config_name()) as db:
-        # 清理旧记录
-        db.cleanup_old_records(days_to_keep=7)
-
-        # 显示今天已通关的副本
-        completed_count = db.get_today_completed_count()
-        if completed_count > 0:
-            logger.info(f"📊 今天已通关 {completed_count} 个副本")
-            completed_dungeons = db.get_today_completed_dungeons()
-            for zone, dungeon in completed_dungeons[:5]:  # 只显示前5个
-                logger.info(f"  ✅ {zone} - {dungeon}")
-            if len(completed_dungeons) > 5:
-                logger.info(f"  ... 还有 {len(completed_dungeons) - 5} 个")
-            logger.info("")
-
-        # 计算选定的副本总数
-        total_selected_dungeons = sum(
-            sum(1 for d in dungeons if d.get("selected", True))
-            for dungeons in zone_dungeons.values()
-        )
-        total_dungeons = sum(len(dungeons) for dungeons in zone_dungeons.values())
-
-        logger.info(f"📊 总计: {len(zone_dungeons)} 个区域, {total_dungeons} 个副本")
-        logger.info(f"📊 选定: {total_selected_dungeons} 个副本")
-        logger.info(f"📊 已完成: {completed_count} 个副本")
-
-        # 检查是否所有选定的副本都已完成
-        if completed_count >= total_selected_dungeons:
-            logger.info("\n" + "=" * 60)
-            logger.info("🎉 今天所有选定的副本都已完成！")
-            logger.info("=" * 60)
-            logger.info("💤 无需执行任何操作，脚本退出")
-            return
-
-        remaining_dungeons = total_selected_dungeons - completed_count
-        logger.info(f"📊 剩余: {remaining_dungeons} 个副本待通关\n")
-
-    # 初始化设备和OCR（只有在需要执行时才初始化）
+    # 初始化设备和OCR
     from airtest.core.api import connect_device, auto_setup
     from ocr_helper import OCRHelper
 
@@ -561,64 +850,237 @@ def main():
     auto_setup(__file__)
     ocr_helper = OCRHelper(output_dir="output")
 
-    # 选择角色（如果配置了职业）
+    # 切换账号
+    try:
+        switch_account(account_name)
+        logger.info(f"✅ 成功加载账号: {account_name}")
+        logger.info("=" * 60 + "\n")
+    except Exception as e:
+        logger.error(f"❌ 加载账号失败: {e}")
+        sys.exit(1)
+
+
+def initialize_configs(config_path):
+    """初始化系统配置和用户配置"""
+    global config_loader, system_config, zone_dungeons
+
+    # 加载系统配置
+    try:
+        system_config = load_system_config()
+    except Exception as e:
+        logger.warning(f"⚠️ 加载系统配置失败: {e}，使用默认配置")
+        system_config = None
+
+    # 加载用户配置
+    try:
+        config_loader = load_config(config_path)
+        zone_dungeons = config_loader.get_zone_dungeons()
+    except Exception as e:
+        logger.error(f"❌ 加载配置失败: {e}")
+        sys.exit(1)
+
+
+def show_progress_statistics(db):
+    """显示进度统计信息
+
+    Returns:
+        tuple: (completed_count, total_selected_dungeons, total_dungeons)
+    """
+    # 清理旧记录
+    db.cleanup_old_records(days_to_keep=7)
+
+    # 显示今天已通关的副本
+    completed_count = db.get_today_completed_count()
+    if completed_count > 0:
+        logger.info(f"📊 今天已通关 {completed_count} 个副本")
+        completed_dungeons = db.get_today_completed_dungeons()
+        for zone, dungeon in completed_dungeons[:5]:  # 只显示前5个
+            logger.info(f"  ✅ {zone} - {dungeon}")
+        if len(completed_dungeons) > 5:
+            logger.info(f"  ... 还有 {len(completed_dungeons) - 5} 个")
+        logger.info("")
+
+    # 计算选定的副本总数
+    if zone_dungeons is None:
+        logger.error("❌ 区域副本配置未初始化")
+        sys.exit(1)
+
+    total_selected_dungeons = sum(
+        sum(1 for d in dungeons if d.get("selected", True))
+        for dungeons in zone_dungeons.values()
+    )
+    total_dungeons = sum(len(dungeons) for dungeons in zone_dungeons.values())
+
+    logger.info(f"📊 总计: {len(zone_dungeons)} 个区域, {total_dungeons} 个副本")
+    logger.info(f"📊 选定: {total_selected_dungeons} 个副本")
+    logger.info(f"📊 已完成: {completed_count} 个副本")
+
+    # 检查是否所有选定的副本都已完成
+    if completed_count >= total_selected_dungeons:
+        logger.info("\n" + "=" * 60)
+        logger.info("🎉 今天所有选定的副本都已完成！")
+        logger.info("=" * 60)
+        logger.info("💤 无需执行任何操作，脚本退出")
+        return completed_count, total_selected_dungeons, total_dungeons
+
+    remaining_dungeons = total_selected_dungeons - completed_count
+    logger.info(f"📊 剩余: {remaining_dungeons} 个副本待通关\n")
+
+    return completed_count, total_selected_dungeons, total_dungeons
+
+
+def initialize_device_and_ocr():
+    """初始化设备连接和OCR助手"""
+    global ocr_helper
+
+    from airtest.core.api import connect_device, auto_setup
+    from ocr_helper import OCRHelper
+
+    connect_device("Android:///")
+    auto_setup(__file__)
+    ocr_helper = OCRHelper(output_dir="output")
+
+
+def run_dungeon_traversal(db, total_dungeons):
+    """执行副本遍历主循环
+
+    Returns:
+        int: 本次运行完成的副本数量
+    """
+    global config_loader, zone_dungeons
+
+    if config_loader is None or zone_dungeons is None:
+        logger.error("❌ 配置未初始化")
+        sys.exit(1)
+
+    daily_collect_finished = False
+    dungeon_index = 0
+    processed_dungeons = 0
+
+    # 遍历所有区域
+    for zone_idx, (zone_name, dungeons) in enumerate(zone_dungeons.items(), 1):
+        logger.info(f"\n{'#' * 60}")
+        logger.info(f"# 🌍 [{zone_idx}/{len(zone_dungeons)}] 区域: {zone_name}")
+        logger.info(f"# 🎯 副本数: {len(dungeons)}")
+        logger.info(f"{'#' * 60}")
+
+        # 遍历副本
+        for dungeon_dict in dungeons:
+            # 在每个副本开始前检查停止信号
+            if check_stop_signal():
+                logger.info(f"\n📊 统计: 本次运行完成 {processed_dungeons} 个副本")
+                logger.info("👋 已停止执行")
+                back_to_main()
+                return processed_dungeons
+
+            dungeon_name = dungeon_dict["name"]
+            is_selected = dungeon_dict["selected"]
+            dungeon_index += 1
+
+            # 检查是否选定该副本
+            if not is_selected:
+                logger.info(
+                    f"⏭️ [{dungeon_index}/{total_dungeons}] 未选定，跳过: {dungeon_name}"
+                )
+                continue
+
+            # 先检查是否已通关，如果已通关则跳过，不需要切换区域
+            if db.is_dungeon_completed(zone_name, dungeon_name):
+                logger.info(
+                    f"⏭️ [{dungeon_index}/{total_dungeons}] 已通关，跳过: {dungeon_name}"
+                )
+                continue
+
+            # 正式开始挂机 - 只在配置启用时执行
+            if not daily_collect_finished and config_loader.is_daily_collect_enabled():
+                daily_collect()
+                daily_collect_finished = True
+
+            open_map()
+            if not switch_to_zone(zone_name):
+                logger.warning(f"⏭️ 跳过区域: {zone_name}")
+                continue
+
+            # 完成副本后会回到主界面，需要重新打开地图
+            if process_dungeon(
+                dungeon_name, zone_name, dungeon_index, total_dungeons, db
+            ):
+                processed_dungeons += 1
+                # 每完成3个副本就卖垃圾
+                if processed_dungeons % 3 == 0:
+                    sell_trashes()
+                    back_to_main()
+
+        logger.info(f"\n✅ 完成区域: {zone_name}")
+
+    return processed_dungeons
+
+
+def main():
+    """主函数 - 副本自动遍历脚本入口"""
+    global config_loader, system_config, zone_dungeons, ocr_helper
+
+    # 1. 解析命令行参数
+    args = parse_arguments()
+
+    # 2. 显示欢迎信息（如果不是加载账号模式）
+    if not args.load_account:
+        logger.info("\n" + "=" * 60)
+        logger.info("🎮 副本自动遍历脚本")
+        logger.info("=" * 60 + "\n")
+
+    # 3. 检查并启动模拟器（除非明确跳过）
+    if not args.skip_emulator_check:
+        if not check_and_start_emulator():
+            logger.error("❌ 模拟器准备失败，脚本退出")
+            sys.exit(1)
+    else:
+        logger.info("⚠️ 跳过模拟器检查（--skip-emulator-check）")
+
+    # 4. 处理加载账号模式（如果指定）
+    if args.load_account:
+        handle_load_account_mode(args.load_account)
+        return
+
+    # 5. 初始化配置
+    initialize_configs(args.config)
+
+    # 6. 检查进度统计
+    if config_loader is None:
+        logger.error("❌ 配置加载器未初始化")
+        sys.exit(1)
+
+    with DungeonProgressDB(config_name=config_loader.get_config_name()) as db:
+        completed_count, total_selected_dungeons, total_dungeons = (
+            show_progress_statistics(db)
+        )
+
+        # 如果所有副本都已完成，直接退出
+        if completed_count >= total_selected_dungeons:
+            return
+
+    # 7. 初始化设备和OCR
+    initialize_device_and_ocr()
+
+    # 8. 选择角色（如果配置了职业）
+    if config_loader is None:
+        logger.error("❌ 配置加载器未初始化")
+        sys.exit(1)
     char_class = config_loader.get_char_class()
     if char_class:
         select_character(char_class)
     else:
         logger.info("⚠️ 未配置角色职业，跳过角色选择")
 
-    # 重新打开数据库连接执行副本遍历
+    # 9. 执行副本遍历
+    if config_loader is None:
+        logger.error("❌ 配置加载器未初始化")
+        sys.exit(1)
+
     with DungeonProgressDB(config_name=config_loader.get_config_name()) as db:
-        dungeon_index = 0
-        processed_dungeons = 0
+        run_dungeon_traversal(db, total_dungeons)
 
-        # 遍历所有区域
-        for zone_idx, (zone_name, dungeons) in enumerate(zone_dungeons.items(), 1):
-            logger.info(f"\n{'#' * 60}")
-            logger.info(f"# 🌍 [{zone_idx}/{len(zone_dungeons)}] 区域: {zone_name}")
-            logger.info(f"# 🎯 副本数: {len(dungeons)}")
-            logger.info(f"{'#' * 60}")
-
-            # 遍历副本
-            for dungeon_dict in dungeons:
-                dungeon_name = dungeon_dict["name"]
-                is_selected = dungeon_dict["selected"]
-                dungeon_index += 1
-
-                # 检查是否选定该副本
-                if not is_selected:
-                    logger.info(
-                        f"⏭️ [{dungeon_index}/{total_dungeons}] 未选定，跳过: {dungeon_name}"
-                    )
-                    continue
-
-                # 先检查是否已通关，如果已通关则跳过，不需要切换区域
-                if db.is_dungeon_completed(zone_name, dungeon_name):
-                    logger.info(
-                        f"⏭️ [{dungeon_index}/{total_dungeons}] 已通关，跳过: {dungeon_name}"
-                    )
-                    continue
-
-                # 正式开始挂机
-                daily_collect()
-                open_map()
-                if not switch_to_zone(zone_name):
-                    logger.warning(f"⏭️ 跳过区域: {zone_name}")
-                    continue
-
-                # 完成副本后会回到主界面，需要重新打开地图
-                if process_dungeon(
-                    dungeon_name, zone_name, dungeon_index, total_dungeons, db
-                ):
-                    processed_dungeons += 1
-                    # 每完成3个副本就卖垃圾
-                    if processed_dungeons % 3 == 0:
-                        sell_trashes()
-                        back_to_main()
-
-            logger.info(f"\n✅ 完成区域: {zone_name}")
-
+        # 10. 显示完成信息
         logger.info("\n" + "=" * 60)
         logger.info(f"🎉 全部完成！今天共通关 {db.get_today_completed_count()} 个副本")
         logger.info("=" * 60 + "\n")

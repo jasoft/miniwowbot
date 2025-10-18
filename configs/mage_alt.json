@@ -1,9 +1,11 @@
 {
     "description": "小号配置 - 只打简单副本",
+    "class": "法师",
+    "enable_daily_collect": true,
+    "enable_quick_afk": true,
     "ocr_correction_map": {
         "梦魔丛林": "梦魇丛林"
     },
-    "class": "法师",
     "zone_dungeons": {
         "风暴群岛": [
             { "name": "真理之地", "selected": false },

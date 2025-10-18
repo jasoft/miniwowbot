@@ -15,3 +15,6 @@ analyzed_screenshots/
 # Private configuration files (contains sensitive data like account numbers)
 test_accounts.json
 accounts.json
+
+# 停止信号文件
+.stop_dungeon

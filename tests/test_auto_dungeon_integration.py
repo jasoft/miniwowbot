@@ -5,7 +5,6 @@
 需要连接真实设备才能运行
 """
 
-import sys
 import os
 import pytest
 import logging
@@ -13,10 +12,15 @@ import time
 import json
 
 # 添加父目录到路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from airtest.core.api import connect_device, auto_setup  # noqa: E402
-from auto_dungeon import select_character, find_text_and_click, switch_account  # noqa: E402
+from auto_dungeon import (
+    select_character,
+    find_text_and_click,
+    switch_account,
+    daily_collect,
+)  # noqa: E402
 import auto_dungeon  # noqa: E402
 from ocr_helper import OCRHelper  # noqa: E402
 
@@ -281,6 +285,118 @@ class TestSelectCharacterWithDeviceCheck:
         except Exception as e:
             logger.error(f"❌ 函数执行失败: {e}")
             pytest.fail(f"函数执行失败: {e}")
+
+
+@pytest.mark.integration
+class TestDailyCollectIntegration:
+    """测试每日领取功能 - 真机测试"""
+
+    def test_daily_collect_function_exists(self):
+        """测试 daily_collect 函数是否存在"""
+        assert callable(daily_collect), "daily_collect 函数应该存在且可调用"
+
+    def test_daily_collect_real_device(self, setup_device):
+        """
+        测试每日领取功能 - 真机测试
+
+        前提条件：
+        - 设备已连接
+        - 游戏已打开并在主界面或任意可以访问主界面的界面
+
+        测试步骤：
+        1. 调用 daily_collect 函数
+        2. 验证函数能够正常执行完成（不抛出异常）
+
+        注意：这是一个基本的功能测试，只验证函数能否正常运行
+        """
+        try:
+            # 执行每日领取功能
+            logger.info("🧪 开始测试每日领取功能")
+            daily_collect()
+
+            # 如果没有抛出异常，则测试通过
+            logger.info("✅ daily_collect 函数执行成功")
+
+        except Exception as e:
+            # 记录详细错误信息
+            logger.error(f"❌ daily_collect 函数执行失败: {e}")
+            pytest.fail(f"daily_collect 执行失败: {e}")
+
+    def test_daily_collect_execution_time(self, setup_device):
+        """
+        测试 daily_collect 函数执行时间
+        验证函数能在合理时间内完成
+        """
+        start_time = time.time()
+
+        try:
+            logger.info("🧪 开始测试每日领取功能执行时间")
+            daily_collect()
+            execution_time = time.time() - start_time
+
+            logger.info(f"⏱️ daily_collect 执行时间: {execution_time:.2f} 秒")
+
+            # 验证执行时间在合理范围内（例如不超过 60 秒）
+            assert execution_time < 60, f"函数执行时间过长: {execution_time:.2f} 秒"
+
+        except Exception as e:
+            logger.error(f"❌ daily_collect 函数执行失败: {e}")
+            pytest.fail(f"daily_collect 函数执行失败: {e}")
+
+    def test_daily_collect_multiple_calls(self, setup_device):
+        """
+        测试多次调用 daily_collect 函数
+        验证函数的稳定性和幂等性
+
+        注意：多次调用应该能够正常处理"已领取"的情况
+        """
+        success_count = 0
+        total_attempts = 3  # 测试3次调用
+
+        for i in range(total_attempts):
+            try:
+                logger.info(f"🔄 第 {i + 1} 次调用 daily_collect")
+                daily_collect()
+                success_count += 1
+                logger.info(f"✅ 第 {i + 1} 次调用成功")
+
+                # 在连续调用之间添加短暂延迟
+                time.sleep(2)
+
+            except Exception as e:
+                logger.warning(f"⚠️ 第 {i + 1} 次调用失败: {e}")
+
+        # 至少应该有一次成功
+        assert success_count > 0, (
+            f"所有 daily_collect 调用都失败了 (成功: {success_count}/{total_attempts})"
+        )
+        logger.info(f"📊 daily_collect 成功率: {success_count}/{total_attempts}")
+
+    def test_daily_collect_with_different_states(self, setup_device):
+        """
+        测试在不同游戏状态下调用 daily_collect
+        验证函数能够正确处理各种状态
+        """
+        try:
+            logger.info("🧪 测试 daily_collect 在当前游戏状态下的表现")
+
+            # 第一次调用
+            daily_collect()
+            logger.info("✅ 第一次调用完成")
+
+            # 等待一段时间后再次调用
+            time.sleep(3)
+
+            # 第二次调用（可能已经领取过）
+            daily_collect()
+            logger.info("✅ 第二次调用完成（可能显示已领取）")
+
+            # 测试通过
+            logger.info("✅ daily_collect 在不同状态下都能正常执行")
+
+        except Exception as e:
+            logger.error(f"❌ 测试失败: {e}")
+            pytest.fail(f"daily_collect 在不同状态下执行失败: {e}")
 
 
 if __name__ == "__main__":

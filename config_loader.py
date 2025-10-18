@@ -28,6 +28,8 @@ class ConfigLoader:
         self.zone_dungeons = {}
         self.ocr_correction_map = {}
         self.char_class = None
+        self.enable_daily_collect = False
+        self.enable_quick_afk = False
         self._load_config()
 
     def _get_config_name(self) -> str:
@@ -59,6 +61,12 @@ class ConfigLoader:
             # 加载角色职业
             self.char_class = config.get("class", None)
 
+            # 加载每日领取选项
+            self.enable_daily_collect = config.get("enable_daily_collect", False)
+
+            # 加载快速挂机选项
+            self.enable_quick_afk = config.get("enable_quick_afk", False)
+
             # 验证配置格式
             self._validate_config()
 
@@ -66,6 +74,10 @@ class ConfigLoader:
             logger.info(f"📝 配置名称: {self.config_name}")
             if self.char_class:
                 logger.info(f"⚔️ 角色职业: {self.char_class}")
+            if self.enable_daily_collect:
+                logger.info("🎁 每日领取: 启用")
+            if self.enable_quick_afk:
+                logger.info("⚡ 快速挂机: 启用")
             logger.info(f"🌍 区域数量: {len(self.zone_dungeons)}")
             logger.info(
                 f"🎯 副本总数: {sum(len(dungeons) for dungeons in self.zone_dungeons.values())}"
@@ -209,6 +221,24 @@ class ConfigLoader:
             纠正后的文本
         """
         return self.ocr_correction_map.get(text, text)
+
+    def is_daily_collect_enabled(self) -> bool:
+        """
+        检查是否启用每日领取
+
+        Returns:
+            是否启用每日领取
+        """
+        return self.enable_daily_collect
+
+    def is_quick_afk_enabled(self) -> bool:
+        """
+        检查是否启用快速挂机
+
+        Returns:
+            是否启用快速挂机
+        """
+        return self.enable_quick_afk
 
 
 def load_config(config_file: str) -> ConfigLoader:

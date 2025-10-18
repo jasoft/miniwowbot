@@ -1,6 +1,8 @@
 {
     "description": "主力角色配置 - 选择性打副本",
     "class": "战士",
+    "enable_daily_collect": true,
+    "enable_quick_afk": true,
     "ocr_correction_map": {
         "梦魔丛林": "梦魇丛林"
     },
@@ -8,7 +10,7 @@
         "风暴群岛": [
             { "name": "真理之地", "selected": true },
             { "name": "预言神殿", "selected": true },
-            { "name": "海底王宫", "selected": true },
+            { "name": "海底王宫", "selected": false },
             { "name": "泰坦密室", "selected": true },
             { "name": "黑暗庄园", "selected": true },
             { "name": "海底囚牢", "selected": true },

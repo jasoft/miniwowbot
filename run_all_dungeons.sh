@@ -25,10 +25,10 @@ CHARACTERS=(
     "warlock"
     "druid"
     "monk"
-    "warrior"
     "shaman"
     "priest"
     "deathknight"
+    "warrior"
 )
 
 # 角色中文名称映射

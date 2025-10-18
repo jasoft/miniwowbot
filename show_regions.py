@@ -8,7 +8,10 @@
 import sys
 import os
 import cv2
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 from airtest.core.api import connect_device, auto_setup, snapshot
+from ocr_helper import OCRHelper
 
 # 添加父目录到路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -220,11 +223,172 @@ def highlight_region(image, region_num):
     return result
 
 
+def put_chinese_text(img, text, position, font_size, color=(0, 255, 0)):
+    """
+    使用 PIL 在图像上绘制中文文字
+
+    Args:
+        img: OpenCV 图像 (BGR)
+        text: 要绘制的文字
+        position: 文字位置 (x, y)
+        font_size: 字体大小
+        color: 文字颜色 (B, G, R)
+
+    Returns:
+        绘制了文字的图像
+    """
+    # 转换为 PIL Image (RGB)
+    img_pil = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    draw = ImageDraw.Draw(img_pil)
+
+    # 尝试加载中文字体
+    try:
+        # macOS 系统字体
+        font = ImageFont.truetype("/System/Library/Fonts/PingFang.ttc", font_size)
+    except:
+        try:
+            # 备选字体
+            font = ImageFont.truetype(
+                "/System/Library/Fonts/STHeiti Light.ttc", font_size
+            )
+        except:
+            try:
+                # Linux 字体
+                font = ImageFont.truetype(
+                    "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
+                    font_size,
+                )
+            except:
+                # 使用默认字体
+                font = ImageFont.load_default()
+
+    # PIL 使用 RGB，需要转换颜色
+    color_rgb = (color[2], color[1], color[0])
+
+    # 绘制文字
+    draw.text(position, text, font=font, fill=color_rgb)
+
+    # 转换回 OpenCV 格式 (BGR)
+    return cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
+
+
+def recognize_and_overlay_text(image, ocr_helper):
+    """
+    识别图像上的所有文字，并用不透明底色覆盖原文字显示识别结果
+
+    Args:
+        image: 输入图像
+        ocr_helper: OCR Helper 实例
+
+    Returns:
+        覆盖了文字的图像
+    """
+    result = image.copy()
+    height, width = result.shape[:2]
+
+    # 保存临时图像用于 OCR 识别
+    temp_path = "/tmp/ocr_temp.png"
+    cv2.imwrite(temp_path, image)
+
+    print("🔍 正在识别图像上的所有文字...")
+    try:
+        # 使用 OCRHelper 的 get_all_texts_from_image 方法获取所有文字
+        all_texts = ocr_helper.get_all_texts_from_image(temp_path)
+
+        if not all_texts or len(all_texts) == 0:
+            print("⚠️  未识别到任何文字")
+            return result
+
+        text_count = 0
+        # 遍历所有识别到的文字
+        for text_info in all_texts:
+            try:
+                text = text_info["text"]
+                confidence = text_info["confidence"]
+                bbox = text_info["bbox"]  # [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
+
+                print(f"  📝 识别到: '{text}' (置信度: {confidence:.3f})")
+
+                # 计算文字框的边界
+                x_coords = [point[0] for point in bbox]
+                y_coords = [point[1] for point in bbox]
+                x_min, x_max = int(min(x_coords)), int(max(x_coords))
+                y_min, y_max = int(min(y_coords)), int(max(y_coords))
+
+                # 绘制不透明的黑色背景（完全覆盖原文字）
+                cv2.rectangle(result, (x_min, y_min), (x_max, y_max), (0, 0, 0), -1)
+
+                # 计算合适的字体大小
+                box_height = y_max - y_min
+                font_size = max(12, min(int(box_height * 0.8), 48))  # 字体大小
+
+                # 计算文字位置（大致居中，PIL 的文字定位与 OpenCV 不同）
+                text_x = x_min + 5  # 留一点边距
+                text_y = y_min + (box_height - font_size) // 2
+
+                # 确保文字不超出边界
+                text_x = max(0, min(text_x, width - 20))
+                text_y = max(0, min(text_y, height - font_size))
+
+                # 使用 PIL 绘制中文文字
+                result = put_chinese_text(
+                    result, text, (text_x, text_y), font_size, (0, 255, 0)
+                )
+
+                # 在文字框上方显示置信度（如果低于95%）
+                if confidence < 0.95:
+                    conf_text = f"{confidence:.2f}"
+                    conf_y = max(10, y_min - 5)
+                    result = put_chinese_text(
+                        result,
+                        conf_text,
+                        (x_min, conf_y),
+                        max(10, font_size // 2),
+                        (0, 255, 255),
+                    )
+
+                text_count += 1
+
+            except Exception as e:
+                print(f"⚠️  处理文字时出错: {e}")
+                import traceback
+
+                traceback.print_exc()
+                continue
+
+        print(f"✅ 成功识别并覆盖 {text_count} 个文字区域")
+
+    except Exception as e:
+        print(f"❌ OCR 识别失败: {e}")
+        import traceback
+
+        traceback.print_exc()
+
+    finally:
+        # 清理临时文件
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
+
+    return result
+
+
 def main():
     """主函数"""
     print("\n" + "=" * 60)
     print("🎮 游戏画面区域划分工具")
     print("=" * 60 + "\n")
+
+    # 初始化 OCR Helper
+    print("🤖 初始化 OCR 引擎...")
+    try:
+        ocr_helper = OCRHelper(output_dir="output")
+        print("✅ OCR 引擎初始化成功\n")
+    except Exception as e:
+        print(f"❌ OCR 引擎初始化失败: {e}")
+        sys.exit(1)
 
     # 连接设备
     print("📱 连接设备...")
@@ -268,6 +432,7 @@ def main():
     print("🖼️  显示区域划分图...")
     print("\n操作提示:")
     print("  - 按数字键 1-9: 高亮显示对应区域")
+    print("  - 按 T 键: 切换文字识别模式")
     print("  - 按 R 键: 刷新截图")
     print("  - 按 S 键: 保存当前图像")
     print("  - 按 ESC 或 Q 键: 退出")
@@ -288,6 +453,7 @@ def main():
     # 显示图像并等待按键
     current_image = result.copy()
     highlighted_region = None
+    ocr_mode = False  # OCR 模式标志
 
     while True:
         cv2.imshow(window_name, current_image)
@@ -301,9 +467,27 @@ def main():
         elif ord("1") <= key <= ord("9"):
             region_num = key - ord("0")
             print(f"🔍 高亮区域 {region_num}")
-            current_image = draw_regions(image)
-            current_image = highlight_region(current_image, region_num)
+            if ocr_mode:
+                # OCR 模式下，直接在原图上识别并覆盖文字（不绘制区域分割）
+                current_image = recognize_and_overlay_text(image, ocr_helper)
+                current_image = highlight_region(current_image, region_num)
+            else:
+                current_image = draw_regions(image)
+                current_image = highlight_region(current_image, region_num)
             highlighted_region = region_num
+
+        # T 键切换文字识别模式
+        elif key == ord("t") or key == ord("T"):
+            ocr_mode = not ocr_mode
+            if ocr_mode:
+                print("📝 切换到文字识别模式（直接在原图上显示）")
+                # 直接在原图上识别并覆盖文字，不绘制区域分割
+                current_image = recognize_and_overlay_text(image, ocr_helper)
+            else:
+                print("🎨 切换到区域划分模式")
+                current_image = draw_regions(image)
+                if highlighted_region:
+                    current_image = highlight_region(current_image, highlighted_region)
 
         # R 键刷新截图
         elif key == ord("r") or key == ord("R"):
@@ -311,7 +495,11 @@ def main():
             try:
                 snapshot(filename=screenshot_path)
                 image = cv2.imread(screenshot_path)
-                current_image = draw_regions(image)
+                if ocr_mode:
+                    # OCR 模式：直接在原图上识别文字
+                    current_image = recognize_and_overlay_text(image, ocr_helper)
+                else:
+                    current_image = draw_regions(image)
                 if highlighted_region:
                     current_image = highlight_region(current_image, highlighted_region)
                 print("✅ 截图已刷新")
@@ -327,7 +515,11 @@ def main():
         # 空格键重置
         elif key == ord(" "):
             print("🔄 重置视图")
-            current_image = draw_regions(image)
+            if ocr_mode:
+                # OCR 模式：直接在原图上识别文字
+                current_image = recognize_and_overlay_text(image, ocr_helper)
+            else:
+                current_image = draw_regions(image)
             highlighted_region = None
 
     # 关闭窗口

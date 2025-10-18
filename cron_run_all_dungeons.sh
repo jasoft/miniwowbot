@@ -92,7 +92,7 @@ for i in $(seq 0 $((ACCOUNT_COUNT - 1))); do
     uv run auto_dungeon.py --load-account "$ACCOUNT_PHONE" 2>&1 | tee -a "$LOG_FILE"
     if [ ${PIPESTATUS[0]} -ne 0 ]; then
         log "❌ 加载账号失败: $ACCOUNT_PHONE"
-        exit_codes[$i]=1
+        exit_codes[$i]=1cron
         continue
     fi
 
