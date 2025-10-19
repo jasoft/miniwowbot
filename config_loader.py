@@ -30,6 +30,7 @@ class ConfigLoader:
         self.char_class = None
         self.enable_daily_collect = False
         self.enable_quick_afk = False
+        self.chest_name = None
         self._load_config()
 
     def _get_config_name(self) -> str:
@@ -67,6 +68,9 @@ class ConfigLoader:
             # 加载快速挂机选项
             self.enable_quick_afk = config.get("enable_quick_afk", False)
 
+            # 加载宝箱名称选项
+            self.chest_name = config.get("chestname", None)
+
             # 验证配置格式
             self._validate_config()
 
@@ -78,6 +82,8 @@ class ConfigLoader:
                 logger.info("🎁 每日领取: 启用")
             if self.enable_quick_afk:
                 logger.info("⚡ 快速挂机: 启用")
+            if self.chest_name:
+                logger.info(f"🎁 指定宝箱: {self.chest_name}")
             logger.info(f"🌍 区域数量: {len(self.zone_dungeons)}")
             logger.info(
                 f"🎯 副本总数: {sum(len(dungeons) for dungeons in self.zone_dungeons.values())}"
@@ -239,6 +245,15 @@ class ConfigLoader:
             是否启用快速挂机
         """
         return self.enable_quick_afk
+
+    def get_chest_name(self) -> Optional[str]:
+        """
+        获取宝箱名称
+
+        Returns:
+            宝箱名称，如果未配置则返回 None
+        """
+        return self.chest_name
 
 
 def load_config(config_file: str) -> ConfigLoader:

@@ -2,7 +2,8 @@
     "description": "小号配置 - 只打简单副本",
     "class": "法师",
     "enable_daily_collect": true,
-    "enable_quick_afk": true,
+    "enable_quick_afk": false,
+    "chestname": "军团宝箱",
     "ocr_correction_map": {
         "梦魔丛林": "梦魇丛林"
     },
@@ -38,17 +39,17 @@
         ],
         "暗影大陆": [
             { "name": "钢铁码头", "selected": false },
-            { "name": "食人魔王国", "selected": false },
-            { "name": "黑暗熔炉", "selected": false },
+            { "name": "食人魔王国", "selected": true },
+            { "name": "黑暗熔炉", "selected": true },
             { "name": "通天峰", "selected": false },
-            { "name": "熔渣车间", "selected": false },
+            { "name": "熔渣车间", "selected": true },
             { "name": "食人魔矿井", "selected": false },
             { "name": "木精圣地", "selected": false },
-            { "name": "鲜血庭院", "selected": false },
+            { "name": "鲜血庭院", "selected": true },
             { "name": "钢铁车站", "selected": false },
             { "name": "神圣陵墓", "selected": false },
             { "name": "兽人墓地", "selected": false },
-            { "name": "毁灭高台", "selected": false }
+            { "name": "毁灭高台", "selected": true }
         ],
         "迷雾大陆": [
             { "name": "兽人圣殿", "selected": true },

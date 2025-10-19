@@ -1,6 +1,7 @@
 {
     "description": "默认配置 - 所有副本都打",
     "class": "战士",
+    "chestname": "青铜宝箱",
     "ocr_correction_map": {
         "梦魔丛林": "梦魇丛林"
     },

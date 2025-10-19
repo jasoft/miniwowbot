@@ -1,0 +1,12 @@
+{
+    "description": "测试配置 - 启用快速挂机",
+    "class": "战士",
+    "chestname": "青铜宝箱",
+    "enable_quick_afk": true,
+    "ocr_correction_map": {
+        "梦魔丛林": "梦魇丛林"
+    },
+    "zone_dungeons": {
+        "风暴群岛": [{ "name": "真理之地", "selected": true }]
+    }
+}

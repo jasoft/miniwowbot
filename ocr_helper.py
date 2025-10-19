@@ -49,7 +49,6 @@ class OCRHelper:
             use_textline_orientation=use_textline_orientation,
             text_detection_model_name="PP-OCRv5_mobile_det",
             text_recognition_model_name="PP-OCRv5_mobile_rec",
-            lang="ch",
             cpu_threads=4,  # M4 效率核心，减少线程竞争
         )
 

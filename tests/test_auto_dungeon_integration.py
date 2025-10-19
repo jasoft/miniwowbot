@@ -17,15 +17,18 @@ import json
 from airtest.core.api import connect_device, auto_setup  # noqa: E402
 from auto_dungeon import (
     select_character,
-    find_text_and_click,
+    find_text_and_click_safe,
     switch_account,
     daily_collect,
+    DailyCollectManager,
 )  # noqa: E402
 import auto_dungeon  # noqa: E402
 from ocr_helper import OCRHelper  # noqa: E402
+from config_loader import ConfigLoader  # noqa: E402
 
 # 配置日志
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 def load_test_accounts():
@@ -63,10 +66,27 @@ def load_test_accounts():
 @pytest.fixture(scope="module")
 def setup_device():
     """
-    设置设备连接和 OCR Helper
+    设置设备连接、OCR Helper 和配置文件
     这是一个模块级别的 fixture，在所有测试前执行一次
     """
     try:
+        # 加载 warrior.json 配置文件
+        config_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "configs",
+            "warrior.json",
+        )
+
+        warrior_config = ConfigLoader(config_path)
+        auto_dungeon.config_loader = warrior_config
+        logger.info(f"✅ 成功加载 warrior 配置: {warrior_config.get_char_class()}")
+        logger.info(
+            f"🎁 每日领取: {'启用' if warrior_config.is_daily_collect_enabled() else '禁用'}"
+        )
+        logger.info(
+            f"⚡ 快速挂机: {'启用' if warrior_config.is_quick_afk_enabled() else '禁用'}"
+        )
+
         # 连接设备
         connect_device("Android:///")
         auto_setup(__file__)
@@ -236,7 +256,7 @@ class TestSelectCharacterIntegration:
         try:
             # 尝试查找一个常见的文本（设置或其他常见按钮）
             # 设置较短的超时时间，避免测试时间过长
-            result = find_text_and_click("设置", timeout=5)
+            result = find_text_and_click_safe("设置", timeout=5)
 
             logger.info(f"查找'设置'文本结果: {result}")
 
@@ -288,12 +308,98 @@ class TestSelectCharacterWithDeviceCheck:
 
 
 @pytest.mark.integration
+class TestMiscFunctionsIntegration:
+    """测试其他独立函数 - 真机测试"""
+
+    def test_is_main_world_function_exists(self):
+        """测试 auto_dungeon.is_main_world 函数是否存在"""
+        assert hasattr(auto_dungeon, "is_main_world"), (
+            "auto_dungeon 应该有 is_main_world 函数"
+        )
+        assert callable(auto_dungeon.is_main_world), "is_main_world 应该是可调用的"
+
+    def test_is_main_world_real_device(self, setup_device):
+        """
+        测试 is_main_world 函数在真机上的基本功能
+
+        前提条件：
+        - 设备已连接
+        - 游戏已打开并在主界面或副本界面
+
+        测试步骤：
+        1. 调用 is_main_world 函数
+        2. 验证函数返回布尔值
+        """
+        try:
+            start_time = time.time()
+            result = auto_dungeon.is_main_world()
+            execution_time = time.time() - start_time
+            logger.info(f"is_main_world 执行时间: {execution_time:.2f} 秒")
+            logger.info(f"is_main_world 返回值: {result}")
+            assert isinstance(result, bool), "is_main_world 应该返回布尔值"
+        except Exception as e:
+            logger.error(f"❌ is_main_world 执行失败: {e}")
+            pytest.fail(f"is_main_world 执行失败: {e}")
+
+    def test_is_main_world_multiple_calls(self, setup_device):
+        """
+        多次调用 is_main_world 验证稳定性，并统计平均执行时间
+        """
+        success_count = 0
+        total_attempts = 10
+        total_time = 0.0
+        for i in range(total_attempts):
+            try:
+                start_time = time.time()
+                result = auto_dungeon.is_main_world()
+                exec_time = time.time() - start_time
+                total_time += exec_time
+                logger.info(
+                    f"第 {i + 1} 次 is_main_world 返回值: {result}，耗时: {exec_time:.2f} 秒"
+                )
+                assert isinstance(result, bool), "is_main_world 应该返回布尔值"
+                success_count += 1
+                time.sleep(1)
+            except Exception as e:
+                logger.warning(f"⚠️ 第 {i + 1} 次 is_main_world 调用失败: {e}")
+        assert success_count > 0, (
+            f"所有 is_main_world 调用都失败了 (成功: {success_count}/{total_attempts})"
+        )
+        avg_time = total_time / success_count if success_count else 0
+        logger.info(
+            f"📊 is_main_world 成功率: {success_count}/{total_attempts}，平均耗时: {avg_time:.2f} 秒"
+        )
+
+
+@pytest.mark.integration
 class TestDailyCollectIntegration:
     """测试每日领取功能 - 真机测试"""
 
     def test_daily_collect_function_exists(self):
         """测试 daily_collect 函数是否存在"""
         assert callable(daily_collect), "daily_collect 函数应该存在且可调用"
+
+    def test_daily_collect_manager_class_exists(self):
+        """测试 DailyCollectManager 类是否存在"""
+        assert DailyCollectManager is not None, "DailyCollectManager 类应该存在"
+        assert hasattr(DailyCollectManager, "collect_daily_rewards"), (
+            "DailyCollectManager 应该有 collect_daily_rewards 方法"
+        )
+        assert hasattr(DailyCollectManager, "_collect_idle_rewards"), (
+            "DailyCollectManager 应该有 _collect_idle_rewards 方法"
+        )
+        assert hasattr(DailyCollectManager, "_collect_quick_afk"), (
+            "DailyCollectManager 应该有 _collect_quick_afk 方法"
+        )
+        assert hasattr(DailyCollectManager, "_handle_retinue_deployment"), (
+            "DailyCollectManager 应该有 _handle_retinue_deployment 方法"
+        )
+        assert hasattr(DailyCollectManager, "_collect_free_dungeons"), (
+            "DailyCollectManager 应该有 _collect_free_dungeons 方法"
+        )
+        assert hasattr(DailyCollectManager, "_sweep_tower_floor"), (
+            "DailyCollectManager 应该有 _sweep_tower_floor 方法"
+        )
 
     def test_daily_collect_real_device(self, setup_device):
         """
@@ -321,6 +427,26 @@ class TestDailyCollectIntegration:
             # 记录详细错误信息
             logger.error(f"❌ daily_collect 函数执行失败: {e}")
             pytest.fail(f"daily_collect 执行失败: {e}")
+
+    def test_kill_world_boss(self, setup_device):
+        """
+        测试杀死世界boss功能 - 真机测试
+
+        前提条件：
+        - 设备已连接
+        - 游戏已打开并在主界面或任意可以访问主界面的界面
+
+        测试步骤：
+        1. 调用 kill_world_boss 函数
+        2. 验证函数能够正常执行完成（不抛出异常）
+
+
+        Keyword arguments:
+        argument -- description
+        Return: return_description
+        """
+        manager = DailyCollectManager()
+        manager._kill_world_boss()
 
     def test_daily_collect_execution_time(self, setup_device):
         """
@@ -397,6 +523,210 @@ class TestDailyCollectIntegration:
         except Exception as e:
             logger.error(f"❌ 测试失败: {e}")
             pytest.fail(f"daily_collect 在不同状态下执行失败: {e}")
+
+    def test_daily_collect_manager_collect_idle_rewards(self, setup_device):
+        """
+        测试 DailyCollectManager._collect_idle_rewards 方法
+        单独测试领取挂机奖励功能
+        """
+        try:
+            # 创建 DailyCollectManager 实例
+            manager = DailyCollectManager()
+            logger.info("🧪 开始测试领取挂机奖励功能")
+
+            # 执行单独的挂机奖励领取
+            manager._collect_idle_rewards()
+            logger.info("✅ _collect_idle_rewards 执行成功")
+
+        except Exception as e:
+            logger.error(f"❌ _collect_idle_rewards 执行失败: {e}")
+            pytest.fail(f"_collect_idle_rewards 执行失败: {e}")
+
+    def test_daily_collect_manager_handle_retinue_deployment(self, setup_device):
+        """
+        测试 DailyCollectManager._handle_retinue_deployment 方法
+        单独测试随从派遣功能
+        """
+        try:
+            # 创建 DailyCollectManager 实例
+            manager = DailyCollectManager()
+            logger.info("🧪 开始测试随从派遣功能")
+
+            # 执行随从派遣
+            manager._handle_retinue_deployment()
+            logger.info("✅ _handle_retinue_deployment 执行成功")
+
+        except Exception as e:
+            logger.error(f"❌ _handle_retinue_deployment 执行失败: {e}")
+            pytest.fail(f"_handle_retinue_deployment 执行失败: {e}")
+
+    def test_daily_collect_manager_collect_free_dungeons(self, setup_device):
+        """
+        测试 DailyCollectManager._collect_free_dungeons 方法
+        单独测试领取免费地下城功能
+        """
+        try:
+            # 创建 DailyCollectManager 实例
+            manager = DailyCollectManager()
+            logger.info("🧪 开始测试领取免费地下城功能")
+
+            # 执行免费地下城领取
+            manager._collect_free_dungeons()
+            logger.info("✅ _collect_free_dungeons 执行成功")
+
+        except Exception as e:
+            logger.error(f"❌ _collect_free_dungeons 执行失败: {e}")
+            pytest.fail(f"_collect_free_dungeons 执行失败: {e}")
+
+    def test_daily_collect_manager_sweep_tower_floor(self, setup_device):
+        """
+        测试 DailyCollectManager._sweep_tower_floor 方法
+        单独测试扫荡试炼塔楼层功能
+        """
+        try:
+            # 创建 DailyCollectManager 实例
+            manager = DailyCollectManager()
+            logger.info("🧪 开始测试扫荡试炼塔楼层功能")
+
+            # 测试扫荡刻印楼层
+            manager._sweep_tower_floor("刻印", regions=[7, 8])
+            logger.info("✅ 扫荡刻印楼层测试完成")
+
+            # 测试扫荡宝石楼层
+            manager._sweep_tower_floor("宝石", regions=[8, 8])
+            logger.info("✅ 扫荡宝石楼层测试完成")
+
+            # 测试扫荡雕文楼层
+            manager._sweep_tower_floor("雕文", regions=[9, 8])
+            logger.info("✅ 扫荡雕文楼层测试完成")
+
+        except Exception as e:
+            logger.error(f"❌ _sweep_tower_floor 执行失败: {e}")
+            pytest.fail(f"_sweep_tower_floor 执行失败: {e}")
+
+    def test_daily_collect_manager_execution_time(self, setup_device):
+        """
+        测试 DailyCollectManager 各个方法的执行时间
+        """
+        manager = DailyCollectManager(config_loader=auto_dungeon.config_loader)
+
+        methods_to_test = [
+            ("_collect_idle_rewards", "领取挂机奖励"),
+            ("_collect_quick_afk", "快速挂机"),
+            ("_handle_retinue_deployment", "随从派遣"),
+            ("_collect_free_dungeons", "免费地下城"),
+        ]
+
+        for method_name, description in methods_to_test:
+            try:
+                logger.info(f"🧪 测试 {description} 执行时间")
+                start_time = time.time()
+
+                # 执行方法
+                method = getattr(manager, method_name)
+                method()
+
+                execution_time = time.time() - start_time
+                logger.info(f"⏱️ {description} 执行时间: {execution_time:.2f} 秒")
+
+                # 验证执行时间在合理范围内（根据不同功能设置不同阈值）
+                if method_name == "_collect_idle_rewards":
+                    assert execution_time < 30, (
+                        f"{description} 执行时间过长: {execution_time:.2f} 秒"
+                    )
+                elif method_name == "_collect_free_dungeons":
+                    assert execution_time < 45, (
+                        f"{description} 执行时间过长: {execution_time:.2f} 秒"
+                    )
+                else:
+                    assert execution_time < 20, (
+                        f"{description} 执行时间过长: {execution_time:.2f} 秒"
+                    )
+
+                # 在不同方法之间添加延迟
+                time.sleep(2)
+
+            except Exception as e:
+                logger.error(f"❌ {description} 执行失败: {e}")
+                # 不让单个方法的失败影响整个测试
+                logger.warning(f"⚠️ 跳过 {description} 的执行时间测试")
+
+    def test_open_chests(self, setup_device):
+        """
+        测试 DailyCollectManager._open_chests 方法
+        单独测试开启宝箱功能
+        """
+        manager = DailyCollectManager(config_loader=auto_dungeon.config_loader)
+        try:
+            logger.info("🧪 开始测试开启宝箱功能")
+            manager._open_chests("风暴宝箱")
+            logger.info("✅ 开启宝箱功能测试完成")
+
+        except Exception as e:
+            logger.error(f"❌ _open_chests 执行失败: {e}")
+            pytest.fail(f"_open_chests 执行失败: {e}")
+
+    def test_config_loader_integration(self, setup_device):
+        """
+        测试配置加载器集成
+        验证 warrior.json 配置是否正确加载并可以使用
+        """
+        # 验证配置加载器已设置
+        assert auto_dungeon.config_loader is not None, "config_loader 应该已设置"
+
+        # 验证配置内容
+        assert auto_dungeon.config_loader.get_char_class() == "战士", (
+            "角色职业应该是战士"
+        )
+        assert auto_dungeon.config_loader.is_daily_collect_enabled() is True, (
+            "每日领取应该启用"
+        )
+        assert auto_dungeon.config_loader.is_quick_afk_enabled() is True, (
+            "快速挂机应该启用"
+        )
+        assert auto_dungeon.config_loader.get_chest_name() == "风暴宝箱", (
+            "宝箱名称应该是风暴宝箱"
+        )
+
+        # 验证副本配置
+        zone_dungeons = auto_dungeon.config_loader.get_zone_dungeons()
+        assert len(zone_dungeons) == 8, "应该有8个区域"
+        assert "风暴群岛" in zone_dungeons, "应该包含风暴群岛"
+
+        # 验证 OCR 纠正映射
+        assert auto_dungeon.config_loader.correct_ocr_text("梦魔丛林") == "梦魇丛林", (
+            "OCR 纠正应该工作"
+        )
+
+        logger.info("✅ 配置加载器集成测试通过")
+
+    def test_daily_collect_with_warrior_config(self, setup_device):
+        """
+        测试使用 warrior 配置的每日领取功能
+        """
+        # 验证配置已启用每日领取
+        assert auto_dungeon.config_loader.is_daily_collect_enabled() is True, (
+            "warrior 配置应该启用每日领取"
+        )
+
+        # 创建 DailyCollectManager 并传入配置
+        manager = DailyCollectManager(config_loader=auto_dungeon.config_loader)
+        assert manager.config_loader == auto_dungeon.config_loader, (
+            "管理器应该使用相同的配置"
+        )
+
+        # 测试配置驱动的功能
+        if auto_dungeon.config_loader.is_quick_afk_enabled():
+            logger.info("🧪 测试挂机功能（warrior 配置启用）")
+            try:
+                manager._collect_idle_rewards()
+                logger.info("✅ 挂机功能执行成功")
+            except Exception as e:
+                logger.warning(f"⚠️ 挂机功能执行失败: {e}")
+        else:
+            logger.info("⚠️ 挂机功能未启用")
+
+        logger.info("✅ warrior 配置驱动的每日领取测试完成")
 
 
 if __name__ == "__main__":

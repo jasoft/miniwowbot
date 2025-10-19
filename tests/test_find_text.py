@@ -9,7 +9,7 @@ import os
 # 添加父目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from auto_dungeon import find_text, find_text_and_click
+from auto_dungeon import find_text, find_text_and_click, find_text_and_click_safe
 
 
 class TestFindText:
@@ -49,26 +49,22 @@ class TestFindText:
 class TestFindTextAndClick:
     """测试 find_text_and_click 方法"""
 
-    def test_find_text_and_click_returns_false_on_timeout(self):
-        """测试 find_text_and_click 超时返回 False"""
-        result = find_text_and_click("不存在的文本", timeout=1)
-        assert result is False
+    def test_find_text_and_click_raises_exception_on_timeout(self):
+        """测试 find_text_and_click 超时抛出异常"""
+        with pytest.raises((TimeoutError, Exception)):
+            find_text_and_click("不存在的文本", timeout=1)
 
     def test_find_text_and_click_with_regions(self):
         """测试 find_text_and_click 支持 regions 参数"""
         # 这个测试只验证参数能正确传递，不验证实际功能
-        try:
-            result = find_text_and_click("测试文本", timeout=1, regions=[7, 8, 9])
-            # 应该返回 False（因为找不到）
-            assert result is False
-        except Exception as e:
-            pytest.fail(f"find_text_and_click 调用失败: {e}")
+        with pytest.raises((TimeoutError, Exception)):
+            find_text_and_click("测试文本", timeout=1, regions=[7, 8, 9])
 
     def test_find_text_and_click_backward_compatible(self):
         """测试 find_text_and_click 向后兼容"""
         # 不指定 regions 参数应该也能正常工作
-        result = find_text_and_click("测试文本", timeout=1)
-        assert result is False
+        with pytest.raises((TimeoutError, Exception)):
+            find_text_and_click("测试文本", timeout=1)
 
 
 class TestCodeRefactoring:
@@ -83,9 +79,9 @@ class TestCodeRefactoring:
         result1 = find_text("不存在的文本", timeout=1, raise_exception=False)
         assert result1 is None
 
-        # find_text_and_click 超时返回 False
-        result2 = find_text_and_click("不存在的文本", timeout=1)
-        assert result2 is False
+        # find_text_and_click 超时抛出异常
+        with pytest.raises((TimeoutError, Exception)):
+            find_text_and_click("不存在的文本", timeout=1)
 
     def test_both_functions_support_regions(self):
         """验证两个函数都支持 regions 参数"""
@@ -94,8 +90,8 @@ class TestCodeRefactoring:
         assert result1 is None
 
         # find_text_and_click 支持 regions
-        result2 = find_text_and_click("测试", timeout=1, regions=[1, 2, 3])
-        assert result2 is False
+        with pytest.raises((TimeoutError, Exception)):
+            find_text_and_click("测试", timeout=1, regions=[1, 2, 3])
 
     def test_both_functions_support_occurrence(self):
         """验证两个函数都支持 occurrence 参数"""
@@ -104,5 +100,5 @@ class TestCodeRefactoring:
         assert result1 is None
 
         # find_text_and_click 支持 occurrence
-        result2 = find_text_and_click("测试", timeout=1, occurrence=2)
-        assert result2 is False
+        with pytest.raises((TimeoutError, Exception)):
+            find_text_and_click("测试", timeout=1, occurrence=2)

@@ -33,6 +33,9 @@ from database import DungeonProgressDB  # noqa: E402
 from config_loader import load_config  # noqa: E402
 from system_config_loader import load_system_config  # noqa: E402
 from coordinates import (  # noqa: E402
+    DEPLOY_CONFIRM_BUTTON,
+    ONE_KEY_DEPLOY,
+    ONE_KEY_REWARD,
     SETTINGS_BUTTON,
     BACK_BUTTON,
     MAP_BUTTON,
@@ -53,6 +56,7 @@ STOP_FILE = ".stop_dungeon"  # 停止标记文件路径
 
 # 配置彩色日志
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 # 防止日志重复：移除已有的 handlers
 logger.handlers.clear()
 logger.propagate = False
@@ -275,11 +279,11 @@ def check_stop_signal():
 SETTINGS_TEMPLATE = Template(
     r"images/settings_button.png",
     resolution=(720, 1280),
+    record_pos=(0.426, -0.738),
 )
 
 GIFTS_TEMPLATE = Template(
-    r"images/gifts_button.png",
-    resolution=(720, 1280),
+    r"images/gifts_button.png", resolution=(720, 1280), record_pos=(0.428, -0.424)
 )
 
 
@@ -395,10 +399,12 @@ def find_text_and_click(
     :param occurrence: 指定点击第几个出现的文字 (1-based)，默认为1
     :param use_cache: 是否使用缓存
     :param regions: 要搜索的区域列表 (1-9)，None表示全屏搜索
-    :return: 成功返回 find_text 的结果字典，失败返回 False
+    :return: 成功返回 find_text 的结果字典
+    :raises TimeoutError: 如果超时未找到文本
+    :raises Exception: 其他错误
     """
     try:
-        # 调用 find_text 查找文本（不抛出异常）
+        # 调用 find_text 查找文本（抛出异常）
         result = find_text(
             text=text,
             timeout=timeout,
@@ -406,24 +412,58 @@ def find_text_and_click(
             occurrence=occurrence,
             use_cache=use_cache,
             regions=regions,
-            raise_exception=False,
+            raise_exception=True,
         )
 
-        if result and result.get("found"):
-            # 点击找到的位置
-            center = result["center"]
-            touch(center)
-            sleep(CLICK_INTERVAL)  # 每个点击后面停顿一下等待界面刷新
+        # 点击找到的位置
+        assert result
+        center = result["center"]
+        touch(center)
+        sleep(CLICK_INTERVAL)  # 每个点击后面停顿一下等待界面刷新
 
-            region_desc = f" [区域{regions}]" if regions else ""
-            logger.info(f"✅ 成功点击: {text}{region_desc} at {center}")
-            return result
-
-        return False
+        region_desc = f" [区域{regions}]" if regions else ""
+        logger.info(f"✅ 成功点击: {text}{region_desc} at {center}")
+        return result
 
     except Exception as e:
-        return False
-        logger.error(f"❌ 查找并点击文本时出错: {e}")
+        logger.error(f"❌ 查找并点击文本失败: {text} - {e}")
+        raise
+
+
+def find_text_and_click_safe(
+    text,
+    timeout=10,
+    similarity_threshold=0.7,
+    occurrence=1,
+    use_cache=True,
+    regions=None,
+    default_return=False,
+):
+    """
+    安全版本的 find_text_and_click，不会抛出异常
+
+    :param text: 要查找的文本
+    :param timeout: 超时时间（秒）
+    :param similarity_threshold: 相似度阈值
+    :param occurrence: 指定点击第几个出现的文字 (1-based)，默认为1
+    :param use_cache: 是否使用缓存
+    :param regions: 要搜索的区域列表 (1-9)，None表示全屏搜索
+    :param default_return: 找不到时返回的默认值（False或None）
+    :return: 成功返回 find_text 的结果字典，失败返回 default_return
+    """
+    try:
+        return find_text_and_click(
+            text=text,
+            timeout=timeout,
+            similarity_threshold=similarity_threshold,
+            occurrence=occurrence,
+            use_cache=use_cache,
+            regions=regions,
+        )
+    except Exception as e:
+        region_desc = f" [区域{regions}]" if regions else ""
+        logger.debug(f"⚠️ 安全查找并点击失败: {text}{region_desc} - {e}")
+        return default_return
 
 
 def click_back():
@@ -443,7 +483,7 @@ def click_free_button():
     free_words = ["免费"]
 
     for word in free_words:
-        if find_text_and_click(word, timeout=3, use_cache=False):
+        if find_text_and_click_safe(word, timeout=3, use_cache=False):
             logger.info(f"💰 点击了免费按钮: {word}")
 
             return True
@@ -511,8 +551,9 @@ def send_bark_notification(title, message, level="active"):
 
 
 def is_main_world():
-    """检查是否在主世界"""
-    return exists(GIFTS_TEMPLATE)
+    """检查是否在主世界，并输出执行时间"""
+    result = bool(exists(GIFTS_TEMPLATE))
+    return result
 
 
 def open_map():
@@ -526,6 +567,8 @@ def open_map():
 def auto_combat():
     """自动战斗"""
     logger.info("自动战斗")
+    find_text_and_click_safe("战斗", regions=[8])
+
     while not is_main_world():
         positions = SKILL_POSITIONS.copy()
         random.shuffle(positions)
@@ -568,7 +611,7 @@ def select_character(char_class):
         sleep(1)
 
         # 返回角色选择界面
-        find_text_and_click("返回角色选择界面")
+        find_text_and_click_safe("返回角色选择界面")
         wait(Template(r"images/enter_game_button.png", resolution=(720, 1280)), 10)
     else:
         logger.info("已在角色选择界面")
@@ -658,11 +701,11 @@ def switch_to_zone(zone_name):
     switch_words = ["切换区域"]
 
     for word in switch_words:
-        if find_text_and_click(word, timeout=10):
+        if find_text_and_click_safe(word, timeout=10):
             break
 
     # 点击区域名称
-    if find_text_and_click(zone_name, timeout=10, occurrence=2):
+    if find_text_and_click_safe(zone_name, timeout=10, occurrence=2):
         logger.info(f"✅ 成功切换到: {zone_name}")
         touch(CLOSE_ZONE_MENU)  # 关闭切换菜单
         return True
@@ -674,9 +717,9 @@ def switch_to_zone(zone_name):
 def sell_trashes():
     logger.info("💰 卖垃圾")
     click_back()
-    if find_text_and_click("装备", regions=[7, 8, 9]):
-        if find_text_and_click("整理售卖", regions=[7, 8, 9]):
-            if find_text_and_click("出售"):
+    if find_text_and_click_safe("装备", regions=[7, 8, 9]):
+        if find_text_and_click_safe("整理售卖", regions=[7, 8, 9]):
+            if find_text_and_click_safe("出售"):
                 logger.info("✅ 成功完成装备售卖流程")
             else:
                 raise Exception("❌ 点击'出售'按钮失败")
@@ -697,7 +740,7 @@ def switch_account(account_name):
         find_text("进入游戏", timeout=20, regions=[5])
         touch(ACCOUNT_AVATAR)
         sleep(2)
-        find_text_and_click("切换账号", regions=[2, 3])
+        find_text_and_click_safe("切换账号", regions=[2, 3])
     except Exception:
         logger.warning("⚠️ 未找到切换账号按钮，可能处于登录界面")
         pass
@@ -706,7 +749,7 @@ def switch_account(account_name):
 
     success = False
     for _ in range(10):
-        if find_text_and_click(
+        if find_text_and_click_safe(
             account_name, occurrence=2, use_cache=False, regions=[4, 5, 6, 7, 8, 9]
         ):
             success = True
@@ -723,58 +766,259 @@ def switch_account(account_name):
 def back_to_main():
     logger.info("🔙 返回主界面")
     while not is_main_world():
-        click_back()
-    find_text_and_click("战斗", regions=[8])
+        for _ in range(3):
+            touch(BACK_BUTTON)
+
+
+def switch_to(section_name):
+    """切换到指定区域"""
+    logger.info(f"🌍 切换到: {section_name}")
+    return find_text_and_click(section_name, regions=[7, 8, 9])
+
+
+class DailyCollectManager:
+    """
+    每日收集管理器
+    负责处理所有每日收集相关的操作，包括：
+    - 每日挂机奖励领取
+    - 快速挂机领取
+    - 随从派遣
+    - 每日免费地下城领取
+    """
+
+    def __init__(self, config_loader=None):
+        """
+        初始化每日收集管理器
+
+        Args:
+            config_loader: 配置加载器实例
+        """
+        self.config_loader = config_loader
+        self.logger = logger
+
+    def collect_daily_rewards(self):
+        """
+        执行所有每日收集操作
+        """
+        self.logger.info("=" * 60)
+        self.logger.info("🎁 开始执行每日收集操作")
+        self.logger.info("=" * 60)
+
+        try:
+            # 1. 领取每日挂机奖励
+            self._collect_idle_rewards()
+
+            # 2. 购买商店每日
+            self._buy_market_items()
+
+            # 3. 执行随从派遣
+            self._handle_retinue_deployment()
+
+            # 4. 领取每日免费地下城
+            self._collect_free_dungeons()
+
+            # 5. 开启宝箱（如果配置了宝箱名称）
+            if self.config_loader and self.config_loader.get_chest_name():
+                self._open_chests(self.config_loader.get_chest_name())
+
+            # 6. 打三次世界 boss
+            for _ in range(3):
+                self._kill_world_boss()
+
+            self.logger.info("=" * 60)
+            self.logger.info("✅ 每日收集操作全部完成")
+            self.logger.info("=" * 60)
+
+        except Exception as e:
+            self.logger.error(f"❌ 每日收集操作失败: {e}")
+            raise
+
+    def _collect_idle_rewards(self):
+        """
+        领取每日挂机奖励
+        """
+        self.logger.info("📦 开始领取每日挂机奖励")
+        back_to_main()
+
+        try:
+            res = switch_to("战斗")
+            assert res
+            # 点击奖励箱子
+            touch((res["center"][0], res["center"][1] + DAILY_REWARD_BOX_OFFSET_Y))
+            sleep(CLICK_INTERVAL)
+            touch(DAILY_REWARD_CONFIRM)
+            sleep(CLICK_INTERVAL)
+            find_text_and_click("确定", regions=[5])
+            self.logger.info("✅ 每日挂机奖励领取成功")
+            # 2. 执行快速挂机领取（如果启用）
+            if self.config_loader and self.config_loader.is_quick_afk_enabled():
+                self._collect_quick_afk()
+
+            back_to_main()
+        except Exception as e:
+            self.logger.warning(f"⚠️ 未找到战斗按钮或点击失败: {e}")
+            raise
+
+    def _collect_quick_afk(self):
+        """
+        执行快速挂机领取
+        """
+        self.logger.info("⚡ 开始快速挂机领取")
+        if find_text_and_click_safe("快速挂机", regions=[4, 5, 6, 7, 8, 9]):
+            # 多次点击领取按钮，确保领取所有奖励
+            for i in range(10):
+                touch(QUICK_AFK_COLLECT_BUTTON)
+                sleep(1)
+            self.logger.info("✅ 快速挂机领取完成")
+        else:
+            self.logger.warning("⚠️ 未找到快速挂机按钮")
+
+    def _handle_retinue_deployment(self):
+        """
+        处理随从派遣操作
+        """
+        self.logger.info("👥 开始处理随从派遣")
+        back_to_main()
+
+        if find_text_and_click_safe("随从", regions=[7]):
+            # 领取派遣奖励
+            find_text_and_click("派遣", regions=[8])
+            touch(ONE_KEY_REWARD)
+            back_to_main()
+
+            # 重新派遣
+            find_text_and_click("派遣", regions=[8])
+            touch(ONE_KEY_DEPLOY)
+            sleep(1)
+            touch(DEPLOY_CONFIRM_BUTTON)
+            back_to_main()
+
+            self.logger.info("✅ 随从派遣处理完成")
+        else:
+            self.logger.warning("⚠️ 未找到随从按钮，跳过派遣操作")
+
+    def _collect_free_dungeons(self):
+        """
+        领取每日免费地下城（试炼塔）
+        """
+        self.logger.info("🏰 开始领取每日免费地下城")
+        back_to_main()
+        open_map()
+
+        if find_text_and_click_safe("试炼塔", regions=[9]):
+            self.logger.info("✅ 进入试炼塔")
+
+            # 领取消量奖励
+            self._sweep_tower_floor("刻印", regions=[7, 8])
+            self._sweep_tower_floor("宝石", regions=[8, 8])
+            self._sweep_tower_floor("雕文", regions=[9, 8])
+
+            self.logger.info("✅ 每日免费地下城领取完成")
+        else:
+            self.logger.warning("⚠️ 未找到试炼塔，跳过免费地下城领取")
+
+        back_to_main()
+
+    def _sweep_tower_floor(self, floor_name, regions):
+        """
+        扫荡试炼塔的特定楼层
+
+        Args:
+            floor_name: 楼层名称（刻印、宝石、雕文）
+            regions: 搜索区域列表 [楼层区域, 按钮区域]
+        """
+        if find_text_and_click_safe(floor_name, regions=[regions[0]]):
+            try:
+                find_text_and_click("扫荡一次", regions=[regions[1]])
+                find_text_and_click("确定", regions=[5])
+                self.logger.info(f"✅ 完成{floor_name}扫荡")
+            except Exception as e:
+                self.logger.warning(f"⚠️ 扫荡{floor_name}失败: {e}")
+        else:
+            self.logger.warning(f"⚠️ 未找到{floor_name}楼层")
+
+    def _kill_world_boss(self):
+        """
+        杀死世界boss
+        """
+        self.logger.info("💀 开始杀死世界boss")
+        back_to_main()
+        open_map()
+        try:
+            find_text_and_click("切换区域", regions=[8])
+            find_text_and_click("东部大陆", regions=[5])
+            touch((126, 922))
+            sleep(1.5)
+            find_text_and_click("协助模式", regions=[8])
+            find_text_and_click("创建队伍", regions=[4, 5])
+            find_text_and_click("开始", regions=[5])
+            find_text_and_click("离开", regions=[5], timeout=20)
+            self.logger.info("✅ 杀死世界boss成功")
+        except Exception as e:
+            self.logger.warning(f"⚠️ 未找到世界boss: {e}")
+            back_to_main()
+
+    def _buy_market_items(self):
+        """
+        购买市场商品
+        """
+        self.logger.info("🛒 开始购买市场商品")
+        back_to_main()
+        try:
+            find_text_and_click("主城", regions=[9])
+            find_text_and_click("商店", regions=[4])
+            touch((570, 258))
+            sleep(1)
+            find_text_and_click("购买", regions=[8])
+            back_to_main()
+            self.logger.info("✅ 购买市场商品成功")
+        except Exception as e:
+            self.logger.warning(f"⚠️ 未找到商店: {e}")
+            back_to_main()
+
+    def _open_chests(self, chest_name):
+        """
+        开启宝箱
+        """
+        self.logger.info(f"🎁 开始开启{chest_name}")
+        back_to_main()
+        try:
+            find_text_and_click("主城", regions=[9])
+            find_text_and_click("宝库", regions=[9])
+            find_text_and_click(chest_name, regions=[4, 5, 6, 7, 8])
+            res = find_text("开启", regions=[8])
+            if res:
+                for _ in range(10):
+                    touch(res["center"])
+                    sleep(0.2)
+            back_to_main()
+            self.logger.info("✅ 打开宝箱成功")
+        except Exception as e:
+            self.logger.warning(f"⚠️ 未找到宝箱: {e}")
+            back_to_main()
+
+    # 保留原始函数名作为向后兼容
+    def daily_collect(self):
+        """
+        向后兼容的函数名
+        """
+        self.collect_daily_rewards()
+
+
+# 创建全局实例，保持向后兼容
+daily_collect_manager = DailyCollectManager(config_loader)
 
 
 def daily_collect():
     """
     领取每日挂机奖励
-    如果配置启用了快速挂机，还会执行快速挂机领取
+    保持向后兼容的函数包装器
     """
-    back_to_main()
-    res = find_text_and_click("战斗", regions=[8])
-    if res:
-        touch(
-            (res["center"][0], res["center"][1] + DAILY_REWARD_BOX_OFFSET_Y)
-        )  # 点箱子
-        sleep(CLICK_INTERVAL)
-        touch(DAILY_REWARD_CONFIRM)
-        sleep(CLICK_INTERVAL)
-        find_text_and_click("确定", regions=[5])
-        logger.info("✅ 每日挂机奖励领取成功")
-
-        # 如果启用了快速挂机，执行快速挂机领取
-        if config_loader and config_loader.is_quick_afk_enabled():
-            logger.info("⚡ 开始快速挂机领取")
-            if find_text_and_click("快速挂机", regions=[4, 5, 6, 7, 8, 9]):
-                for i in range(10):
-                    touch(QUICK_AFK_COLLECT_BUTTON)  # "领取" 按钮
-                    sleep(1)
-                logger.info("✅ 快速挂机领取完成")
-            else:
-                logger.warning("⚠️ 未找到快速挂机按钮")
-        else:
-            logger.info("⏭️ 未启用快速挂机，跳过")
-
-    else:
-        logger.warning("⚠️ 未找到战斗按钮")
-        raise Exception("领取每日奖励失败")
-
-    # 随从
-    back_to_main()
-    res = find_text_and_click("随从", regions=[7])
-    if res:
-        # 点箱子
-        touch((res["center"][0], res["center"][1] + DAILY_REWARD_BOX_OFFSET_Y))
-        sleep(CLICK_INTERVAL)
-        touch(DAILY_REWARD_CONFIRM)
-        sleep(CLICK_INTERVAL)
-        find_text_and_click("确定", regions=[5])
-        logger.info("✅ 随从奖励领取成功")
-    else:
-        logger.warning("⚠️ 未找到随从按钮")
-        raise Exception("领取随从奖励失败")
+    global daily_collect_manager
+    # 确保使用最新的配置
+    if daily_collect_manager.config_loader != config_loader:
+        daily_collect_manager = DailyCollectManager(config_loader)
+    daily_collect_manager.collect_daily_rewards()
 
 
 def process_dungeon(dungeon_name, zone_name, index, total, db):
@@ -785,7 +1029,7 @@ def process_dungeon(dungeon_name, zone_name, index, total, db):
     logger.info(f"\n🎯 [{index}/{total}] 处理副本: {dungeon_name}")
 
     # 点击副本名称
-    if not find_text_and_click(dungeon_name, timeout=5):
+    if not find_text_and_click_safe(dungeon_name, timeout=5):
         logger.warning(f"⏭️ 跳过: {dungeon_name}")
         return False
     sleep(2)  # 等待界面刷新
