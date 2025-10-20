@@ -11,6 +11,7 @@ import subprocess
 import platform
 import requests
 import urllib.parse
+from wrapt_timeout_decorator import timeout as timeout_decorator
 
 from airtest.core.api import (
     wait,
@@ -119,6 +120,7 @@ def check_bluestacks_running():
         return False
 
 
+@timeout_decorator(300, timeout_exception=TimeoutError)
 def start_bluestacks():
     """
     启动BlueStacks模拟器
@@ -287,6 +289,7 @@ GIFTS_TEMPLATE = Template(
 )
 
 
+@timeout_decorator(30, timeout_exception=TimeoutError)
 def find_text(
     text,
     timeout=10,
@@ -564,6 +567,7 @@ def open_map():
     sleep(CLICK_INTERVAL)
 
 
+@timeout_decorator(300, timeout_exception=TimeoutError)
 def auto_combat():
     """自动战斗"""
     logger.info("自动战斗")
@@ -763,6 +767,7 @@ def switch_account(account_name):
     touch(LOGIN_BUTTON)  # 登录按钮
 
 
+@timeout_decorator(60, timeout_exception=TimeoutError)
 def back_to_main():
     logger.info("🔙 返回主界面")
     while not is_main_world():
@@ -796,6 +801,7 @@ class DailyCollectManager:
         self.config_loader = config_loader
         self.logger = logger
 
+    @timeout_decorator(300, timeout_exception=TimeoutError)
     def collect_daily_rewards(self):
         """
         执行所有每日收集操作
@@ -986,7 +992,7 @@ class DailyCollectManager:
             find_text_and_click("主城", regions=[9])
             find_text_and_click("宝库", regions=[9])
             find_text_and_click(chest_name, regions=[4, 5, 6, 7, 8])
-            res = find_text("开启", regions=[8])
+            res = find_text("开启", occurrence=9, regions=[8])
             if res:
                 for _ in range(10):
                     touch(res["center"])
@@ -1009,6 +1015,7 @@ class DailyCollectManager:
 daily_collect_manager = DailyCollectManager(config_loader)
 
 
+@timeout_decorator(300, timeout_exception=TimeoutError)
 def daily_collect():
     """
     领取每日挂机奖励
@@ -1021,6 +1028,7 @@ def daily_collect():
     daily_collect_manager.collect_daily_rewards()
 
 
+@timeout_decorator(300, timeout_exception=TimeoutError)
 def process_dungeon(dungeon_name, zone_name, index, total, db):
     """处理单个副本, 返回是否成功完成
 
@@ -1037,6 +1045,8 @@ def process_dungeon(dungeon_name, zone_name, index, total, db):
     # 尝试点击免费按钮
     if click_free_button():
         # 进入副本战斗，退出后会回到主界面
+        find_text_and_click_safe("战斗", regions=[8])
+
         auto_combat()
         logger.info(f"✅ 完成: {dungeon_name}")
 
@@ -1092,7 +1102,11 @@ def handle_load_account_mode(account_name):
 
     connect_device("Android:///")
     auto_setup(__file__)
-    ocr_helper = OCRHelper(output_dir="output")
+    ocr_helper = OCRHelper(
+        max_cache_size=200,  # 最大缓存条目数
+        hash_type="dhash",  # 哈希算法
+        hash_threshold=10,  # 汉明距离阈值
+    )
 
     # 切换账号
     try:
@@ -1185,6 +1199,7 @@ def initialize_device_and_ocr():
     ocr_helper = OCRHelper(output_dir="output")
 
 
+@timeout_decorator(7200, timeout_exception=TimeoutError)  # 2 小时超时
 def run_dungeon_traversal(db, total_dungeons):
     """执行副本遍历主循环
 
@@ -1260,6 +1275,73 @@ def run_dungeon_traversal(db, total_dungeons):
     return processed_dungeons
 
 
+def main_wrapper():
+    """主函数包装器 - 处理超时和重启逻辑"""
+    global config_loader, system_config, zone_dungeons, ocr_helper
+
+    max_restarts = 3  # 最大重启次数
+    restart_count = 0
+
+    while restart_count < max_restarts:
+        try:
+            main()
+            # 正常完成，退出循环
+            return
+
+        except TimeoutError as e:
+            restart_count += 1
+            logger.error(f"\n❌ 检测到超时错误: {e}")
+            logger.error("⏱️ 操作超时，可能是网络错误或识别失败导致的卡死")
+
+            if restart_count < max_restarts:
+                logger.warning(
+                    f"\n🔄 正在重启程序... (第 {restart_count}/{max_restarts} 次重启)"
+                )
+                logger.warning("💡 建议检查网络连接和游戏状态")
+
+                # 发送通知
+                send_bark_notification(
+                    "副本助手 - 超时重启",
+                    f"程序因超时重启 ({restart_count}/{max_restarts})\n错误: {str(e)}",
+                    level="timeSensitive",
+                )
+
+                # 清理全局变量
+                config_loader = None
+                system_config = None
+                zone_dungeons = None
+                ocr_helper = None
+
+                # 等待一段时间后重启
+                time.sleep(5)
+
+                # 重新执行main函数
+                continue
+            else:
+                logger.error(f"\n❌ 已达到最大重启次数 ({max_restarts})，程序退出")
+                send_bark_notification(
+                    "副本助手 - 严重错误",
+                    f"程序因多次超时失败退出\n重启次数: {restart_count}\n最后错误: {str(e)}",
+                    level="timeSensitive",
+                )
+                sys.exit(1)
+
+        except KeyboardInterrupt:
+            logger.info("\n\n⛔ 用户中断，程序退出")
+            sys.exit(0)
+
+        except Exception as e:
+            logger.error(f"\n❌ 发生未预期的错误: {e}")
+            import traceback
+
+            logger.error(traceback.format_exc())
+
+            send_bark_notification(
+                "副本助手 - 错误", f"程序发生错误: {str(e)}", level="timeSensitive"
+            )
+            sys.exit(1)
+
+
 def main():
     """主函数 - 副本自动遍历脚本入口"""
     global config_loader, system_config, zone_dungeons, ocr_helper
@@ -1332,4 +1414,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main_wrapper()

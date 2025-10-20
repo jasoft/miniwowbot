@@ -8,9 +8,11 @@
 import json
 import os
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TypeVar
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 
 class ConfigLoader:
@@ -137,7 +139,7 @@ class ConfigLoader:
         Returns:
             副本配置字典
         """
-        return self.zone_dungeons
+        return self.get_attr("zone_dungeons", {})
 
     def get_ocr_correction_map(self) -> Dict[str, str]:
         """
@@ -146,7 +148,7 @@ class ConfigLoader:
         Returns:
             OCR 纠正映射字典
         """
-        return self.ocr_correction_map
+        return self.get_attr("ocr_correction_map", {})
 
     def get_config_name(self) -> str:
         """
@@ -155,7 +157,7 @@ class ConfigLoader:
         Returns:
             配置名称
         """
-        return self.config_name
+        return self.get_attr("config_name", "")
 
     def get_char_class(self) -> Optional[str]:
         """
@@ -164,7 +166,7 @@ class ConfigLoader:
         Returns:
             角色职业，如果未配置则返回 None
         """
-        return self.char_class
+        return self.get_attr("char_class", None)
 
     def get_all_dungeons(self) -> List[str]:
         """
@@ -235,7 +237,7 @@ class ConfigLoader:
         Returns:
             是否启用每日领取
         """
-        return self.enable_daily_collect
+        return self.get_attr("enable_daily_collect", False)
 
     def is_quick_afk_enabled(self) -> bool:
         """
@@ -244,7 +246,7 @@ class ConfigLoader:
         Returns:
             是否启用快速挂机
         """
-        return self.enable_quick_afk
+        return self.get_attr("enable_quick_afk", False)
 
     def get_chest_name(self) -> Optional[str]:
         """
@@ -253,7 +255,53 @@ class ConfigLoader:
         Returns:
             宝箱名称，如果未配置则返回 None
         """
-        return self.chest_name
+        return self.get_attr("chest_name", None)
+
+    def get_attr(self, attr_name: str, default: T = None) -> T:
+        """
+        获取配置属性值
+
+        Args:
+            attr_name: 属性名称
+            default: 默认值，当属性不存在时返回
+
+        Returns:
+            属性值，如果属性不存在则返回默认值
+        """
+        if not hasattr(self, attr_name):
+            return default
+
+        value = getattr(self, attr_name)
+
+        # 如果值为None，返回默认值
+        if value is None:
+            return default
+
+        # 对于布尔值，如果默认值是布尔类型，确保返回布尔类型
+        if isinstance(default, bool) and not isinstance(value, bool):
+            return default
+
+        # 对于字典类型，如果默认值是字典，确保返回字典
+        if isinstance(default, dict) and not isinstance(value, dict):
+            return default
+
+        # 对于字符串类型，如果默认值是字符串，确保返回字符串
+        if isinstance(default, str) and not isinstance(value, str):
+            return default
+
+        return value  # type: ignore
+
+    def has_attr(self, attr_name: str) -> bool:
+        """
+        检查是否存在某个属性（且值不为None）
+
+        Args:
+            attr_name: 属性名称
+
+        Returns:
+            True 如果属性存在且值不为None，否则返回False
+        """
+        return hasattr(self, attr_name) and getattr(self, attr_name) is not None
 
 
 def load_config(config_file: str) -> ConfigLoader:

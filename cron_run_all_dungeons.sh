@@ -40,7 +40,7 @@ log "====================================="
 
 # 等待系统完全唤醒和GUI会话准备就绪
 log "等待系统和GUI会话完全准备就绪..."
-sleep 1cron0
+sleep 10
 
 # 检查是否有活跃的GUI会话
 if ! pgrep -x "WindowServer" > /dev/null; then
