@@ -19,3 +19,4 @@ accounts.json
 # 停止信号文件
 .stop_dungeon
 *.db
+*.backup
