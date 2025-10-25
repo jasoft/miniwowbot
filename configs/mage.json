@@ -63,16 +63,16 @@
             { "name": "玄牛寺", "selected": false }
         ],
         "元素之地": [
-            { "name": "火焰宫殿", "selected": false },
-            { "name": "守护者神殿", "selected": false },
+            { "name": "火焰宫殿", "selected": true },
+            { "name": "守护者神殿", "selected": true },
             { "name": "黑龙宫殿", "selected": false },
             { "name": "黑暗堡垒", "selected": false },
             { "name": "潮汐宫殿", "selected": false },
             { "name": "黑暗监狱", "selected": false },
             { "name": "泰坦密室", "selected": false },
-            { "name": "大地神殿", "selected": false },
+            { "name": "大地神殿", "selected": true },
             { "name": "失落之城", "selected": false },
-            { "name": "天空之城", "selected": false },
+            { "name": "天空之城", "selected": true },
             { "name": "黑石熔炉", "selected": false }
         ],
         "冰封大陆": [

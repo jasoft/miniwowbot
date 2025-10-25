@@ -24,18 +24,18 @@
             { "name": "海港城", "selected": false }
         ],
         "军团领域": [
-            { "name": "大墓地密室", "selected": false },
-            { "name": "流放王座", "selected": false },
-            { "name": "毁灭之地", "selected": false },
+            { "name": "大墓地密室", "selected": true },
+            { "name": "流放王座", "selected": true },
+            { "name": "毁灭之地", "selected": true },
             { "name": "大墓地圣殿", "selected": false },
-            { "name": "封印地窟", "selected": false },
-            { "name": "魔能宫殿", "selected": false },
-            { "name": "魔能要塞", "selected": false },
-            { "name": "魔法高台", "selected": false },
-            { "name": "地底巢穴", "selected": false },
-            { "name": "风暴绿洲", "selected": false },
-            { "name": "渡鸦堡垒", "selected": false },
-            { "name": "梦魇丛林", "selected": false }
+            { "name": "封印地窟", "selected": true },
+            { "name": "魔能宫殿", "selected": true },
+            { "name": "魔能要塞", "selected": true },
+            { "name": "魔法高台", "selected": true },
+            { "name": "地底巢穴", "selected": true },
+            { "name": "风暴绿洲", "selected": true },
+            { "name": "渡鸦堡垒", "selected": true },
+            { "name": "梦魇丛林", "selected": true }
         ],
         "暗影大陆": [
             { "name": "钢铁码头", "selected": false },
@@ -88,7 +88,7 @@
             { "name": "古代大厅", "selected": false },
             { "name": "古代王国", "selected": false },
             { "name": "巨魔要塞", "selected": false },
-            { "name": "峡湾城堡", "selected": false },
+            { "name": "峡湾城堡", "selected": true },
             { "name": "蓝龙巢穴", "selected": true }
         ],
         "虚空领域": [

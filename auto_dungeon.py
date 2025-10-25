@@ -6,7 +6,6 @@ import os
 import logging
 import coloredlogs
 import argparse
-import random
 import subprocess
 import platform
 import requests
@@ -52,6 +51,7 @@ from coordinates import (  # noqa: E402
     QUICK_AFK_COLLECT_BUTTON,
 )
 
+
 CLICK_INTERVAL = 1
 STOP_FILE = ".stop_dungeon"  # 停止标记文件路径
 
@@ -61,6 +61,9 @@ logger.setLevel(logging.INFO)
 # 防止日志重复：移除已有的 handlers
 logger.handlers.clear()
 logger.propagate = False
+
+# 设置 OCRHelper 的日志级别
+logging.getLogger("ocr_helper").setLevel(logging.INFO)
 
 coloredlogs.install(
     level="INFO",
@@ -289,6 +292,48 @@ GIFTS_TEMPLATE = Template(
 )
 
 
+def timer_decorator(func):
+    """
+    装饰器：计算函数的执行时间
+
+    专门用于需要监控执行时间的函数，特别是 is_main_world() 这种频繁调用的函数
+
+    :param func: 要装饰的函数
+    :return: 包装后的函数
+    """
+    from functools import wraps
+    import logging
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.perf_counter()
+        result = func(*args, **kwargs)
+        elapsed_time = time.perf_counter() - start_time
+
+        # 使用函数所在模块的 logger
+        func_logger = logging.getLogger(func.__module__)
+
+        # 根据执行时间使用不同的日志级别和表情符号
+        if elapsed_time < 0.01:
+            func_logger.debug(
+                f"⚡ {func.__name__} 执行时间: {elapsed_time:.4f}秒 (< 10ms)"
+            )
+        elif elapsed_time < 0.1:
+            func_logger.info(f"⏱️ {func.__name__} 执行时间: {elapsed_time:.4f}秒")
+        elif elapsed_time < 1.0:
+            func_logger.warning(
+                f"🐌 {func.__name__} 执行时间: {elapsed_time:.4f}秒 (> 100ms)"
+            )
+        else:
+            func_logger.error(
+                f"🐢 {func.__name__} 执行时间: {elapsed_time:.4f}秒 (> 1s)"
+            )
+
+        return result
+
+    return wrapper
+
+
 @timeout_decorator(30, timeout_exception=TimeoutError)
 def find_text(
     text,
@@ -384,6 +429,7 @@ def find_text(
     return None
 
 
+@timer_decorator
 def find_text_and_click(
     text,
     timeout=10,
@@ -486,7 +532,7 @@ def click_free_button():
     free_words = ["免费"]
 
     for word in free_words:
-        if find_text_and_click_safe(word, timeout=3, use_cache=False):
+        if find_text_and_click_safe(word, timeout=3, use_cache=False, regions=[8]):
             logger.info(f"💰 点击了免费按钮: {word}")
 
             return True
@@ -554,9 +600,23 @@ def send_bark_notification(title, message, level="active"):
 
 
 def is_main_world():
-    """检查是否在主世界，并输出执行时间"""
-    result = bool(exists(GIFTS_TEMPLATE))
-    return result
+    """
+    检查是否在主世界，并输出执行时间
+
+    优化说明：
+    - 使用 timeout=0.5 秒而不是默认的 ST.FIND_TIMEOUT（通常为 10 秒）
+    - 这个函数被频繁调用（在 auto_combat 和 back_to_main 中的循环中）
+    - 如果图片不存在，快速返回 False 而不是等待 3+ 秒
+    - 如果图片存在，通常会在 0.1-0.3 秒内找到
+    """
+    try:
+        # 使用 wait() 而不是 exists()，因为 wait() 支持 timeout 参数
+        # wait() 会在找到目标或超时后返回
+        result = wait(GIFTS_TEMPLATE, timeout=0.3, interval=0.1)
+        return bool(result)
+    except Exception:
+        # 超时或其他异常，说明图片不存在
+        return False
 
 
 def open_map():
@@ -572,13 +632,17 @@ def auto_combat():
     """自动战斗"""
     logger.info("自动战斗")
     find_text_and_click_safe("战斗", regions=[8])
-
+    if exists(
+        Template(
+            r"images/autocombat_flag.png",
+            record_pos=(-0.001, -0.299),
+            resolution=(720, 1280),
+        )
+    ):
+        return
     while not is_main_world():
         positions = SKILL_POSITIONS.copy()
-        random.shuffle(positions)
-        for pos in positions:
-            touch(pos)
-            sleep(0.2)
+        touch(positions[4])
 
 
 def select_character(char_class):
@@ -741,7 +805,7 @@ def switch_account(account_name):
     sleep(2)
     start_app("com.ms.ysjyzr")
     try:
-        find_text("进入游戏", timeout=20, regions=[5])
+        find_text("进入游戏", timeout=120, regions=[5])
         touch(ACCOUNT_AVATAR)
         sleep(2)
         find_text_and_click_safe("切换账号", regions=[2, 3])
@@ -992,11 +1056,12 @@ class DailyCollectManager:
             find_text_and_click("主城", regions=[9])
             find_text_and_click("宝库", regions=[9])
             find_text_and_click(chest_name, regions=[4, 5, 6, 7, 8])
-            res = find_text("开启", occurrence=9, regions=[8])
+            res = find_text("开启10次", regions=[8, 9])
             if res:
-                for _ in range(10):
+                for _ in range(5):
                     touch(res["center"])
                     sleep(0.2)
+                    click_back()
             back_to_main()
             self.logger.info("✅ 打开宝箱成功")
         except Exception as e:
@@ -1037,7 +1102,7 @@ def process_dungeon(dungeon_name, zone_name, index, total, db):
     logger.info(f"\n🎯 [{index}/{total}] 处理副本: {dungeon_name}")
 
     # 点击副本名称
-    if not find_text_and_click_safe(dungeon_name, timeout=5):
+    if not find_text_and_click_safe(dungeon_name, timeout=5, occurrence=9):
         logger.warning(f"⏭️ 跳过: {dungeon_name}")
         return False
     sleep(2)  # 等待界面刷新

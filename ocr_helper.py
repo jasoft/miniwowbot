@@ -82,18 +82,17 @@ class OCRHelper:
         os.makedirs(self.temp_dir, exist_ok=True)
 
         # 配置彩色日志（需要先初始化，因为缓存加载时会用到）
-        self.logger = logging.getLogger(f"{__name__}.OCRHelper")
+        self.logger = logging.getLogger(f"{__name__}")
         # 防止日志重复：移除已有的 handlers
         self.logger.handlers.clear()
         self.logger.propagate = False
 
         coloredlogs.install(
-            level="INFO",
+            level="INFO",  # 只输出 INFO 级别及以上的日志
             logger=self.logger,
             fmt="%(asctime)s %(name)s %(levelname)s %(message)s",
             datefmt="%H:%M:%S",
             level_styles={
-                "debug": {"color": "cyan"},
                 "info": {"color": "blue"},
                 "warning": {"color": "yellow"},
                 "error": {"color": "red"},
@@ -154,7 +153,7 @@ class OCRHelper:
                     "CREATE INDEX IF NOT EXISTS idx_image_hash ON cache_entries(image_hash)"
                 )
                 conn.commit()
-            self.logger.info(f"✅ 缓存数据库初始化成功: {self.cache_db_path}")
+            self.logger.debug(f"✅ 缓存数据库初始化成功: {self.cache_db_path}")
         except Exception as e:
             self.logger.error(f"❌ 初始化缓存数据库失败: {e}")
             raise
@@ -287,7 +286,7 @@ class OCRHelper:
                 )
                 result = cursor.fetchone()
                 if result:
-                    self.logger.info(f"💾 缓存命中（完全相同）: {result[0]}")
+                    self.logger.debug(f"💾 缓存命中（完全相同）: {result[0]}")
                     # 更新访问信息
                     cursor.execute(
                         "UPDATE cache_entries SET hit_count = hit_count + 1, last_access_time = ? WHERE image_hash = ?",
@@ -333,7 +332,7 @@ class OCRHelper:
 
                 if best_match:
                     json_path, distance, hit_count = best_match
-                    self.logger.info(
+                    self.logger.debug(
                         f"💾 缓存命中（哈希相似，距离={distance}）: {json_path}"
                     )
 
@@ -406,7 +405,7 @@ class OCRHelper:
                     )
 
                     conn.commit()
-                    self.logger.info(f"🗑️ 淘汰了 {to_delete} 个缓存条目")
+                    self.logger.debug(f"🗑️ 淘汰了 {to_delete} 个缓存条目")
         except Exception as e:
             self.logger.error(f"淘汰缓存失败: {e}")
 
@@ -585,9 +584,9 @@ class OCRHelper:
             import cv2
 
             cv2.imwrite(debug_save_path, region_img)
-            self.logger.info(f"🔍 调试：区域截图已保存到 {debug_save_path}")
-            self.logger.info(f"   区域范围: x={x}, y={y}, w={w}, h={h}")
-            self.logger.info(f"   原图尺寸: {width}x{height}")
+            self.logger.debug(f"🔍 调试：区域截图已保存到 {debug_save_path}")
+            self.logger.debug(f"   区域范围: x={x}, y={y}, w={w}, h={h}")
+            self.logger.debug(f"   原图尺寸: {width}x{height}")
 
         return region_img, (x, y)
 
@@ -643,7 +642,7 @@ class OCRHelper:
                 self.ocr_cache.append(cache_pairs[cache_id])
 
             if self.ocr_cache:
-                self.logger.info(f"💾 加载了 {len(self.ocr_cache)} 个缓存文件")
+                self.logger.debug(f"💾 加载了 {len(self.ocr_cache)} 个缓存文件")
         except Exception as e:
             self.logger.error(f"加载缓存失败: {e}")
 
@@ -692,7 +691,7 @@ class OCRHelper:
                 similarity = cal_ccoeff_confidence(current_img, cached_img)
 
                 if similarity >= self.cache_similarity_threshold:
-                    self.logger.info(
+                    self.logger.debug(
                         f"💾 找到相似缓存图片（旧系统）(相似度: {similarity * 100:.1f}%)"
                     )
                     return cached_json_path
@@ -804,7 +803,7 @@ class OCRHelper:
         elapsed_time = time.time() - start_time
 
         filename = os.path.basename(image_path)
-        self.logger.info(f"⏱️ OCR识别耗时: {elapsed_time:.3f}秒 (文件: {filename})")
+        self.logger.debug(f"⏱️ OCR识别耗时: {elapsed_time:.3f}秒 (文件: {filename})")
 
         # 清理临时文件
         if processed_image_path != image_path and os.path.exists(processed_image_path):
@@ -908,6 +907,7 @@ class OCRHelper:
                     occurrence,
                     regions,
                     debug_save_path,
+                    use_cache,
                 )
 
             # 获取或创建 OCR 结果（带缓存）
@@ -952,6 +952,7 @@ class OCRHelper:
         occurrence: int,
         regions: List[int],
         debug_save_path: Optional[str] = None,
+        use_cache: bool = True,
     ) -> Dict[str, Any]:
         """
         在指定区域中查找文字（内部方法）
@@ -963,6 +964,7 @@ class OCRHelper:
             occurrence: 指定第几个出现的文字
             regions: 要搜索的区域列表（会被合并成一个连续的矩形）
             debug_save_path: 调试用，保存区域截图的路径
+            use_cache: 是否使用缓存，默认为 True
 
         Returns:
             查找结果字典
@@ -982,7 +984,7 @@ class OCRHelper:
 
             # 显示区域信息
             region_desc = self._get_region_description(regions)
-            self.logger.info(f"🔍 在{region_desc}搜索文字: '{target_text}'")
+            self.logger.debug(f"🔍 在{region_desc}搜索文字: '{target_text}'")
 
             # 为区域图像生成缓存键
             region_key = self._get_cache_key(image_path, regions)
@@ -990,29 +992,39 @@ class OCRHelper:
                 self.cache_dir, f"region_{hash(region_key) % 1000000}.png"
             )
 
-            # 保存区域图像以供缓存
-            cv2.imwrite(region_cache_path, region_img)
+            # 初始化结果
+            result = None
+            cache_used = False
+            elapsed_time = 0
 
-            # 尝试从缓存获取OCR结果
-            cached_json = self._find_similar_in_cache(region_cache_path, regions)
-            if cached_json and os.path.exists(cached_json):
-                self.logger.info(f"💾 区域缓存命中: {region_desc}")
-                # 从缓存的JSON读取结果
-                with open(cached_json, "r", encoding="utf-8") as f:
-                    ocr_data = json.load(f)
-                # 转换格式以兼容现有代码
-                result = [ocr_data] if isinstance(ocr_data, dict) else ocr_data
-            else:
+            # 只有在使用缓存时才尝试从缓存读取
+            if use_cache:
+                # 保存区域图像以供缓存
+                cv2.imwrite(region_cache_path, region_img)
+
+                # 尝试从缓存获取OCR结果
+                cached_json = self._find_similar_in_cache(region_cache_path, regions)
+                if cached_json and os.path.exists(cached_json):
+                    self.logger.debug(f"💾 区域缓存命中: {region_desc}")
+                    # 从缓存的JSON读取结果
+                    with open(cached_json, "r", encoding="utf-8") as f:
+                        ocr_data = json.load(f)
+                    # 转换格式以兼容现有代码
+                    result = [ocr_data] if isinstance(ocr_data, dict) else ocr_data
+                    cache_used = True
+
+            # 如果没有命中缓存或不使用缓存，进行OCR识别
+            if result is None:
                 # 对区域进行OCR识别
                 start_time = time.time()
                 result = self.ocr.predict(region_img)
                 elapsed_time = time.time() - start_time
-                self.logger.info(
+                self.logger.debug(
                     f"⏱️ 区域 OCR 耗时: {elapsed_time:.3f}秒 (偏移: {offset})"
                 )
 
-                # 保存OCR结果到缓存
-                if result and len(result) > 0:
+                # 保存OCR结果到缓存（仅在使用缓存时）
+                if use_cache and result and len(result) > 0:
                     # 保存OCR结果
                     region_json_path = region_cache_path.replace(".png", "_res.json")
                     # 直接保存结果到指定路径
@@ -1034,6 +1046,9 @@ class OCRHelper:
             # 收集所有匹配结果
             all_matches = []
             for res in result:
+                # 使用函数级别的缓存和耗时信息
+                res_cache_used = cache_used
+                res_elapsed_time = elapsed_time
                 # 支持两种访问方式：属性访问和字典访问
                 if hasattr(res, "rec_texts"):
                     rec_texts = res.rec_texts
@@ -1078,35 +1093,44 @@ class OCRHelper:
                                     "confidence": score,
                                     "bbox": adjusted_poly,
                                     "index": len(all_matches) + 1,
+                                    "cache_used": res_cache_used,
+                                    "elapsed_time": res_elapsed_time,
                                 }
                             )
 
             # 处理匹配结果
             total_matches = len(all_matches)
-            self.logger.info(f"找到 {total_matches} 个匹配的文字")
 
             if total_matches == 0:
+                self.logger.debug(f"未找到匹配的文字: '{target_text}'")
                 return self._empty_result()
-
-            # 显示所有匹配
-            for i, match in enumerate(all_matches, 1):
-                self.logger.info(
-                    f"  匹配 {i}: '{match['text']}' (置信度: {match['confidence']:.3f}) 位置: {match['center']}"
-                )
 
             # 选择指定的匹配项
             if occurrence > total_matches:
-                self.logger.warning(
-                    f"请求第{occurrence}个匹配，但只找到{total_matches}个，使用最后一个"
-                )
                 selected_match = all_matches[-1]
                 selected_index = total_matches
             else:
                 selected_match = all_matches[occurrence - 1]
                 selected_index = occurrence
 
+            # 输出关键信息：只输出选中的匹配
+            # 判断是否使用了缓存
+            cache_used = False
+            if "cache_used" in selected_match:
+                cache_used = selected_match["cache_used"]
+
+            # 计算耗时（如果有的话）
+            elapsed_time_str = ""
+            if "elapsed_time" in selected_match:
+                elapsed_time_str = f" 耗时:{selected_match['elapsed_time']:.3f}s"
+
+            # 输出选中的匹配信息
             self.logger.info(
-                f"选择第{selected_index}个匹配: '{selected_match['text']}'"
+                f"找到文字: '{selected_match['text']}' "
+                f"置信度:{selected_match['confidence']:.3f} "
+                f"位置:{selected_match['center']} "
+                f"缓存:{'是' if cache_used else '否'}"
+                f"{elapsed_time_str}"
             )
 
             return {
@@ -1210,7 +1234,7 @@ class OCRHelper:
 
             # 截图
             snapshot(filename=screenshot_path)
-            self.logger.info(f"截图保存到: {screenshot_path}")
+            self.logger.debug(f"截图保存到: {screenshot_path}")
 
             # 在截图中查找文字
             result = self.find_text_in_image(
@@ -1292,7 +1316,7 @@ class OCRHelper:
 
         if result["found"]:
             center = result["center"]
-            self.logger.info(f"点击位置: {center}")
+            self.logger.debug(f"点击位置: {center}")
             touch(center)
             return True
         else:
@@ -1324,8 +1348,8 @@ class OCRHelper:
             rec_scores = data.get("rec_scores", [])
             dt_polys = data.get("dt_polys", [])  # 检测框坐标
 
-            self.logger.info(f"在JSON中查找文字: '{target_text}' (第{occurrence}个)")
-            self.logger.info(f"总共识别到 {len(rec_texts)} 个文字")
+            self.logger.debug(f"在JSON中查找文字: '{target_text}' (第{occurrence}个)")
+            self.logger.debug(f"总共识别到 {len(rec_texts)} 个文字")
 
             # 收集所有匹配的文字
             matches = []
@@ -1356,7 +1380,7 @@ class OCRHelper:
                         )
 
             total_matches = len(matches)
-            self.logger.info(f"找到 {total_matches} 个匹配的文字")
+            # 不在这里输出匹配数量，改为在选择后输出
 
             if total_matches == 0:
                 self.logger.warning(f"未找到匹配的文字: '{target_text}'")
@@ -1371,10 +1395,7 @@ class OCRHelper:
                 }
 
             # 显示所有匹配的文字
-            for i, match in enumerate(matches, 1):
-                self.logger.info(
-                    f"  匹配 {i}: '{match['text']}' (置信度: {match['confidence']:.3f}) 位置: {match['center']}"
-                )
+            # 不再输出所有匹配，只输出选中的
 
             # 选择指定的匹配项
             if occurrence > total_matches:
@@ -1387,11 +1408,13 @@ class OCRHelper:
                 selected_match = matches[occurrence - 1]
                 selected_index = occurrence
 
+            # 输出选中的匹配信息
             self.logger.info(
-                f"选择第{selected_index}个匹配: '{selected_match['text']}'"
+                f"找到文字: '{selected_match['text']}' "
+                f"置信度:{selected_match['confidence']:.3f} "
+                f"位置:{selected_match['center']} "
+                f"缓存:是"
             )
-            self.logger.info(f"坐标框: {selected_match['bbox']}")
-            self.logger.info(f"中心点: {selected_match['center']}")
 
             return {
                 "found": True,
