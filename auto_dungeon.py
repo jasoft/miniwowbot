@@ -334,6 +334,7 @@ def timer_decorator(func):
     return wrapper
 
 
+@timer_decorator
 @timeout_decorator(30, timeout_exception=TimeoutError)
 def find_text(
     text,
@@ -429,7 +430,6 @@ def find_text(
     return None
 
 
-@timer_decorator
 def find_text_and_click(
     text,
     timeout=10,
@@ -632,15 +632,19 @@ def auto_combat():
     """自动战斗"""
     logger.info("自动战斗")
     find_text_and_click_safe("战斗", regions=[8])
-    if exists(
+    builtin_auto_combat_activated = exists(
         Template(
             r"images/autocombat_flag.png",
             record_pos=(-0.001, -0.299),
             resolution=(720, 1280),
         )
-    ):
-        return
+    )
+    logger.info(f"内置自动战斗: {builtin_auto_combat_activated}")
+
     while not is_main_world():
+        if builtin_auto_combat_activated:
+            sleep(1)
+            continue
         positions = SKILL_POSITIONS.copy()
         touch(positions[4])
 
