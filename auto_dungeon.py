@@ -16,7 +16,6 @@ from airtest.core.api import (
     wait,
     sleep,
     touch,
-    exists,
     swipe,
     Template,
     stop_app,
@@ -632,13 +631,20 @@ def auto_combat():
     """自动战斗"""
     logger.info("自动战斗")
     find_text_and_click_safe("战斗", regions=[8])
-    builtin_auto_combat_activated = exists(
-        Template(
-            r"images/autocombat_flag.png",
-            record_pos=(-0.001, -0.299),
-            resolution=(720, 1280),
-        )
+
+    # 使用 wait() 而不是 exists()，避免无限期卡住
+    autocombat_template = Template(
+        r"images/autocombat_flag.png",
+        record_pos=(-0.001, -0.299),
+        resolution=(720, 1280),
     )
+    try:
+        builtin_auto_combat_activated = bool(
+            wait(autocombat_template, timeout=2, interval=0.1)
+        )
+    except Exception:
+        builtin_auto_combat_activated = False
+
     logger.info(f"内置自动战斗: {builtin_auto_combat_activated}")
 
     while not is_main_world():
@@ -667,17 +673,32 @@ def select_character(char_class):
     ok_button_template = Template(r"images/ok_button.png", resolution=(720, 1280))
 
     for error_template in error_templates:
-        if exists(error_template):
-            logger.warning("⚠️ 检测到错误对话框")
-            if exists(ok_button_template):
-                touch(ok_button_template)
-                logger.info("✅ 点击OK按钮关闭错误对话框")
-                sleep(1)
-            break
+        try:
+            if wait(error_template, timeout=1, interval=0.1):
+                logger.warning("⚠️ 检测到错误对话框")
+                try:
+                    if wait(ok_button_template, timeout=1, interval=0.1):
+                        touch(ok_button_template)
+                        logger.info("✅ 点击OK按钮关闭错误对话框")
+                        sleep(1)
+                except Exception:
+                    pass
+                break
+        except Exception:
+            pass
 
-    if not exists(
-        Template(r"images/enter_game_button.png", resolution=(720, 1280))
-    ):  # 如果不在选择角色界面，返回选择界面
+    # 使用 wait() 而不是 exists()，避免无限期卡住
+    enter_game_template = Template(
+        r"images/enter_game_button.png", resolution=(720, 1280)
+    )
+    try:
+        in_character_selection = bool(
+            wait(enter_game_template, timeout=1, interval=0.1)
+        )
+    except Exception:
+        in_character_selection = False
+
+    if not in_character_selection:  # 如果不在选择角色界面，返回选择界面
         back_to_main()
         touch(SETTINGS_BUTTON)
         sleep(1)
@@ -712,10 +733,15 @@ def select_character(char_class):
     wait_for_main()
 
 
+@timeout_decorator(310, timeout_exception=TimeoutError)
 def wait_for_main():
     """
     等待回到主界面
     如果 5 分钟（300秒）还没执行结束，则中断执行并发送通知
+
+    注意：添加了 @timeout_decorator(310) 装饰器，确保即使内部逻辑卡住，
+    也能被外层的 timeout 机制中断。310秒的装饰器超时比内部300秒的超时稍长，
+    这样可以确保内部的超时逻辑先触发。
     """
     logger.info("⏳ 等待战斗结束...")
     timeout = 300  # 5 分钟超时
@@ -725,10 +751,17 @@ def wait_for_main():
         # 使用较短的循环检查，以便能及时中断
         check_interval = 5  # 每5秒检查一次
         while time.time() - start_time < timeout:
-            if exists(GIFTS_TEMPLATE):
-                elapsed = time.time() - start_time
-                logger.info(f"✅ 战斗结束，用时 {elapsed:.1f} 秒")
-                return True
+            # 使用 wait() 而不是 exists()，因为 wait() 支持 timeout 参数
+            # 这样可以避免 exists() 无限期卡住
+            try:
+                result = wait(GIFTS_TEMPLATE, timeout=check_interval, interval=0.5)
+                if result:
+                    elapsed = time.time() - start_time
+                    logger.info(f"✅ 战斗结束，用时 {elapsed:.1f} 秒")
+                    return True
+            except Exception as e:
+                logger.debug(f"⏱️ 等待 GIFTS_TEMPLATE 超时或出错: {e}")
+                # 继续循环，不中断
 
             # 检查是否有停止信号
             if check_stop_signal():
@@ -737,8 +770,6 @@ def wait_for_main():
                     "副本助手", "收到停止信号，已中断执行", level="timeSensitive"
                 )
                 raise KeyboardInterrupt("收到停止信号")
-
-            time.sleep(check_interval)
 
         # 超时处理
         elapsed = time.time() - start_time

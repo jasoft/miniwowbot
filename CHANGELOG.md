@@ -1,5 +1,63 @@
 # 更新日志
 
+## [修复] Timeout 机制无法正确中断长时间暂停 - 2025-10-28
+
+### 问题描述
+日志显示 "日志中出现了长时间的暂停, timeout 机制没有正确中断他"。程序在等待战斗结束时会无限期卡住，timeout 装饰器无法正确中断。
+
+### 根本原因
+1. `wait_for_main()` 函数内部有自己的 timeout 逻辑（300秒），但**没有被 `@timeout_decorator` 装饰**
+2. 当 `exists(GIFTS_TEMPLATE)` 调用卡住时，整个程序会被卡住，外层的 timeout 装饰器无法中断
+3. `exists()` 函数不支持 timeout 参数，会使用全局 `ST.FIND_TIMEOUT`，可能导致无限期等待
+
+### 修复方案
+
+#### 1. 为 `wait_for_main()` 添加 timeout 装饰器
+```python
+@timeout_decorator(310, timeout_exception=TimeoutError)
+def wait_for_main():
+    """
+    等待回到主界面
+    如果 5 分钟（300秒）还没执行结束，则中断执行并发送通知
+
+    注意：添加了 @timeout_decorator(310) 装饰器，确保即使内部逻辑卡住，
+    也能被外层的 timeout 机制中断。310秒的装饰器超时比内部300秒的超时稍长，
+    这样可以确保内部的超时逻辑先触发。
+    """
+```
+
+#### 2. 将 `exists()` 替换为 `wait()`
+在 `wait_for_main()` 中，将：
+```python
+if exists(GIFTS_TEMPLATE):
+```
+替换为：
+```python
+try:
+    result = wait(GIFTS_TEMPLATE, timeout=check_interval, interval=0.5)
+    if result:
+        # 处理逻辑
+except Exception as e:
+    logger.debug(f"⏱️ 等待 GIFTS_TEMPLATE 超时或出错: {e}")
+```
+
+#### 3. 改进其他 `exists()` 调用
+- `auto_combat()` 中的 `exists(autocombat_template)` → `wait(autocombat_template, timeout=2)`
+- `select_character()` 中的 `exists()` 调用 → `wait()` 调用
+
+### 关键改进
+1. **添加 timeout 装饰器**：确保函数不会无限期执行
+2. **使用 wait() 替代 exists()**：所有 wait() 调用都有明确的超时时间
+3. **异常处理**：所有 wait() 调用都被 try-except 包装，避免异常导致程序崩溃
+4. **移除 exists 导入**：不再使用 exists() 函数
+
+### 测试建议
+1. 运行脚本并观察日志，确保没有长时间暂停
+2. 检查 timeout 装饰器是否正确中断超时的函数
+3. 验证战斗结束检测是否正常工作
+
+---
+
 ## [优化] is_main_world() 执行性能 - 2025-10-25
 
 ### 问题描述

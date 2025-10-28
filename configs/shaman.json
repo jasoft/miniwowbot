@@ -32,6 +32,7 @@
             { "name": "地底巢穴", "selected": false },
             { "name": "风暴绿洲", "selected": false },
             { "name": "渡鸦堡垒", "selected": false },
+            { "name": "守护者大殿", "selected": false },
             { "name": "梦魇丛林", "selected": false }
         ],
         "暗影大陆": [

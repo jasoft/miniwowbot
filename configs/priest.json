@@ -22,6 +22,7 @@
         ],
         "军团领域": [
             { "name": "大墓地密室", "selected": false },
+            { "name": "守护者大殿", "selected": false },
             { "name": "流放王座", "selected": false },
             { "name": "毁灭之地", "selected": false },
             { "name": "大墓地圣殿", "selected": false },

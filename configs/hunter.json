@@ -32,7 +32,8 @@
             { "name": "地底巢穴", "selected": false },
             { "name": "风暴绿洲", "selected": false },
             { "name": "渡鸦堡垒", "selected": false },
-            { "name": "梦魇丛林", "selected": false }
+            { "name": "梦魇丛林", "selected": false },
+            { "name": "守护者大殿", "selected": false }
         ],
         "暗影大陆": [
             { "name": "钢铁码头", "selected": false },
@@ -100,7 +101,7 @@
             { "name": "沼泽水库", "selected": false },
             { "name": "山丘城堡", "selected": false },
             { "name": "地狱火堡垒", "selected": false },
-            { "name": "亡者之城", "selected": false }
+            { "name": "亡者之城", "selected": true }
         ],
         "东部大陆": [
             { "name": "亡灵要塞", "selected": true },
