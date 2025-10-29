@@ -1,7 +1,7 @@
 {
     "description": "主力角色配置 - 选择性打副本",
     "class": "战士",
-    "enable_daily_collect": true,
+    "enable_daily_collect": false,
     "enable_quick_afk": true,
     "chestname": "风暴宝箱",
     "ocr_correction_map": {

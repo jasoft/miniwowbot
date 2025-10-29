@@ -14,6 +14,7 @@ mkdir -p "$LOG_DIR"
 # 生成时间戳和日志文件名
 TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
 LOG_FILE="$LOG_DIR/dungeons_$TIMESTAMP.log"
+LOCK_FILE="/tmp/cron_dungeons_$TIMESTAMP.lock"
 
 # 切换到脚本目录
 cd "/Users/weiwang/Projects/异世界勇者.air/helper" || {
@@ -24,10 +25,52 @@ cd "/Users/weiwang/Projects/异世界勇者.air/helper" || {
 # 确保 PATH 包含必要的路径
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 
-# 定义日志函数，同时输出到控制台和日志文件
+# 定义日志函数，同时输出到控制台和日志文件（带文件锁防止混乱）
 log() {
-    echo "$@" | tee -a "$LOG_FILE"
+    # 使用文件锁确保日志写入的原子性
+    (
+        flock -x 200
+        echo "$@" | tee -a "$LOG_FILE"
+    ) 200>"$LOCK_FILE"
 }
+
+# 存储所有后台进程的 PID
+declare -a background_pids
+
+# 清理函数：杀死所有后台进程
+cleanup() {
+    log ""
+    log "⛔ 收到中断信号，正在清理..."
+
+    # 创建停止信号文件，让 Python 脚本优雅地停止
+    touch ".stop_dungeon"
+    log "📝 已创建停止信号文件: .stop_dungeon"
+
+    # 给 Python 脚本一些时间来优雅地停止
+    sleep 2
+
+    # 杀死所有后台进程
+    for pid in "${background_pids[@]}"; do
+        if kill -0 "$pid" 2>/dev/null; then
+            log "🔪 杀死进程 PID: $pid"
+            kill -TERM "$pid" 2>/dev/null
+            sleep 1
+            # 如果进程仍在运行，强制杀死
+            if kill -0 "$pid" 2>/dev/null; then
+                kill -9 "$pid" 2>/dev/null
+            fi
+        fi
+    done
+
+    # 删除停止信号文件
+    rm -f ".stop_dungeon"
+
+    log "✅ 清理完成"
+    exit 130  # 128 + 2 (SIGINT)
+}
+
+# 设置信号处理器
+trap cleanup SIGINT SIGTERM
 
 # 记录系统状态和唤醒信息
 log "====================================="
@@ -72,41 +115,182 @@ log "📊 找到 $ACCOUNT_COUNT 个账号配置"
 # 存储所有账号的退出代码
 declare -a exit_codes
 
+# 检查是否启用多模拟器并行运行
+PARALLEL_MODE=false
+if [ "$1" = "--parallel" ]; then
+    PARALLEL_MODE=true
+    log "🚀 启用多模拟器并行运行模式"
+fi
+
 # 遍历所有账号
-for i in $(seq 0 $((ACCOUNT_COUNT - 1))); do
-    # 读取账号信息
-    ACCOUNT_NAME=$(jq -r ".accounts[$i].name" "$ACCOUNTS_FILE")
-    ACCOUNT_PHONE=$(jq -r ".accounts[$i].phone" "$ACCOUNTS_FILE")
-    RUN_SCRIPT=$(jq -r ".accounts[$i].run_script" "$ACCOUNTS_FILE")
-    DESCRIPTION=$(jq -r ".accounts[$i].description" "$ACCOUNTS_FILE")
+if [ "$PARALLEL_MODE" = true ]; then
+    # 并行模式：同时启动所有模拟器和账号
+    log "📱 准备并行启动 $ACCOUNT_COUNT 个账号..."
 
+    declare -a pids
+
+    for i in $(seq 0 $((ACCOUNT_COUNT - 1))); do
+        # 读取账号信息
+        ACCOUNT_NAME=$(jq -r ".accounts[$i].name" "$ACCOUNTS_FILE")
+        ACCOUNT_PHONE=$(jq -r ".accounts[$i].phone" "$ACCOUNTS_FILE")
+        RUN_SCRIPT=$(jq -r ".accounts[$i].run_script" "$ACCOUNTS_FILE")
+        DESCRIPTION=$(jq -r ".accounts[$i].description" "$ACCOUNTS_FILE")
+        EMULATOR=$(jq -r ".accounts[$i].emulator // empty" "$ACCOUNTS_FILE")
+
+        # 为每个账号创建独立的日志文件
+        ACCOUNT_LOG_FILE="$LOG_DIR/account_${ACCOUNT_PHONE}_$TIMESTAMP.log"
+
+        log ""
+        log "====================================="
+        log "账号 $((i + 1))/$ACCOUNT_COUNT: $ACCOUNT_NAME"
+        log "描述: $DESCRIPTION"
+        log "手机号: $ACCOUNT_PHONE"
+        if [ -n "$EMULATOR" ]; then
+            log "模拟器: $EMULATOR"
+        fi
+        log "📝 日志文件: $ACCOUNT_LOG_FILE"
+        log "====================================="
+
+        # 在后台启动账号加载和脚本运行
+        (
+            # 加载账号
+            echo "🔄 加载账号: $ACCOUNT_PHONE" | tee -a "$ACCOUNT_LOG_FILE"
+            if [ -n "$EMULATOR" ]; then
+                uv run auto_dungeon.py --load-account "$ACCOUNT_PHONE" --emulator "$EMULATOR" 2>&1 | tee -a "$ACCOUNT_LOG_FILE"
+            else
+                uv run auto_dungeon.py --load-account "$ACCOUNT_PHONE" 2>&1 | tee -a "$ACCOUNT_LOG_FILE"
+            fi
+
+            if [ ${PIPESTATUS[0]} -ne 0 ]; then
+                echo "❌ 加载账号失败: $ACCOUNT_PHONE" | tee -a "$ACCOUNT_LOG_FILE"
+                exit 1
+            fi
+
+            # 运行副本脚本
+            echo "🎮 运行脚本: $RUN_SCRIPT --no-prompt" | tee -a "$ACCOUNT_LOG_FILE"
+            if [ -n "$EMULATOR" ]; then
+                $RUN_SCRIPT --no-prompt --emulator "$EMULATOR" 2>&1 | tee -a "$ACCOUNT_LOG_FILE"
+            else
+                $RUN_SCRIPT --no-prompt 2>&1 | tee -a "$ACCOUNT_LOG_FILE"
+            fi
+            exit_code=${PIPESTATUS[0]}
+
+            if [ $exit_code -eq 0 ]; then
+                echo "✅ 账号 $ACCOUNT_NAME 完成" | tee -a "$ACCOUNT_LOG_FILE"
+            else
+                echo "❌ 账号 $ACCOUNT_NAME 失败 (退出代码: $exit_code)" | tee -a "$ACCOUNT_LOG_FILE"
+            fi
+            exit $exit_code
+        ) &
+
+        pids[$i]=$!
+        background_pids+=("${pids[$i]}")
+        log "📌 后台进程 PID: ${pids[$i]}"
+
+        # 模拟器之间间隔启动，避免资源竞争
+        sleep 3
+    done
+
+    # 等待所有后台进程完成（使用 wait -n 使其可中断）
     log ""
-    log "====================================="
-    log "账号 $((i + 1))/$ACCOUNT_COUNT: $ACCOUNT_NAME"
-    log "描述: $DESCRIPTION"
-    log "手机号: $ACCOUNT_PHONE"
-    log "====================================="
+    log "⏳ 等待所有账号处理完成..."
 
-    # 加载账号
-    log "🔄 加载账号: $ACCOUNT_PHONE"
-    uv run auto_dungeon.py --load-account "$ACCOUNT_PHONE" 2>&1 | tee -a "$LOG_FILE"
-    if [ ${PIPESTATUS[0]} -ne 0 ]; then
-        log "❌ 加载账号失败: $ACCOUNT_PHONE"
-        exit_codes[$i]=1
-        continue
-    fi
+    # 使用 wait -n 替代 wait，这样可以被信号中断
+    remaining_pids=("${pids[@]}")
+    while [ ${#remaining_pids[@]} -gt 0 ]; do
+        # 等待任意一个进程完成
+        wait -n 2>/dev/null
+        wait_status=$?
 
-    # 运行副本脚本
-    log "🎮 运行脚本: $RUN_SCRIPT --no-prompt"
-    $RUN_SCRIPT --no-prompt 2>&1 | tee -a "$LOG_FILE"
-    exit_codes[$i]=${PIPESTATUS[0]}
+        # 更新剩余的 PID 列表
+        new_remaining=()
+        for pid in "${remaining_pids[@]}"; do
+            if kill -0 "$pid" 2>/dev/null; then
+                new_remaining+=("$pid")
+            else
+                # 进程已完成，获取其退出代码
+                wait "$pid" 2>/dev/null
+                exit_code=$?
+                # 查找对应的账号索引
+                for j in $(seq 0 $((ACCOUNT_COUNT - 1))); do
+                    if [ "${pids[$j]}" = "$pid" ]; then
+                        exit_codes[$j]=$exit_code
+                        ACCOUNT_NAME=$(jq -r ".accounts[$j].name" "$ACCOUNTS_FILE")
+                        if [ $exit_code -eq 0 ]; then
+                            log "✅ 后台进程 $pid (账号 $ACCOUNT_NAME) 完成"
+                        else
+                            log "❌ 后台进程 $pid (账号 $ACCOUNT_NAME) 失败 (退出代码: $exit_code)"
+                        fi
+                        break
+                    fi
+                done
+            fi
+        done
+        remaining_pids=("${new_remaining[@]}")
+    done
+else
+    # 顺序模式：依次处理每个账号
+    for i in $(seq 0 $((ACCOUNT_COUNT - 1))); do
+        # 读取账号信息
+        ACCOUNT_NAME=$(jq -r ".accounts[$i].name" "$ACCOUNTS_FILE")
+        ACCOUNT_PHONE=$(jq -r ".accounts[$i].phone" "$ACCOUNTS_FILE")
+        RUN_SCRIPT=$(jq -r ".accounts[$i].run_script" "$ACCOUNTS_FILE")
+        DESCRIPTION=$(jq -r ".accounts[$i].description" "$ACCOUNTS_FILE")
+        EMULATOR=$(jq -r ".accounts[$i].emulator // empty" "$ACCOUNTS_FILE")
 
-    if [ ${exit_codes[$i]} -eq 0 ]; then
-        log "✅ 账号 $ACCOUNT_NAME 完成"
-    else
-        log "❌ 账号 $ACCOUNT_NAME 失败 (退出代码: ${exit_codes[$i]})"
-    fi
-done
+        # 为每个账号创建独立的日志文件
+        ACCOUNT_LOG_FILE="$LOG_DIR/account_${ACCOUNT_PHONE}_$TIMESTAMP.log"
+
+        log ""
+        log "====================================="
+        log "账号 $((i + 1))/$ACCOUNT_COUNT: $ACCOUNT_NAME"
+        log "描述: $DESCRIPTION"
+        log "手机号: $ACCOUNT_PHONE"
+        if [ -n "$EMULATOR" ]; then
+            log "模拟器: $EMULATOR"
+        fi
+        log "📝 日志文件: $ACCOUNT_LOG_FILE"
+        log "====================================="
+
+        # 加载账号
+        log "🔄 加载账号: $ACCOUNT_PHONE"
+        if [ -n "$EMULATOR" ]; then
+            uv run auto_dungeon.py --load-account "$ACCOUNT_PHONE" --emulator "$EMULATOR" 2>&1 | tee -a "$ACCOUNT_LOG_FILE" &
+            pid=$!
+        else
+            uv run auto_dungeon.py --load-account "$ACCOUNT_PHONE" 2>&1 | tee -a "$ACCOUNT_LOG_FILE" &
+            pid=$!
+        fi
+
+        background_pids+=("$pid")
+        wait "$pid"
+        load_status=$?
+
+        if [ $load_status -ne 0 ]; then
+            log "❌ 加载账号失败: $ACCOUNT_PHONE"
+            exit_codes[$i]=1
+            continue
+        fi
+
+        # 运行副本脚本
+        log "🎮 运行脚本: $RUN_SCRIPT --no-prompt"
+        if [ -n "$EMULATOR" ]; then
+            $RUN_SCRIPT --no-prompt --emulator "$EMULATOR" 2>&1 | tee -a "$ACCOUNT_LOG_FILE" &
+        else
+            $RUN_SCRIPT --no-prompt 2>&1 | tee -a "$ACCOUNT_LOG_FILE" &
+        fi
+        pid=$!
+        background_pids+=("$pid")
+        wait "$pid"
+        exit_codes[$i]=$?
+
+        if [ ${exit_codes[$i]} -eq 0 ]; then
+            log "✅ 账号 $ACCOUNT_NAME 完成"
+        else
+            log "❌ 账号 $ACCOUNT_NAME 失败 (退出代码: ${exit_codes[$i]})"
+        fi
+    done
+fi
 
 # 记录结束状态
 log ""
@@ -168,5 +352,18 @@ else
     # 发送成功通知
     send_notification "游戏自动化 - 成功" "异世界勇者副本全部运行完成\n成功: $success_count 个账号" "Glass"
 fi
+
+# 发送 Bark 通知
+log ""
+log "📱 发送 Bark 通知..."
+uv run send_cron_notification.py "$success_count" "$failed_count" "$ACCOUNT_COUNT" 2>&1 | tee -a "$LOG_FILE"
+if [ $? -eq 0 ]; then
+    log "✅ Bark 通知发送成功"
+else
+    log "⚠️ Bark 通知发送失败或未启用"
+fi
+
+# 清理锁文件
+rm -f "$LOCK_FILE"
 
 exit $exit_code

@@ -1,6 +1,6 @@
 #!/bin/zsh
 # 运行所有角色的自动化副本脚本
-# 使用方法: ./run_all_dungeons.sh [角色名称]
+# 使用方法: ./run_all_dungeons.sh [选项] [角色名称]
 # 如果不指定角色名称，则依次运行所有角色
 
 # 注意：不使用 set -e，以便在单个角色失败后继续运行其他角色
@@ -66,6 +66,7 @@ print_error() {
 # 运行单个角色的副本
 run_character() {
     local character=$1
+    local emulator=$2
     local config_file="configs/${character}.json"
     local character_name=${CHARACTER_NAMES[$character]:-$character}
 
@@ -78,10 +79,18 @@ run_character() {
     print_info "=================================================="
     print_info "开始运行: ${character_name} (${character})"
     print_info "配置文件: $config_file"
+    if [ -n "$emulator" ]; then
+        print_info "模拟器: $emulator"
+    fi
     print_info "开始时间: $start_time"
     print_info "=================================================="
 
-    if uv run auto_dungeon.py -c "$config_file"; then
+    local cmd="uv run auto_dungeon.py -c \"$config_file\""
+    if [ -n "$emulator" ]; then
+        cmd="$cmd --emulator \"$emulator\""
+    fi
+
+    if eval "$cmd"; then
         local end_time=$(date '+%H:%M:%S')
         print_success "${character_name} 副本运行完成！"
         print_info "结束时间: $end_time"
@@ -103,11 +112,12 @@ ${BLUE}自动化副本运行脚本${NC}
   ./run_all_dungeons.sh [选项] [角色名称...]
 
 选项:
-  -h, --help          显示此帮助信息
-  -l, --list          列出所有可用的角色
-  -a, --all           运行所有角色（默认行为）
-  -i, --interactive   交互式选择角色
-  -n, --no-prompt     失败时自动继续，不询问
+  -h, --help              显示此帮助信息
+  -l, --list              列出所有可用的角色
+  -a, --all               运行所有角色（默认行为）
+  -i, --interactive       交互式选择角色
+  -n, --no-prompt         失败时自动继续，不询问
+  --emulator EMULATOR     指定模拟器（如：emulator-5554）
 
 角色名称:
   warrior             战士
@@ -119,12 +129,14 @@ ${BLUE}自动化副本运行脚本${NC}
   druid               德鲁伊
 
 示例:
-  ./run_all_dungeons.sh                    # 运行所有角色
-  ./run_all_dungeons.sh -n                 # 运行所有角色（失败时自动继续）
-  ./run_all_dungeons.sh warrior            # 只运行战士
-  ./run_all_dungeons.sh warrior mage       # 运行战士和法师
-  ./run_all_dungeons.sh -i                 # 交互式选择
-  ./run_all_dungeons.sh -l                 # 列出所有角色
+  ./run_all_dungeons.sh                           # 运行所有角色
+  ./run_all_dungeons.sh -n                        # 运行所有角色（失败时自动继续）
+  ./run_all_dungeons.sh warrior                   # 只运行战士
+  ./run_all_dungeons.sh warrior mage              # 运行战士和法师
+  ./run_all_dungeons.sh -i                        # 交互式选择
+  ./run_all_dungeons.sh -l                        # 列出所有角色
+  ./run_all_dungeons.sh --emulator emulator-5554  # 在指定模拟器上运行所有角色
+  ./run_all_dungeons.sh mage --emulator emulator-5554  # 在指定模拟器上运行法师
 
 EOF
 }
@@ -178,6 +190,7 @@ main() {
     local run_all=true
     local interactive=false
     local no_prompt=false
+    local emulator=""
     SELECTED_CHARACTERS=()
 
     # 解析命令行参数
@@ -202,6 +215,10 @@ main() {
             -n|--no-prompt)
                 no_prompt=true
                 shift
+                ;;
+            --emulator)
+                emulator="$2"
+                shift 2
                 ;;
             -*)
                 print_error "未知选项: $1"
@@ -249,10 +266,9 @@ main() {
         echo ""
         print_info "正在运行第 $((success + failed + 1))/${total} 个角色..."
 
-        if run_character "$character"; then
+        if run_character "$character" "$emulator"; then
             ((success++))
             print_success "成功完成！继续下一个角色..."
-            sleep 2  # 短暂暂停，便于查看结果
         else
             ((failed++))
             print_error "运行失败！"
@@ -260,7 +276,6 @@ main() {
             # 如果启用了 no_prompt，直接继续
             if [ "$no_prompt" = true ]; then
                 print_info "自动继续运行下一个角色..."
-                sleep 2
             else
                 print_warning "是否继续运行下一个角色? (y/n，默认 y，5秒后自动继续)"
 

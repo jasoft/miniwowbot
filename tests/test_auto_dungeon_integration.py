@@ -428,6 +428,21 @@ class TestDailyCollectIntegration:
             logger.error(f"❌ daily_collect 函数执行失败: {e}")
             pytest.fail(f"daily_collect 执行失败: {e}")
 
+    def test_checkin_taptap(self, setup_device):
+        """
+        测试签到 taptap 功能 - 真机测试
+
+        前提条件：
+        - 设备已连接
+        - 游戏已打开并在主界面或任意可以访问主界面的界面
+
+        测试步骤：
+        1. 调用 checkin_taptap 函数
+        2. 验证函数能够正常执行完成（不抛出异常）
+        """
+        manager = DailyCollectManager()
+        manager._checkin_taptap()
+
     def test_kill_world_boss(self, setup_device):
         """
         测试杀死世界boss功能 - 真机测试

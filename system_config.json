@@ -1,7 +1,7 @@
 {
     "description": "系统级配置 - 包含通知等全局设置",
     "bark": {
-        "enabled": false,
+        "enabled": true,
         "server": "https://api.day.app/LkBmavbbbYqtmjDLVvsbMR/",
         "title": "异世界勇者 - 副本助手通知",
         "group": "dungeon_helper"

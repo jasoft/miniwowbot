@@ -1,7 +1,7 @@
 {
     "description": "小号配置 - 只打简单副本",
     "class": "法师",
-    "enable_daily_collect": true,
+    "enable_daily_collect": false,
     "enable_quick_afk": false,
     "chestname": "军团宝箱",
     "ocr_correction_map": {

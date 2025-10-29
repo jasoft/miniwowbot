@@ -3,20 +3,22 @@ name = "miniwow"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.9,<=3.11"
 dependencies = [
-    "airtest>=1.2.7",
-    "coloredlogs>=15.0.1",
-    "paddleocr>=3.2.0",
-    "paddlepaddle>=3.2.0",
-    "pillow>=11.3.0",
     "peewee>=3.17.0",
     "pytest>=8.4.2",
-    "opencv-python>=4.12.0.88",
     "imagehash>=4.3.2",
+    "dotenv>=0.9.9",
+    "tencentcloud-sdk-python>=3.0.1481",
+    "pytest-timeout>=2.4.0",
+    "wrapt-timeout-decorator>=1.5.1",
+    "setuptools>=80.9.0",
+    "coloredlogs>=15.0.1",
+    "paddleocr>=3.3.1",
+    "paddlepaddle>=3.2.0",
+    "opencv-python>=4.11.0.86",
+    "airtest>=1.2.7",
 ]
 
 [dependency-groups]
-dev = [
-    "pytest>=8.4.2",
-]
+dev = ["pytest>=8.4.2"]

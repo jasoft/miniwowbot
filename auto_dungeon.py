@@ -1,4 +1,3 @@
-# -*- encoding=utf8 -*-
 __author__ = "Airtest"
 import time
 import sys
@@ -10,6 +9,7 @@ import subprocess
 import platform
 import requests
 import urllib.parse
+from typing import Optional
 from wrapt_timeout_decorator import timeout as timeout_decorator
 
 from airtest.core.api import (
@@ -20,7 +20,13 @@ from airtest.core.api import (
     Template,
     stop_app,
     start_app,
+    connect_device,
+    auto_setup,
+    keyevent,
+    text,
+    shell,
 )
+from tqdm import tqdm
 
 # 设置 Airtest 日志级别
 airtest_logger = logging.getLogger("airtest")
@@ -31,6 +37,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import DungeonProgressDB  # noqa: E402
 from config_loader import load_config  # noqa: E402
 from system_config_loader import load_system_config  # noqa: E402
+from emulator_manager import EmulatorManager  # noqa: E402
 from coordinates import (  # noqa: E402
     DEPLOY_CONFIRM_BUTTON,
     ONE_KEY_DEPLOY,
@@ -88,6 +95,8 @@ config_loader = None
 system_config = None
 zone_dungeons = None
 ocr_helper = None
+emulator_manager = None
+target_emulator = None  # 目标模拟器名称
 
 
 def check_bluestacks_running():
@@ -230,26 +239,45 @@ def ensure_adb_connection():
         return False
 
 
-def check_and_start_emulator():
+def check_and_start_emulator(emulator_name: Optional[str] = None):
     """
     检查模拟器状态并在需要时启动
-    无论是否启动，都会执行adb devices建立连接
+    支持指定特定的模拟器实例
+
+    Args:
+        emulator_name: 模拟器名称，如 'emulator-5554'，如果为 None 则使用默认行为
 
     Returns:
         bool: 准备成功返回True，失败返回False
     """
+    global emulator_manager, target_emulator
+
     logger.info("\n" + "=" * 60)
-    logger.info("🔍 检查BlueStacks模拟器状态")
+    if emulator_name:
+        logger.info(f"🔍 检查模拟器状态: {emulator_name}")
+        target_emulator = emulator_name
+    else:
+        logger.info("🔍 检查BlueStacks模拟器状态")
     logger.info("=" * 60)
 
-    # 检查模拟器是否运行
-    if check_bluestacks_running():
-        logger.info("✅ BlueStacks模拟器已在运行")
-    else:
-        logger.info("⚠️ BlueStacks模拟器未运行")
-        if not start_bluestacks():
-            logger.error("❌ 无法启动BlueStacks模拟器")
+    # 初始化模拟器管理器
+    if emulator_manager is None:
+        emulator_manager = EmulatorManager()
+
+    # 如果指定了模拟器名称，使用管理器启动
+    if emulator_name:
+        if not emulator_manager.start_emulator(emulator_name):
+            logger.error(f"❌ 无法启动模拟器: {emulator_name}")
             return False
+    else:
+        # 原有逻辑：检查并启动默认模拟器
+        if check_bluestacks_running():
+            logger.info("✅ BlueStacks模拟器已在运行")
+        else:
+            logger.info("⚠️ BlueStacks模拟器未运行")
+            if not start_bluestacks():
+                logger.error("❌ 无法启动BlueStacks模拟器")
+                return False
 
     # 无论模拟器是否刚启动，都执行adb devices
     if not ensure_adb_connection():
@@ -628,8 +656,8 @@ def open_map():
 
 @timeout_decorator(300, timeout_exception=TimeoutError)
 def auto_combat():
-    """自动战斗"""
-    logger.info("自动战斗")
+    """自动战斗，带进度条显示"""
+    logger.info("⚔️ 开始自动战斗")
     find_text_and_click_safe("战斗", regions=[8])
 
     # 使用 wait() 而不是 exists()，避免无限期卡住
@@ -647,12 +675,47 @@ def auto_combat():
 
     logger.info(f"内置自动战斗: {builtin_auto_combat_activated}")
 
-    while not is_main_world():
-        if builtin_auto_combat_activated:
-            sleep(1)
-            continue
-        positions = SKILL_POSITIONS.copy()
-        touch(positions[4])
+    # 使用进度条显示战斗进度
+    # 估计战斗时间为 60 秒（可根据实际调整）
+    combat_timeout = 60
+    with tqdm(
+        total=combat_timeout,
+        desc="⚔️ 战斗进度",
+        unit="s",
+        ncols=80,
+        bar_format="{desc} |{bar}| {n_fmt}/{total_fmt}s [{elapsed}<{remaining}]",
+    ) as pbar:
+        start_time = time.time()
+        last_update = start_time
+
+        while not is_main_world():
+            if check_stop_signal():
+                pbar.close()
+                raise KeyboardInterrupt("检测到停止信号，退出自动战斗")
+
+            # 更新进度条
+            current_time = time.time()
+
+            # 每 0.5 秒更新一次进度条
+            if current_time - last_update >= 0.5:
+                update_amount = current_time - last_update
+                pbar.update(update_amount)
+                last_update = current_time
+
+            if builtin_auto_combat_activated:
+                sleep(1)
+                continue
+
+            positions = SKILL_POSITIONS.copy()
+            touch(positions[4])
+            sleep(0.5)
+
+        # 战斗完成，更新进度条到 100%
+        remaining = combat_timeout - (time.time() - start_time)
+        if remaining > 0:
+            pbar.update(remaining)
+        pbar.close()
+        logger.info("✅ 战斗完成")
 
 
 def select_character(char_class):
@@ -930,6 +993,9 @@ class DailyCollectManager:
             for _ in range(3):
                 self._kill_world_boss()
 
+            # 7. 领取 taptap 奖励
+            self._checkin_taptap()
+
             self.logger.info("=" * 60)
             self.logger.info("✅ 每日收集操作全部完成")
             self.logger.info("=" * 60)
@@ -937,6 +1003,22 @@ class DailyCollectManager:
         except Exception as e:
             self.logger.error(f"❌ 每日收集操作失败: {e}")
             raise
+
+    def _checkin_taptap(self):
+        """签到 taptap,领一些礼品"""
+        logger.info("签到 taptap")
+        keyevent("HOME")
+        find_text_and_click("签到", regions=[1])
+        sleep(3)
+        start_app("com.ms.ysjyzr")
+        sleep(5)
+        back_to_main()
+        switch_to("战斗")
+        send_button = find_text_and_click("发送", regions=[9])
+        touch((send_button["center"][0] - 100, send_button["center"][1]))
+        shell("input keyevent 279")
+        text("")
+        touch(send_button["center"])
 
     def _collect_idle_rewards(self):
         """
@@ -1184,24 +1266,51 @@ def parse_arguments():
         type=str,
         help="加载指定账号后退出（账号名称，如：18502542158）",
     )
+    parser.add_argument(
+        "--emulator",
+        type=str,
+        help="指定模拟器名称（如：emulator-5554），用于多模拟器场景",
+    )
     return parser.parse_args()
 
 
-def handle_load_account_mode(account_name):
-    """处理账号加载模式"""
-    global ocr_helper
+def handle_load_account_mode(account_name, emulator_name: Optional[str] = None):
+    """
+    处理账号加载模式
+
+    Args:
+        account_name: 账号名称
+        emulator_name: 模拟器名称，如 'emulator-5554'
+    """
+    global ocr_helper, emulator_manager, target_emulator
 
     logger.info("\n" + "=" * 60)
     logger.info("🔄 账号加载模式")
     logger.info("=" * 60 + "\n")
     logger.info(f"📱 目标账号: {account_name}")
+    if emulator_name:
+        logger.info(f"📱 目标模拟器: {emulator_name}")
 
     # 初始化设备和OCR
-    from airtest.core.api import connect_device, auto_setup
     from ocr_helper import OCRHelper
 
-    connect_device("Android:///")
+    # 确定连接字符串
+    if emulator_name:
+        target_emulator = emulator_name
+        if emulator_manager is None:
+            emulator_manager = EmulatorManager()
+        connection_string = emulator_manager.get_emulator_connection_string(
+            emulator_name
+        )
+        logger.info(f"   连接字符串: {connection_string}")
+    else:
+        connection_string = "Android:///"
+
+    # 关键：先连接设备，再调用 auto_setup
+    # 这样可以避免 auto_setup 重新初始化导致其他设备断开
     auto_setup(__file__)
+    connect_device(connection_string)
+
     ocr_helper = OCRHelper(
         max_cache_size=200,  # 最大缓存条目数
         hash_type="dhash",  # 哈希算法
@@ -1287,16 +1396,47 @@ def show_progress_statistics(db):
     return completed_count, total_selected_dungeons, total_dungeons
 
 
-def initialize_device_and_ocr():
-    """初始化设备连接和OCR助手"""
-    global ocr_helper
+def initialize_device_and_ocr(emulator_name: Optional[str] = None):
+    """
+    初始化设备连接和OCR助手
+    支持多个模拟器同时连接，不会断开其他模拟器
 
-    from airtest.core.api import connect_device, auto_setup
+    Args:
+        emulator_name: 模拟器名称，如 'emulator-5554'，如果为 None 则使用默认连接
+    """
+    global ocr_helper, emulator_manager, target_emulator
+
     from ocr_helper import OCRHelper
 
-    connect_device("Android:///")
-    auto_setup(__file__)
-    ocr_helper = OCRHelper(output_dir="output")
+    # 确定连接字符串
+    if emulator_name:
+        target_emulator = emulator_name
+        if emulator_manager is None:
+            emulator_manager = EmulatorManager()
+        connection_string = emulator_manager.get_emulator_connection_string(
+            emulator_name
+        )
+        logger.info(f"📱 连接到模拟器: {emulator_name}")
+        logger.info(f"   连接字符串: {connection_string}")
+    else:
+        connection_string = "Android:///"
+        logger.info("📱 使用默认连接字符串")
+
+    # 连接设备（Airtest 支持多设备连接，不会断开其他设备）
+    try:
+        # 关键：先连接设备，再调用 auto_setup
+        # 这样可以避免 auto_setup 重新初始化导致其他设备断开
+        auto_setup(__file__)
+        logger.info("自动配置设备中...")
+        connect_device(connection_string)
+        logger.info("   ✅ 成功连接到设备")
+
+    except Exception as e:
+        logger.error(f"   ❌ 连接设备失败: {e}")
+        raise
+
+    if ocr_helper is None:
+        ocr_helper = OCRHelper(output_dir="output")
 
 
 @timeout_decorator(7200, timeout_exception=TimeoutError)  # 2 小时超时
@@ -1455,23 +1595,20 @@ def main():
         logger.info("🎮 副本自动遍历脚本")
         logger.info("=" * 60 + "\n")
 
-    # 3. 检查并启动模拟器（除非明确跳过）
-    if not args.skip_emulator_check:
-        if not check_and_start_emulator():
-            logger.error("❌ 模拟器准备失败，脚本退出")
-            sys.exit(1)
-    else:
-        logger.info("⚠️ 跳过模拟器检查（--skip-emulator-check）")
-
-    # 4. 处理加载账号模式（如果指定）
+    # 3. 处理加载账号模式（如果指定）
     if args.load_account:
-        handle_load_account_mode(args.load_account)
+        # 加载账号模式需要先启动模拟器
+        if not args.skip_emulator_check:
+            if not check_and_start_emulator(args.emulator):
+                logger.error("❌ 模拟器准备失败，脚本退出")
+                sys.exit(1)
+        handle_load_account_mode(args.load_account, args.emulator)
         return
 
-    # 5. 初始化配置
+    # 4. 初始化配置
     initialize_configs(args.config)
 
-    # 6. 检查进度统计
+    # 5. 检查进度统计 - 决定是否需要启动模拟器
     if config_loader is None:
         logger.error("❌ 配置加载器未初始化")
         sys.exit(1)
@@ -1481,12 +1618,22 @@ def main():
             show_progress_statistics(db)
         )
 
-        # 如果所有副本都已完成，直接退出
+        # 如果所有副本都已完成，直接退出（无需启动模拟器）
         if completed_count >= total_selected_dungeons:
+            logger.info("✅ 无需启动模拟器，脚本退出")
             return
 
+    # 6. 检查并启动模拟器（只在有需要完成的副本时执行）
+    logger.info("\n🔍 检测到有未完成的副本，准备启动模拟器...")
+    if not args.skip_emulator_check:
+        if not check_and_start_emulator(args.emulator):
+            logger.error("❌ 模拟器准备失败，脚本退出")
+            sys.exit(1)
+    else:
+        logger.info("⚠️ 跳过模拟器检查（--skip-emulator-check）")
+
     # 7. 初始化设备和OCR
-    initialize_device_and_ocr()
+    initialize_device_and_ocr(args.emulator)
 
     # 8. 选择角色（如果配置了职业）
     if config_loader is None:
