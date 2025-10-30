@@ -10,6 +10,16 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+# 导入 EmulatorManager 以获取 Airtest 内置的 ADB
+try:
+    from emulator_manager import EmulatorManager
+
+    _emulator_manager = EmulatorManager()
+    _adb_path = _emulator_manager.adb_path
+except Exception as e:
+    print(f"⚠️ 无法初始化 EmulatorManager: {e}，将使用系统 adb")
+    _adb_path = "adb"
+
 
 class AndroidScreenshotCapture:
     def __init__(self, output_dir="yolo_training_images", interval=3):
@@ -32,7 +42,7 @@ class AndroidScreenshotCapture:
         """检查 ADB 连接是否正常"""
         try:
             result = subprocess.run(
-                ["adb", "devices"], capture_output=True, text=True, check=True
+                [_adb_path, "devices"], capture_output=True, text=True, check=True
             )
 
             # 解析设备列表
@@ -81,21 +91,21 @@ class AndroidScreenshotCapture:
 
             # 在设备上截图
             subprocess.run(
-                ["adb", "shell", "screencap", "-p", device_screenshot_path],
+                [_adb_path, "shell", "screencap", "-p", device_screenshot_path],
                 check=True,
                 capture_output=True,
             )
 
             # 从设备拉取截图到本地
             subprocess.run(
-                ["adb", "pull", device_screenshot_path, str(filepath)],
+                [_adb_path, "pull", device_screenshot_path, str(filepath)],
                 check=True,
                 capture_output=True,
             )
 
             # 删除设备上的临时文件
             subprocess.run(
-                ["adb", "shell", "rm", device_screenshot_path],
+                [_adb_path, "shell", "rm", device_screenshot_path],
                 check=False,  # 即使删除失败也继续
                 capture_output=True,
             )

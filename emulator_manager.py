@@ -8,7 +8,6 @@ import subprocess
 import platform
 import time
 import logging
-import json
 import os
 from typing import List, Dict, Optional
 
@@ -42,7 +41,7 @@ class EmulatorManager:
         self.adb_path = self._get_adb_path()
 
     @staticmethod
-    def _get_adb_path() -> Optional[str]:
+    def _get_adb_path():
         """
         获取 ADB 路径，优先使用 Airtest 内置的 ADB
 
@@ -52,7 +51,7 @@ class EmulatorManager:
         3. ANDROID_HOME 中的 ADB
 
         Returns:
-            ADB 可执行文件的完整路径，如果找不到则返回 None
+            ADB 可执行文件的完整路径，如果找不到则返回 adb
         """
         # 首先尝试使用 Airtest 内置的 ADB
         if ADB is not None:

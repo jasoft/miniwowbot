@@ -1,5 +1,170 @@
 # 更新日志
 
+## [重构] 简化 cron_run_all_dungeons.sh 使用 osascript 启动独立终端窗口 - 2025-10-30
+
+### 重构内容
+1. **完全重写脚本架构**
+   - 移除复杂的后台进程管理、信号处理、锁文件等机制
+   - 使用 osascript 为每个模拟器启动独立的 Terminal 窗口
+   - 脚本启动窗口后立即退出，不再等待或管理进程
+
+2. **硬编码两个模拟器配置**
+   - 模拟器 1: `emulator-5564` 使用 `configs/mage_alt.json`
+   - 模拟器 2: `emulator-5554` 使用默认配置
+   - 移除账号加载步骤（模拟器已登录账号）
+
+3. **简化日志记录**
+   - 每个模拟器独立的日志文件
+   - 日志保存在 `~/cron_logs/emu_XXXX_时间戳.log`
+   - 终端窗口标题显示模拟器和配置信息
+
+4. **修复 osascript 语法错误**
+   - 改用 `-e` 参数方式调用 osascript，避免 heredoc 中的中文路径解析问题
+   - 正确转义命令中的引号和特殊字符
+   - 添加 `/usr/bin` 和 `/bin` 到 PATH，确保系统命令可用
+   - 使用 `/usr/bin/tee` 完整路径，避免 PATH 问题
+
+### 移除的功能
+- ❌ 账号配置文件读取（accounts.json）
+- ❌ 账号加载步骤
+- ❌ 后台进程管理和 PID 跟踪
+- ❌ 复杂的信号处理和清理机制
+- ❌ 文件锁机制
+- ❌ 并行/顺序模式选择
+- ❌ 统计和通知功能
+
+### 新增功能
+- ✅ 使用 osascript 启动独立终端窗口
+- ✅ 每个窗口有自定义标题（显示模拟器和配置）
+- ✅ 脚本执行完成后提示"按任意键关闭窗口"
+- ✅ 两个模拟器间隔 2 秒启动，避免资源竞争
+
+### 使用方式
+```bash
+./cron_run_all_dungeons.sh
+```
+
+### 优势
+- ✅ **简单直观** - 每个模拟器一个窗口，可以直接看到运行状态
+- ✅ **易于调试** - 可以在窗口中直接看到输出和错误
+- ✅ **独立运行** - 窗口之间完全独立，一个失败不影响其他
+- ✅ **无后台麻烦** - 不需要管理后台进程，不需要担心僵尸进程
+- ✅ **可手动控制** - 可以随时关闭某个窗口来停止特定模拟器
+
+### 修改文件
+- `cron_run_all_dungeons.sh` - 完全重写（从 383 行简化到 94 行）
+
+---
+
+## [修复] 确保所有 adb 调用使用 Airtest 内置 ADB - 2025-10-29
+
+### 修复内容
+1. **修复 auto_dungeon.py**
+   - 更新 `ensure_adb_connection()` 函数使用 Airtest 内置 ADB
+   - 添加 `emulator_manager` 参数
+   - 调用处传入 EmulatorManager 实例
+
+2. **修复 capture_and_analyze.py**
+   - 添加 EmulatorManager 初始化
+   - 更新 `check_adb_connection()` 方法
+   - 更新所有 adb 命令调用（screencap、pull、shell）
+
+3. **修复 capture_android_screenshots.py**
+   - 添加 EmulatorManager 初始化
+   - 更新 `check_adb_connection()` 方法
+   - 更新所有 adb 命令调用（screencap、pull、shell）
+
+### 修改文件
+- `auto_dungeon.py` - 修复 ensure_adb_connection 函数
+- `capture_and_analyze.py` - 修复所有 adb 调用
+- `capture_android_screenshots.py` - 修复所有 adb 调用
+
+### 技术细节
+所有文件现在都使用以下方式获取 ADB 路径：
+```python
+try:
+    from emulator_manager import EmulatorManager
+    _emulator_manager = EmulatorManager()
+    _adb_path = _emulator_manager.adb_path
+except Exception as e:
+    _adb_path = "adb"  # 降级处理
+```
+
+### 优势
+- ✅ 所有 adb 调用都使用 Airtest 内置 ADB v40
+- ✅ 避免版本冲突导致的服务进程被杀
+- ✅ 确保模拟器连接稳定
+- ✅ 向后兼容，失败时自动降级
+
+---
+
+## [修复] 移除 flock 依赖，使用 macOS 原生文件锁 - 2025-10-29
+
+### 修复内容
+1. **移除 flock 命令依赖**
+   - `flock` 命令在 macOS 上不可用
+   - 改用 `mkdir` 原子操作实现文件锁
+
+2. **实现 macOS 兼容的文件锁机制**
+   - 使用目录作为锁文件（原子操作）
+   - 支持重试机制（最多 10 次）
+   - 失败时降级处理（直接写入）
+
+3. **改进日志写入**
+   - 确保日志写入的原子性
+   - 避免并行模式下日志混乱
+   - 提高系统兼容性
+
+### 修改文件
+- `cron_run_all_dungeons.sh`：替换 flock 为 macOS 原生文件锁
+
+### 技术细节
+```bash
+# 使用 mkdir 实现原子锁操作
+if mkdir "$LOCK_FILE" 2>/dev/null; then
+    # 成功获得锁
+    echo "$@" | tee -a "$LOG_FILE"
+    rmdir "$LOCK_FILE" 2>/dev/null
+fi
+```
+
+---
+
+## [改进] 定时任务管理脚本支持并行运行 - 2025-10-29
+
+### 改进内容
+1. **新增 `install` 命令**
+   - 一键安装定时任务（使用 launchd）
+   - 自动配置 `--parallel` 参数
+   - 自动创建日志目录和配置文件
+
+2. **更新 `test` 命令**
+   - 现在使用 `--parallel` 参数运行副本任务
+   - 支持并行运行多个账号
+   - 直接调用 `cron_run_all_dungeons.sh`
+
+3. **改进日志管理**
+   - 标准输出日志：`launchd_dungeons_stdout.log`
+   - 标准错误日志：`launchd_dungeons_stderr.log`
+   - 自动清理 30 天前的旧日志
+
+### 修改文件
+- `manage_dungeons_schedule.sh`：添加 install 命令，更新 test 命令
+
+### 使用方法
+```bash
+# 安装定时任务
+./manage_dungeons_schedule.sh install
+
+# 手动测试（并行模式）
+./manage_dungeons_schedule.sh test
+
+# 查看状态
+./manage_dungeons_schedule.sh status
+```
+
+---
+
 ## [修复] CLS 日志模块迁移到官方 SDK - 2025-10-29
 
 ### 问题描述
