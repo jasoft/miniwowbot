@@ -39,6 +39,8 @@ def cleanup_output_directory():
     # 2. 清理旧的 cache 文件（保留数据库）
     print("\n🗑️ 清理旧的缓存文件...")
     cache_files_removed = 0
+    cache_files_failed = 0
+    total_size_freed = 0
     db_path = os.path.join(cache_dir, "cache.db")
 
     # 读取数据库，了解哪些文件应该保留
@@ -54,20 +56,39 @@ def cleanup_output_directory():
         print(f"  数据库中有 {len(files_to_keep)} 个文件需要保留")
 
     # 删除不在数据库中的缓存文件
-    for filename in os.listdir(cache_dir):
+    print(f"  扫描 cache 目录中的所有文件...")
+    all_files = os.listdir(cache_dir)
+    print(f"  总文件数: {len(all_files)}")
+
+    for filename in all_files:
         filepath = os.path.join(cache_dir, filename)
+
+        # 只保留数据库和索引文件
         if filename in ["cache.db", "cache_index.json"]:
             continue
-        if filename.startswith("region_") and filename.endswith(".png"):
-            # 保留区域缓存文件
-            continue
+
+        # 如果文件不在数据库中，删除它
         if filename not in files_to_keep:
             try:
-                os.remove(filepath)
-                cache_files_removed += 1
-            except:
-                pass
+                if os.path.isfile(filepath):
+                    file_size = os.path.getsize(filepath)
+                    os.remove(filepath)
+                    cache_files_removed += 1
+                    total_size_freed += file_size
+                elif os.path.isdir(filepath):
+                    # 如果是目录，递归删除
+                    shutil.rmtree(filepath)
+                    cache_files_removed += 1
+            except Exception as e:
+                cache_files_failed += 1
+                print(f"  ⚠️ 删除失败: {filename} - {e}")
+
     print(f"✅ 删除了 {cache_files_removed} 个孤立的缓存文件")
+    if cache_files_failed > 0:
+        print(f"⚠️ 删除失败: {cache_files_failed} 个文件")
+    if total_size_freed > 0:
+        size_mb = total_size_freed / 1024 / 1024
+        print(f"📊 释放空间: {size_mb:.2f} MB")
 
     # 3. 创建 temp 目录（如果不存在）
     print("\n📁 确保临时目录存在...")
