@@ -1,5 +1,208 @@
 # 更新日志
 
+## [Bug 修复] 修复 get_emulator_connection_string 端口号错误 - 2025-10-31
+
+### 问题描述
+`EmulatorManager.get_emulator_connection_string()` 方法硬编码了端口 5037（ADB 服务器端口），导致返回的连接字符串端口号不正确。
+
+### 修复内容
+- 修改 `get_emulator_connection_string()` 方法
+- 使用 `get_emulator_port()` 获取正确的 ADB 端口
+- 如果找不到映射的端口，才使用默认的 5037
+
+### 修改文件
+- `emulator_manager.py` - 修复 `get_emulator_connection_string()` 方法
+
+### 测试结果
+- ✅ `test_get_emulator_connection_string` 测试通过
+- ✅ 所有相关测试通过
+
+---
+
+## [新功能] 自动启动 BlueStacks 实例 - 2025-10-31
+
+### 功能描述
+当指定的模拟器不在设备列表中时，自动启动对应的 BlueStacks 实例，无需手动启动。
+
+### 新增功能
+1. **模拟器到实例的映射**
+   - 在 `EmulatorManager` 中添加 `EMULATOR_TO_INSTANCE` 映射表
+   - `emulator-5554` → `Tiramisu64`（主实例）
+   - `emulator-5564` → `Tiramisu64_1`（第二个实例）
+   - `emulator-5574` → `Tiramisu64_2`（第三个实例）
+   - `emulator-5584` → `Tiramisu64_3`（第四个实例）
+
+2. **自动启动逻辑**
+   - 新增 `start_bluestacks_instance()` 方法
+   - 当模拟器不在设备列表中时自动调用
+   - 支持 macOS、Windows、Linux 三个平台
+   - 自动等待模拟器启动完成（最多 60 秒）
+
+3. **智能检查**
+   - 先检查模拟器是否已运行，避免重复启动
+   - 如果模拟器已在运行，直接返回成功
+   - 如果启动失败，发送 Bark 通知告知用户
+
+### 修改文件
+- `emulator_manager.py` - 添加 `EMULATOR_TO_INSTANCE` 映射和 `start_bluestacks_instance()` 方法
+- `auto_dungeon.py` - 修改三个函数的设备检查逻辑，改为自动启动而非报错
+  - `check_and_start_emulator()`
+  - `handle_load_account_mode()`
+  - `initialize_device_and_ocr()`
+
+### 新增测试
+- `tests/test_auto_start_emulator.py` - 6 个单元测试，全部通过
+
+### 使用示例
+```bash
+# 指定不存在的模拟器，会自动启动对应的 BlueStacks 实例
+uv run auto_dungeon.py --emulator emulator-5564
+# 输出: ⚠️ 模拟器 emulator-5564 不在设备列表中
+#      🚀 尝试启动对应的 BlueStacks 实例...
+#      🚀 正在启动 BlueStacks 实例: Tiramisu64_1 (对应 emulator-5564)
+#      ⏳ 等待 BlueStacks 实例 Tiramisu64_1 启动...
+#      ✅ 模拟器 emulator-5564 已启动 (耗时 XX 秒)
+```
+
+### 技术细节
+- 使用 `subprocess.Popen` 启动 BlueStacks 应用
+- macOS 上使用 `open -a BlueStacksMIM` 命令
+- Windows 上使用 `HD-Player.exe --instance <instance_name>` 命令
+- 每 5 秒检查一次模拟器是否启动，最多等待 60 秒
+- 启动成功后额外等待 5 秒确保完全就绪
+
+### 优势
+1. **自动化** - 无需手动启动 BlueStacks，脚本自动处理
+2. **智能** - 检查模拟器是否已运行，避免重复启动
+3. **可靠** - 支持多个 BlueStacks 实例，映射关系清晰
+4. **跨平台** - 支持 macOS、Windows、Linux
+5. **通知** - 启动失败时发送 Bark 通知告知用户
+
+---
+
+## [新功能] 添加模拟器设备检查和 Bark 通知 - 2025-10-30
+
+### 功能描述
+为 `auto_dungeon.py` 添加了模拟器设备列表检查功能，在指定模拟器不存在时立即报错并发送 Bark 通知。
+
+### 新增功能
+1. **设备列表检查**
+   - 在 `check_and_start_emulator()` 函数中添加设备检查
+   - 在 `handle_load_account_mode()` 函数中添加设备检查
+   - 在 `initialize_device_and_ocr()` 函数中添加设备检查
+   - 调用 `emulator_manager.get_adb_devices()` 获取设备列表
+
+2. **错误处理**
+   - 如果指定的模拟器不在设备列表中，立即报错
+   - 显示可用的设备列表供用户参考
+   - 发送 Bark 通知告知用户错误信息
+
+3. **Bark 通知**
+   - 使用 `timeSensitive` 级别发送紧急通知
+   - 通知内容包含错误信息和可用设备列表
+   - 支持自定义 Bark 服务器配置
+
+### 修改文件
+- `auto_dungeon.py` - 在三个关键函数中添加设备检查逻辑
+
+### 使用示例
+```bash
+# 指定不存在的模拟器会立即报错
+uv run auto_dungeon.py --emulator emulator-9999
+# 输出: ❌ 模拟器 emulator-9999 不在设备列表中
+#      可用设备: ['emulator-5554', 'emulator-5555']
+# 并发送 Bark 通知到 iPhone
+
+# 指定存在的模拟器正常运行
+uv run auto_dungeon.py --emulator emulator-5554
+```
+
+### 技术细节
+- 使用 `EmulatorManager.get_adb_devices()` 获取 ADB 连接的设备
+- 在三个不同的入口点进行检查，确保全面覆盖
+- 检查失败时立即退出，避免后续无谓的操作
+
+---
+
+## [新功能] 添加命令行环境变量覆盖功能 - 2025-10-30
+
+### 功能描述
+为 `auto_dungeon.py` 和 `run_all_dungeons.sh` 添加了 `-e/--env` 参数支持，允许通过命令行覆盖配置文件中的同名变量，优先级最高。
+
+### 新增功能
+1. **auto_dungeon.py 新增参数**
+   - 添加 `-e/--env KEY=VALUE` 参数（可多次使用）
+   - 支持布尔值转换：`true`/`false` → `True`/`False`
+   - 支持整数转换：`42` → `42`
+   - 支持字符串值：`风暴宝箱` → `"风暴宝箱"`
+
+2. **新增函数**
+   - `apply_env_overrides(env_overrides)` - 解析和转换环境变量覆盖
+   - 修改 `initialize_configs()` - 支持环境变量覆盖参数
+
+3. **run_all_dungeons.sh 新增参数**
+   - 添加 `-e/--env KEY=VALUE` 参数支持
+   - 自动将参数传递给 `auto_dungeon.py`
+   - 支持多个 `-e` 参数组合使用
+
+### 使用示例
+
+#### auto_dungeon.py 直接使用
+```bash
+# 禁用每日收集
+uv run auto_dungeon.py -e enable_daily_collect=false
+
+# 启用快速挂机
+uv run auto_dungeon.py -e enable_quick_afk=true
+
+# 多个覆盖参数
+uv run auto_dungeon.py -e enable_daily_collect=false -e enable_quick_afk=true -e chest_name=风暴宝箱
+
+# 结合其他参数
+uv run auto_dungeon.py -c configs/mage.json -e enable_daily_collect=false
+```
+
+#### run_all_dungeons.sh 使用
+```bash
+# 禁用每日收集运行所有角色
+./run_all_dungeons.sh -e enable_daily_collect=false
+
+# 运行特定角色并覆盖配置
+./run_all_dungeons.sh warrior -e enable_daily_collect=false -e enable_quick_afk=true
+
+# 在指定模拟器上运行并覆盖配置
+./run_all_dungeons.sh mage --emulator emulator-5554 -e enable_daily_collect=false
+```
+
+### 优先级说明
+1. **最高优先级** - 命令行 `-e` 参数
+2. **中等优先级** - 配置文件中的值
+3. **最低优先级** - 代码中的默认值
+
+### 支持的配置变量
+- `enable_daily_collect` - 是否启用每日收集（布尔值）
+- `enable_quick_afk` - 是否启用快速挂机（布尔值）
+- `chest_name` - 宝箱名称（字符串）
+- `char_class` - 角色职业（字符串）
+- 其他 ConfigLoader 中定义的属性
+
+### 测试覆盖
+- ✅ 布尔值转换测试
+- ✅ 整数转换测试
+- ✅ 字符串值测试
+- ✅ 多参数覆盖测试
+- ✅ 无效格式处理测试
+- ✅ 配置覆盖集成测试
+- ✅ 空格处理测试
+- ✅ 值中包含等号的处理测试
+
+### 相关文件修改
+- `auto_dungeon.py` - 添加参数解析和覆盖逻辑
+- `run_all_dungeons.sh` - 添加参数传递支持
+- `tests/test_env_override.py` - 新增测试文件（11 个测试用例）
+
+---
+
 ## [重构] 简化 cron_run_all_dungeons.sh 使用 osascript 启动独立终端窗口 - 2025-10-30
 
 ### 重构内容

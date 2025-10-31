@@ -35,6 +35,14 @@ class EmulatorManager:
         "emulator-5561": 5562,
     }
 
+    # 模拟器名称到 BlueStacks 实例名称的映射
+    EMULATOR_TO_INSTANCE = {
+        "emulator-5554": "Tiramisu64",  # 主实例
+        "emulator-5564": "Tiramisu64_1",  # 第二个实例
+        "emulator-5574": "Tiramisu64_2",  # 第三个实例
+        "emulator-5584": "Tiramisu64_3",  # 第四个实例
+    }
+
     def __init__(self):
         self.system = platform.system()
         self.running_emulators = {}
@@ -135,6 +143,85 @@ class EmulatorManager:
         """检查指定模拟器是否运行"""
         devices = self.get_adb_devices()
         return emulator_name in devices and devices[emulator_name] == "device"
+
+    def start_bluestacks_instance(self, emulator_name: str) -> bool:
+        """
+        启动指定的 BlueStacks 实例（当模拟器不在设备列表中时调用）
+
+        Args:
+            emulator_name: 模拟器名称，如 'emulator-5554'
+
+        Returns:
+            bool: 启动成功返回 True
+        """
+        try:
+            # 先检查模拟器是否已经运行
+            if self.is_emulator_running(emulator_name):
+                logger.info(f"✅ 模拟器 {emulator_name} 已在运行")
+                return True
+
+            instance_name = self.EMULATOR_TO_INSTANCE.get(emulator_name)
+            if not instance_name:
+                logger.error(f"❌ 未找到模拟器 {emulator_name} 对应的 BlueStacks 实例")
+                return False
+
+            logger.info(
+                f"🚀 正在启动 BlueStacks 实例: {instance_name} (对应 {emulator_name})"
+            )
+
+            if self.system == "Darwin":  # macOS
+                # macOS 上通过 open 命令启动指定实例
+                subprocess.Popen(
+                    ["open", "-a", "BlueStacksMIM"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                logger.info(f"⏳ 等待 BlueStacks 实例 {instance_name} 启动...")
+            elif self.system == "Windows":
+                # Windows 上启动指定实例
+                bs_path = self.get_bluestacks_path()
+                if not bs_path:
+                    logger.error("❌ 未找到 BlueStacks 安装路径")
+                    return False
+
+                hd_player = os.path.join(bs_path, "HD-Player.exe")
+                if os.path.exists(hd_player):
+                    subprocess.Popen(
+                        [hd_player, "--instance", instance_name],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                    logger.info(f"⏳ 等待 BlueStacks 实例 {instance_name} 启动...")
+                else:
+                    logger.error(f"❌ 未找到 HD-Player.exe: {hd_player}")
+                    return False
+            else:  # Linux
+                subprocess.Popen(
+                    ["bluestacks"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+
+            # 等待模拟器启动
+            max_wait = 60
+            wait_interval = 5
+            elapsed = 0
+
+            while elapsed < max_wait:
+                time.sleep(wait_interval)
+                elapsed += wait_interval
+                if self.is_emulator_running(emulator_name):
+                    logger.info(f"✅ 模拟器 {emulator_name} 已启动 (耗时 {elapsed} 秒)")
+                    time.sleep(5)  # 额外等待确保完全就绪
+                    return True
+                logger.info(f"⏳ 继续等待... ({elapsed}/{max_wait}秒)")
+
+            logger.error(f"❌ 模拟器 {emulator_name} 启动超时")
+            return False
+
+        except Exception as e:
+            logger.error(f"❌ 启动 BlueStacks 实例失败: {e}")
+            return False
 
     def start_emulator(self, emulator_name: str) -> bool:
         """
@@ -242,4 +329,8 @@ class EmulatorManager:
         Returns:
             str: Airtest 连接字符串，如 'Android://127.0.0.1:5555/emulator-5554'
         """
-        return f"Android://127.0.0.1:5037/{emulator_name}"
+        port = self.get_emulator_port(emulator_name)
+        if port is None:
+            # 如果找不到映射的端口，使用默认的 ADB 服务器端口
+            port = 5037
+        return f"Android://127.0.0.1:{port}/{emulator_name}"

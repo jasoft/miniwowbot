@@ -266,8 +266,35 @@ def check_and_start_emulator(emulator_name: Optional[str] = None):
 
     # 如果指定了模拟器名称，使用管理器启动
     if emulator_name:
+        # 获取设备列表，检查 emulator_name 是否存在
+        devices = emulator_manager.get_adb_devices()
+        if emulator_name not in devices:
+            logger.warning(f"⚠️ 模拟器 {emulator_name} 不在设备列表中")
+            logger.info(f"   可用设备: {list(devices.keys()) if devices else '无'}")
+            logger.info("🚀 尝试启动对应的 BlueStacks 实例...")
+
+            # 尝试启动对应的 BlueStacks 实例
+            if not emulator_manager.start_bluestacks_instance(emulator_name):
+                error_msg = f"❌ 无法启动模拟器 {emulator_name} 对应的 BlueStacks 实例"
+                logger.error(error_msg)
+                # 发送 Bark 通知
+                send_bark_notification(
+                    "副本助手 - 错误",
+                    f"无法启动模拟器 {emulator_name} 对应的 BlueStacks 实例",
+                    level="timeSensitive",
+                )
+                return False
+        else:
+            logger.info(f"✅ 模拟器 {emulator_name} 已在设备列表中")
+
         if not emulator_manager.start_emulator(emulator_name):
             logger.error(f"❌ 无法启动模拟器: {emulator_name}")
+            # 发送 Bark 通知
+            send_bark_notification(
+                "副本助手 - 错误",
+                f"无法启动模拟器: {emulator_name}",
+                level="timeSensitive",
+            )
             return False
     else:
         # 原有逻辑：检查并启动默认模拟器
@@ -756,7 +783,7 @@ def select_character(char_class):
     )
     try:
         in_character_selection = bool(
-            wait(enter_game_template, timeout=1, interval=0.1)
+            wait(enter_game_template, timeout=20, interval=0.1)
         )
     except Exception:
         in_character_selection = False
@@ -994,7 +1021,7 @@ class DailyCollectManager:
                 self._kill_world_boss()
 
             # 7. 领取 taptap 奖励
-            self._checkin_taptap()
+            # self._checkin_taptap()
 
             self.logger.info("=" * 60)
             self.logger.info("✅ 每日收集操作全部完成")
@@ -1009,7 +1036,10 @@ class DailyCollectManager:
         logger.info("签到 taptap")
         keyevent("HOME")
         find_text_and_click("签到", regions=[1])
-        sleep(3)
+        sleep(5)
+        find_text_and_click_safe("去签到", regions=[5], timeout=20)
+        find_text_and_click_safe("立即签到", regions=[8, 9], timeout=20)
+        find_text_and_click_safe("复制", regions=[6, 9], timeout=20)
         start_app("com.ms.ysjyzr")
         sleep(5)
         back_to_main()
@@ -1081,8 +1111,30 @@ class DailyCollectManager:
             back_to_main()
 
             self.logger.info("✅ 随从派遣处理完成")
+
+            back_to_main()
         else:
             self.logger.warning("⚠️ 未找到随从按钮，跳过派遣操作")
+
+        # 招募
+        find_text_and_click("酒馆", regions=[7])
+        res = find_text(
+            "招募10次",
+            regions=[8, 9],
+            occurrence=9,
+            raise_exception=False,
+            use_cache=False,
+        )
+        if res:
+            for _ in range(4):
+                touch(res["center"])
+                sleep(1)
+        back_to_main()
+
+        # 符文
+        find_text_and_click("符文", regions=[9])
+        find_text_and_click("抽取十次", regions=[8, 9], use_cache=False)
+        back_to_main()
 
     def _collect_free_dungeons(self):
         """
@@ -1114,7 +1166,7 @@ class DailyCollectManager:
             floor_name: 楼层名称（刻印、宝石、雕文）
             regions: 搜索区域列表 [楼层区域, 按钮区域]
         """
-        if find_text_and_click_safe(floor_name, regions=[regions[0]]):
+        if find_text_and_click_safe(floor_name, regions=[regions[0]], use_cache=False):
             try:
                 find_text_and_click("扫荡一次", regions=[regions[1]])
                 find_text_and_click("确定", regions=[5])
@@ -1173,7 +1225,7 @@ class DailyCollectManager:
             find_text_and_click("主城", regions=[9])
             find_text_and_click("宝库", regions=[9])
             find_text_and_click(chest_name, regions=[4, 5, 6, 7, 8])
-            res = find_text("开启10次", regions=[8, 9])
+            res = find_text("开启10次", regions=[8, 9], use_cache=False)
             if res:
                 for _ in range(5):
                     touch(res["center"])
@@ -1271,6 +1323,14 @@ def parse_arguments():
         type=str,
         help="指定模拟器名称（如：emulator-5554），用于多模拟器场景",
     )
+    parser.add_argument(
+        "-e",
+        "--env",
+        type=str,
+        action="append",
+        dest="env_overrides",
+        help="环境变量覆盖，格式为 key=value（可多次使用，如 -e enable_daily_collect=false -e enable_quick_afk=true）",
+    )
     return parser.parse_args()
 
 
@@ -1299,6 +1359,28 @@ def handle_load_account_mode(account_name, emulator_name: Optional[str] = None):
         target_emulator = emulator_name
         if emulator_manager is None:
             emulator_manager = EmulatorManager()
+
+        # 获取设备列表，检查 emulator_name 是否存在
+        devices = emulator_manager.get_adb_devices()
+        if emulator_name not in devices:
+            logger.warning(f"⚠️ 模拟器 {emulator_name} 不在设备列表中")
+            logger.info(f"   可用设备: {list(devices.keys()) if devices else '无'}")
+            logger.info("🚀 尝试启动对应的 BlueStacks 实例...")
+
+            # 尝试启动对应的 BlueStacks 实例
+            if not emulator_manager.start_bluestacks_instance(emulator_name):
+                error_msg = f"❌ 无法启动模拟器 {emulator_name} 对应的 BlueStacks 实例"
+                logger.error(error_msg)
+                # 发送 Bark 通知
+                send_bark_notification(
+                    "副本助手 - 错误",
+                    f"无法启动模拟器 {emulator_name} 对应的 BlueStacks 实例",
+                    level="timeSensitive",
+                )
+                sys.exit(1)
+        else:
+            logger.info(f"✅ 模拟器 {emulator_name} 已在设备列表中")
+
         connection_string = emulator_manager.get_emulator_connection_string(
             emulator_name
         )
@@ -1327,8 +1409,51 @@ def handle_load_account_mode(account_name, emulator_name: Optional[str] = None):
         sys.exit(1)
 
 
-def initialize_configs(config_path):
-    """初始化系统配置和用户配置"""
+def apply_env_overrides(env_overrides):
+    """
+    应用命令行环境变量覆盖
+
+    Args:
+        env_overrides: 环境变量覆盖列表，格式为 ['key=value', ...]
+
+    Returns:
+        dict: 解析后的覆盖字典
+    """
+    overrides = {}
+    if not env_overrides:
+        return overrides
+
+    for override in env_overrides:
+        if "=" not in override:
+            logger.warning(f"⚠️ 无效的环境变量格式: {override}，应为 key=value")
+            continue
+
+        key, value = override.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+
+        # 将字符串值转换为适当的类型
+        if value.lower() == "true":
+            overrides[key] = True
+        elif value.lower() == "false":
+            overrides[key] = False
+        elif value.isdigit():
+            overrides[key] = int(value)
+        else:
+            overrides[key] = value
+
+        logger.info(f"📝 环境变量覆盖: {key} = {overrides[key]}")
+
+    return overrides
+
+
+def initialize_configs(config_path, env_overrides=None):
+    """初始化系统配置和用户配置
+
+    Args:
+        config_path: 配置文件路径
+        env_overrides: 环境变量覆盖列表，格式为 ['key=value', ...]
+    """
     global config_loader, system_config, zone_dungeons
 
     # 加载系统配置
@@ -1341,6 +1466,17 @@ def initialize_configs(config_path):
     # 加载用户配置
     try:
         config_loader = load_config(config_path)
+
+        # 应用环境变量覆盖
+        if env_overrides:
+            overrides = apply_env_overrides(env_overrides)
+            for key, value in overrides.items():
+                if hasattr(config_loader, key):
+                    logger.info(f"🔄 覆盖配置: {key} = {value}")
+                    setattr(config_loader, key, value)
+                else:
+                    logger.warning(f"⚠️ 配置中不存在属性: {key}")
+
         zone_dungeons = config_loader.get_zone_dungeons()
     except Exception as e:
         logger.error(f"❌ 加载配置失败: {e}")
@@ -1413,6 +1549,28 @@ def initialize_device_and_ocr(emulator_name: Optional[str] = None):
         target_emulator = emulator_name
         if emulator_manager is None:
             emulator_manager = EmulatorManager()
+
+        # 获取设备列表，检查 emulator_name 是否存在
+        devices = emulator_manager.get_adb_devices()
+        if emulator_name not in devices:
+            logger.warning(f"⚠️ 模拟器 {emulator_name} 不在设备列表中")
+            logger.info(f"   可用设备: {list(devices.keys()) if devices else '无'}")
+            logger.info("🚀 尝试启动对应的 BlueStacks 实例...")
+
+            # 尝试启动对应的 BlueStacks 实例
+            if not emulator_manager.start_bluestacks_instance(emulator_name):
+                error_msg = f"❌ 无法启动模拟器 {emulator_name} 对应的 BlueStacks 实例"
+                logger.error(error_msg)
+                # 发送 Bark 通知
+                send_bark_notification(
+                    "副本助手 - 错误",
+                    f"无法启动模拟器 {emulator_name} 对应的 BlueStacks 实例",
+                    level="timeSensitive",
+                )
+                raise RuntimeError(f"无法启动模拟器 {emulator_name}")
+        else:
+            logger.info(f"✅ 模拟器 {emulator_name} 已在设备列表中")
+
         connection_string = emulator_manager.get_emulator_connection_string(
             emulator_name
         )
@@ -1606,7 +1764,7 @@ def main():
         return
 
     # 4. 初始化配置
-    initialize_configs(args.config)
+    initialize_configs(args.config, args.env_overrides)
 
     # 5. 检查进度统计 - 决定是否需要启动模拟器
     if config_loader is None:
@@ -1634,6 +1792,9 @@ def main():
 
     # 7. 初始化设备和OCR
     initialize_device_and_ocr(args.emulator)
+
+    # 启动游戏
+    start_app("com.ms.ysjyzr")
 
     # 8. 选择角色（如果配置了职业）
     if config_loader is None:

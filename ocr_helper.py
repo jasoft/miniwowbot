@@ -15,7 +15,6 @@ import sqlite3
 import imagehash
 from PIL import Image
 from datetime import datetime
-from pathlib import Path
 from airtest.core.api import snapshot, touch
 from airtest.aircv.cal_confidence import cal_ccoeff_confidence
 import logging

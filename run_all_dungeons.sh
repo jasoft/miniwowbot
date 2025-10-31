@@ -67,6 +67,8 @@ print_error() {
 run_character() {
     local character=$1
     local emulator=$2
+    shift 2
+    local env_overrides=("$@")  # 剩余的参数作为环境变量覆盖
     local config_file="configs/${character}.json"
     local character_name=${CHARACTER_NAMES[$character]:-$character}
 
@@ -82,6 +84,9 @@ run_character() {
     if [ -n "$emulator" ]; then
         print_info "模拟器: $emulator"
     fi
+    if [ ${#env_overrides[@]} -gt 0 ]; then
+        print_info "环境变量覆盖: ${env_overrides[*]}"
+    fi
     print_info "开始时间: $start_time"
     print_info "=================================================="
 
@@ -89,6 +94,11 @@ run_character() {
     if [ -n "$emulator" ]; then
         cmd="$cmd --emulator \"$emulator\""
     fi
+
+    # 添加环境变量覆盖参数
+    for override in "${env_overrides[@]}"; do
+        cmd="$cmd -e \"$override\""
+    done
 
     if eval "$cmd"; then
         local end_time=$(date '+%H:%M:%S')
@@ -118,6 +128,7 @@ ${BLUE}自动化副本运行脚本${NC}
   -i, --interactive       交互式选择角色
   -n, --no-prompt         失败时自动继续，不询问
   --emulator EMULATOR     指定模拟器（如：emulator-5554）
+  -e, --env KEY=VALUE     环境变量覆盖（可多次使用）
 
 角色名称:
   warrior             战士
@@ -137,6 +148,8 @@ ${BLUE}自动化副本运行脚本${NC}
   ./run_all_dungeons.sh -l                        # 列出所有角色
   ./run_all_dungeons.sh --emulator emulator-5554  # 在指定模拟器上运行所有角色
   ./run_all_dungeons.sh mage --emulator emulator-5554  # 在指定模拟器上运行法师
+  ./run_all_dungeons.sh -e enable_daily_collect=false  # 禁用每日收集
+  ./run_all_dungeons.sh warrior -e enable_daily_collect=false -e enable_quick_afk=true  # 运行战士并覆盖配置
 
 EOF
 }
@@ -191,6 +204,7 @@ main() {
     local interactive=false
     local no_prompt=false
     local emulator=""
+    local env_overrides=()
     SELECTED_CHARACTERS=()
 
     # 解析命令行参数
@@ -218,6 +232,10 @@ main() {
                 ;;
             --emulator)
                 emulator="$2"
+                shift 2
+                ;;
+            -e|--env)
+                env_overrides+=("$2")
                 shift 2
                 ;;
             -*)
@@ -266,7 +284,7 @@ main() {
         echo ""
         print_info "正在运行第 $((success + failed + 1))/${total} 个角色..."
 
-        if run_character "$character" "$emulator"; then
+        if run_character "$character" "$emulator" "${env_overrides[@]}"; then
             ((success++))
             print_success "成功完成！继续下一个角色..."
         else
