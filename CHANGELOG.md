@@ -1,5 +1,31 @@
 # 更新日志
 
+## [改进] 优化模拟器启动流程：先尝试 adb connect，失败后再启动 BlueStacks - 2025-10-31
+
+### 改进内容
+- 添加 `try_adb_connect()` 方法，尝试通过网络连接到模拟器
+- 修改 `start_bluestacks_instance()` 启动流程：
+  1. 检查模拟器是否已运行
+  2. 尝试 `adb connect` 连接（如果模拟器已启动但未被 ADB 识别）
+  3. 如果连接成功，直接返回（无需启动 BlueStacks）
+  4. 如果连接失败，启动对应的 BlueStacks 实例
+
+### 优势
+- 避免不必要的 BlueStacks 启动
+- 更快的连接速度（如果模拟器已在运行）
+- 更智能的启动逻辑
+
+### 修改文件
+- `emulator_manager.py` - 添加 `try_adb_connect()` 方法，优化启动流程
+- `tests/test_auto_start_emulator.py` - 添加新的测试用例
+
+### 测试结果
+- ✅ 7 个自动启动测试通过（新增 adb connect 成功的测试）
+- ✅ 6 个设备检查测试通过
+- ✅ 总计 13 个测试通过
+
+---
+
 ## [改进] 改为使用网络连接方式而不是 USB 设备连接 - 2025-10-31
 
 ### 问题描述

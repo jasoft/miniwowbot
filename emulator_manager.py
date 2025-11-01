@@ -135,6 +135,44 @@ class EmulatorManager:
             logger.error(f"❌ 获取 ADB 设备列表失败: {e}")
             return {}
 
+    def try_adb_connect(self, emulator_name: str) -> bool:
+        """
+        尝试通过 adb connect 连接到模拟器
+
+        Args:
+            emulator_name: 模拟器网络地址，如 '127.0.0.1:5555'
+
+        Returns:
+            bool: 连接成功返回 True
+        """
+        try:
+            logger.info(f"📡 尝试连接到 {emulator_name}...")
+            result = subprocess.run(
+                [self.adb_path, "connect", emulator_name],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            # 检查连接结果
+            if result.returncode == 0:
+                output = result.stdout.strip()
+                if "connected" in output.lower():
+                    logger.info(f"✅ 成功连接到 {emulator_name}")
+                    # 等待一下确保连接稳定
+                    time.sleep(2)
+                    # 再次检查设备状态
+                    devices = self.get_adb_devices()
+                    if emulator_name in devices and devices[emulator_name] == "device":
+                        logger.info(f"✅ 模拟器 {emulator_name} 已就绪")
+                        return True
+
+            logger.warning(f"⚠️ 连接到 {emulator_name} 失败: {result.stdout}")
+            return False
+        except Exception as e:
+            logger.warning(f"⚠️ adb connect 失败: {e}")
+            return False
+
     def is_emulator_running(self, emulator_name: str) -> bool:
         """
         检查指定模拟器是否运行
@@ -151,6 +189,12 @@ class EmulatorManager:
     def start_bluestacks_instance(self, emulator_name: str) -> bool:
         """
         启动指定的 BlueStacks 实例（当模拟器不在设备列表中时调用）
+
+        流程：
+        1. 检查模拟器是否已经运行
+        2. 如果未运行，先尝试 adb connect
+        3. 如果 adb connect 成功，直接返回
+        4. 如果 adb connect 失败，启动对应的 BlueStacks 实例
 
         Args:
             emulator_name: 模拟器名称，如 '127.0.0.1:5555'
@@ -169,12 +213,23 @@ class EmulatorManager:
                 logger.error(f"❌ 未找到模拟器 {emulator_name} 对应的 BlueStacks 实例")
                 return False
 
-            # 从网络地址中提取端口号
+            # 验证模拟器地址格式
             try:
-                port = int(emulator_name.split(":")[1])
+                int(emulator_name.split(":")[1])
             except (IndexError, ValueError):
                 logger.error(f"❌ 无效的模拟器地址格式: {emulator_name}")
                 return False
+
+            # 第一步：尝试 adb connect
+            logger.info(f"📡 第一步：尝试通过 adb connect 连接到 {emulator_name}...")
+            if self.try_adb_connect(emulator_name):
+                logger.info(
+                    f"✅ 通过 adb connect 成功连接到 {emulator_name}，无需启动模拟器"
+                )
+                return True
+
+            # 第二步：如果 adb connect 失败，启动 BlueStacks 实例
+            logger.info("📱 第二步：adb connect 失败，准备启动 BlueStacks 实例...")
 
             logger.info(
                 f"🚀 正在启动 BlueStacks 实例: {instance_name} (对应 {emulator_name})"

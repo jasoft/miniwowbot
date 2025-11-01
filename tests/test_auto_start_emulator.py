@@ -24,28 +24,48 @@ class TestAutoStartEmulator:
         assert manager.EMULATOR_TO_INSTANCE["127.0.0.1:5575"] == "Tiramisu64_2"
         assert manager.EMULATOR_TO_INSTANCE["127.0.0.1:5585"] == "Tiramisu64_3"
 
+    @patch.object(EmulatorManager, "try_adb_connect")
     @patch.object(EmulatorManager, "is_emulator_running")
     @patch("subprocess.Popen")
     @patch("time.sleep")
     def test_start_bluestacks_instance_success(
-        self, mock_sleep, mock_popen, mock_is_running, manager
+        self, mock_sleep, mock_popen, mock_is_running, mock_adb_connect, manager
     ):
-        """测试成功启动 BlueStacks 实例"""
-        # 第一次返回 False（未运行），后续返回 True（已启动）
+        """测试成功启动 BlueStacks 实例（adb connect 失败后启动）"""
+        # 第一次返回 False（未运行），adb connect 失败，后续返回 True（已启动）
         mock_is_running.side_effect = [False, True]
+        mock_adb_connect.return_value = False  # adb connect 失败
 
         result = manager.start_bluestacks_instance("127.0.0.1:5555")
         assert result is True
-        mock_popen.assert_called_once()
+        # 应该调用 adb connect 和 BlueStacks 启动
+        mock_adb_connect.assert_called_once_with("127.0.0.1:5555")
 
+    @patch.object(EmulatorManager, "try_adb_connect")
+    @patch.object(EmulatorManager, "is_emulator_running")
+    def test_start_bluestacks_instance_adb_connect_success(
+        self, mock_is_running, mock_adb_connect, manager
+    ):
+        """测试通过 adb connect 成功连接（无需启动 BlueStacks）"""
+        # 第一次返回 False（未运行），adb connect 成功
+        mock_is_running.return_value = False
+        mock_adb_connect.return_value = True  # adb connect 成功
+
+        result = manager.start_bluestacks_instance("127.0.0.1:5555")
+        assert result is True
+        # 应该调用 adb connect，但不需要启动 BlueStacks
+        mock_adb_connect.assert_called_once_with("127.0.0.1:5555")
+
+    @patch.object(EmulatorManager, "try_adb_connect")
     @patch.object(EmulatorManager, "is_emulator_running")
     @patch("subprocess.Popen")
     @patch("time.sleep")
     def test_start_bluestacks_instance_timeout(
-        self, mock_sleep, mock_popen, mock_is_running, manager
+        self, mock_sleep, mock_popen, mock_is_running, mock_adb_connect, manager
     ):
         """测试 BlueStacks 实例启动超时"""
         mock_is_running.return_value = False
+        mock_adb_connect.return_value = False  # adb connect 失败
 
         result = manager.start_bluestacks_instance("127.0.0.1:5555")
         assert result is False
@@ -55,18 +75,20 @@ class TestAutoStartEmulator:
         result = manager.start_bluestacks_instance("127.0.0.1:9999")
         assert result is False
 
+    @patch.object(EmulatorManager, "try_adb_connect")
     @patch.object(EmulatorManager, "is_emulator_running")
     @patch("subprocess.Popen")
     @patch("time.sleep")
     def test_start_bluestacks_instance_second_emulator(
-        self, mock_sleep, mock_popen, mock_is_running, manager
+        self, mock_sleep, mock_popen, mock_is_running, mock_adb_connect, manager
     ):
         """测试启动第二个 BlueStacks 实例"""
         mock_is_running.side_effect = [False, True]
+        mock_adb_connect.return_value = False  # adb connect 失败
 
         result = manager.start_bluestacks_instance("127.0.0.1:5565")
         assert result is True
-        mock_popen.assert_called_once()
+        mock_adb_connect.assert_called_once_with("127.0.0.1:5565")
 
     @patch.object(EmulatorManager, "is_emulator_running")
     @patch("subprocess.Popen")
