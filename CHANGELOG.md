@@ -1,5 +1,56 @@
 # 更新日志
 
+## [新增] logger_config 中的 Loki 支持 - 2025-11-01
+
+### 功能描述
+
+在 `logger_config.py` 中添加 Loki 日志上传支持，允许同时输出到 console 和 Loki。
+
+### 新增功能
+
+1. **setup_logger() 函数新增参数**
+   - `enable_loki`: 是否启用 Loki 日志上传（默认 False）
+   - `loki_url`: Loki 服务地址（默认 http://localhost:3100）
+   - `loki_labels`: Loki 标签字典，如 `{"env": "dev"}`
+
+2. **LoggerConfig.configure_logger() 方法新增参数**
+   - 同上
+
+### 使用示例
+
+```python
+from logger_config import setup_logger
+
+# 仅使用 console 输出
+logger = setup_logger(name="myapp")
+
+# 同时输出到 console 和 Loki
+logger = setup_logger(
+    name="myapp",
+    enable_loki=True,
+    loki_url="http://localhost:3100",
+    loki_labels={"env": "dev", "version": "1.0"}
+)
+
+logger.info("这条日志会同时输出到 console 和 Loki")
+```
+
+### 新增文件
+
+- `test_logger_with_loki.py` - 测试脚本
+
+### 测试结果
+
+- ✅ Console 输出正常
+- ✅ Loki 日志上传成功
+- ✅ 脚本正常退出
+
+### 提交信息
+
+- `e2ab36e` - feat: 在 logger_config 中添加 Loki 支持
+
+---
+
 ## [修复] 脚本无法自动退出问题 - 2025-11-01
 
 ### 修复内容
