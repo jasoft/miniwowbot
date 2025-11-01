@@ -15,7 +15,7 @@ print("\n1. 创建日志记录器...")
 logger = create_loki_logger(
     name="miniwow",
     level="INFO",
-    loki_url="http://docker.home:3100",
+    loki_url="http://localhost:3100",
     enable_loki=True,
 )
 print("✅ 日志记录器创建成功")
@@ -54,9 +54,16 @@ print("\n💡 提示:")
 print("1. 日志已输出到控制台")
 print("2. 日志已上传到 Loki")
 print("3. 可以在 Grafana 中查看日志:")
-print("   - 访问 http://docker.home:3099")
+print("   - 访问 http://localhost:3000")
 print("   - 用户名: admin")
 print("   - 密码: admin")
 print("   - 在 Explore 中选择 Loki 数据源")
 print('   - 使用标签过滤: {app="miniwow"}')
 print("=" * 70)
+
+# 关闭日志处理器
+print("\n正在关闭日志处理器...")
+for handler in logger.handlers:
+    handler.close()
+logger.handlers.clear()
+print("✅ 日志处理器已关闭")

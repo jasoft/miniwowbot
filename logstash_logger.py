@@ -173,13 +173,16 @@ class LokiHandler(logging.Handler):
             if self.upload_thread.is_alive():
                 self.upload_thread.join(timeout=1)
 
-            # 最后一次刷新缓冲区
-            with self.lock:
-                if self.buffer:
-                    buffer_copy = self.buffer.copy()
-                    self.buffer.clear()
-                else:
-                    buffer_copy = []
+            # 最后一次刷新缓冲区（非阻塞方式）
+            buffer_copy = []
+            acquired = self.lock.acquire(blocking=False)
+            if acquired:
+                try:
+                    if self.buffer:
+                        buffer_copy = self.buffer.copy()
+                        self.buffer.clear()
+                finally:
+                    self.lock.release()
 
             if buffer_copy:
                 self._do_upload(buffer_copy)
