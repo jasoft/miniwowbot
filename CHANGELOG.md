@@ -1,5 +1,36 @@
 # 更新日志
 
+## [修复] Loki 配置和日志处理器问题 - 2025-11-01
+
+### 修复内容
+
+1. **Loki 配置文件兼容性问题**
+   - 使用官方推荐的配置格式（tsdb + filesystem）
+   - 添加 common 部分配置
+   - 配置 tsdb_shipper 的 active_index_directory 和 cache_location
+   - 升级 schema 到 v13
+
+2. **日志处理器死锁问题**
+   - 修复 emit() 方法中的锁获取导致的死锁
+   - 使用非阻塞的 lock.acquire(blocking=False)
+   - 如果无法获取锁，直接上传单条日志
+
+### 测试结果
+
+- ✅ Loki 容器成功启动
+- ✅ Grafana 容器成功启动
+- ✅ Loki API 就绪
+- ✅ 日志成功上传到 Loki
+- ✅ 每条日志都能正确处理
+- ✅ 没有死锁或卡顿
+
+### 提交信息
+
+- `763922c` - fix: 修复 Loki 配置文件兼容性问题
+- `9435761` - fix: 修复 Loki 日志处理器的死锁问题
+
+---
+
 ## [新增] 实现 Loki 日志系统 - 2025-11-01
 
 ### 功能描述
