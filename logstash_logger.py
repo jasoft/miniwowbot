@@ -7,15 +7,14 @@ Loki 日志模块
 import logging
 import os
 import threading
-import time
 import json
-from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict
 import requests
 
 # 尝试加载 .env 文件
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     pass
@@ -59,9 +58,7 @@ class LokiHandler(logging.Handler):
         self.stop_event = threading.Event()
 
         # 启动后台上传线程
-        self.upload_thread = threading.Thread(
-            target=self._upload_worker, daemon=True
-        )
+        self.upload_thread = threading.Thread(target=self._upload_worker, daemon=True)
         self.upload_thread.start()
 
     def emit(self, record: logging.LogRecord):
@@ -78,17 +75,16 @@ class LokiHandler(logging.Handler):
                 "line": record.lineno,
             }
 
-            # 添加到缓冲区
-            with self.lock:
-                self.buffer.append(log_entry)
-                # 如果缓冲区满，立即上传
-                if len(self.buffer) >= self.buffer_size:
-                    buffer_copy = self.buffer.copy()
-                    self.buffer.clear()
-                    # 在单独的线程中上传，避免阻塞
-                    threading.Thread(
-                        target=self._do_upload, args=(buffer_copy,), daemon=True
-                    ).start()
+            # 尝试添加到缓冲区，使用非阻塞方式
+            acquired = self.lock.acquire(blocking=False)
+            if acquired:
+                try:
+                    self.buffer.append(log_entry)
+                finally:
+                    self.lock.release()
+            else:
+                # 如果无法获取锁，直接上传此条日志
+                self._do_upload([log_entry])
 
         except Exception:
             self.handleError(record)
@@ -253,4 +249,3 @@ def create_loki_logger(
             print(f"⚠️ 添加 Loki 处理器失败: {e}")
 
     return logger
-
