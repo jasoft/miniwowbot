@@ -1,5 +1,25 @@
 # 更新日志
 
+## [Bug 修复] 修复 macOS 上启动 BlueStacks 实例的参数传递问题 - 2025-10-31
+
+### 问题描述
+在 macOS 上，使用 `open -a BlueStacksMIM` 命令无法传递 `--instance` 参数来启动指定的 BlueStacks 实例。
+
+### 修复内容
+- 修改 `start_bluestacks_instance()` 方法中的 macOS 启动逻辑
+- 直接调用 BlueStacks 可执行文件：`/Applications/BlueStacks.app/Contents/MacOS/BlueStacks`
+- 正确传递 `--instance` 参数来启动指定的实例
+- 添加文件存在性检查
+
+### 修改文件
+- `emulator_manager.py` - 修复 macOS 启动逻辑
+
+### 测试结果
+- ✅ 所有 6 个自动启动测试通过
+- ✅ 语法检查通过
+
+---
+
 ## [改进] 优化缓存清理脚本，删除所有孤立文件 - 2025-10-31
 
 ### 问题描述

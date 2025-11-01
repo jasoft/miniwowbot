@@ -170,9 +170,16 @@ class EmulatorManager:
             )
 
             if self.system == "Darwin":  # macOS
-                # macOS 上通过 open 命令启动指定实例
+                # macOS 上直接启动 BlueStacks 可执行文件并传递 --instance 参数
+                bluestacks_exe = (
+                    "/Applications/BlueStacks.app/Contents/MacOS/BlueStacks"
+                )
+                if not os.path.exists(bluestacks_exe):
+                    logger.error(f"❌ 未找到 BlueStacks 可执行文件: {bluestacks_exe}")
+                    return False
+
                 subprocess.Popen(
-                    ["open", "-a", "BlueStacksMIM"],
+                    [bluestacks_exe, "--instance", instance_name],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 )
