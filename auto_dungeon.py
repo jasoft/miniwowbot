@@ -245,7 +245,7 @@ def check_and_start_emulator(emulator_name: Optional[str] = None):
     支持指定特定的模拟器实例
 
     Args:
-        emulator_name: 模拟器名称，如 'emulator-5554'，如果为 None 则使用默认行为
+        emulator_name: 模拟器网络地址，如 '127.0.0.1:5555'，如果为 None 则使用默认行为
 
     Returns:
         bool: 准备成功返回True，失败返回False
@@ -1321,7 +1321,7 @@ def parse_arguments():
     parser.add_argument(
         "--emulator",
         type=str,
-        help="指定模拟器名称（如：emulator-5554），用于多模拟器场景",
+        help="指定模拟器网络地址（如：127.0.0.1:5555），用于多模拟器场景",
     )
     parser.add_argument(
         "-e",
@@ -1538,7 +1538,7 @@ def initialize_device_and_ocr(emulator_name: Optional[str] = None):
     支持多个模拟器同时连接，不会断开其他模拟器
 
     Args:
-        emulator_name: 模拟器名称，如 'emulator-5554'，如果为 None 则使用默认连接
+        emulator_name: 模拟器网络地址，如 '127.0.0.1:5555'，如果为 None 则使用默认连接
     """
     global ocr_helper, emulator_manager, target_emulator
 

@@ -23,24 +23,20 @@ logger = logging.getLogger(__name__)
 class EmulatorManager:
     """BlueStacks 多模拟器管理器"""
 
-    # BlueStacks 常见端口映射
-    BLUESTACKS_PORTS = {
-        "emulator-5554": 5555,  # 主实例
-        "emulator-5555": 5556,
-        "emulator-5556": 5557,
-        "emulator-5557": 5558,
-        "emulator-5558": 5559,
-        "emulator-5559": 5560,
-        "emulator-5560": 5561,
-        "emulator-5561": 5562,
-    }
-
     # 模拟器名称到 BlueStacks 实例名称的映射
     EMULATOR_TO_INSTANCE = {
-        "emulator-5554": "Tiramisu64",  # 主实例
-        "emulator-5564": "Tiramisu64_1",  # 第二个实例
-        "emulator-5574": "Tiramisu64_2",  # 第三个实例
-        "emulator-5584": "Tiramisu64_3",  # 第四个实例
+        "127.0.0.1:5555": "Tiramisu64",  # 主实例，网络连接端口 5555
+        "127.0.0.1:5565": "Tiramisu64_1",  # 第二个实例，网络连接端口 5565
+        "127.0.0.1:5575": "Tiramisu64_2",  # 第三个实例，网络连接端口 5575
+        "127.0.0.1:5585": "Tiramisu64_3",  # 第四个实例，网络连接端口 5585
+    }
+
+    # 网络连接端口到 BlueStacks 实例名称的映射（用于启动时检查）
+    PORT_TO_INSTANCE = {
+        5555: "Tiramisu64",
+        5565: "Tiramisu64_1",
+        5575: "Tiramisu64_2",
+        5585: "Tiramisu64_3",
     }
 
     def __init__(self):
@@ -140,7 +136,15 @@ class EmulatorManager:
             return {}
 
     def is_emulator_running(self, emulator_name: str) -> bool:
-        """检查指定模拟器是否运行"""
+        """
+        检查指定模拟器是否运行
+
+        Args:
+            emulator_name: 模拟器名称，如 '127.0.0.1:5555'
+
+        Returns:
+            bool: 模拟器是否在线
+        """
         devices = self.get_adb_devices()
         return emulator_name in devices and devices[emulator_name] == "device"
 
@@ -149,7 +153,7 @@ class EmulatorManager:
         启动指定的 BlueStacks 实例（当模拟器不在设备列表中时调用）
 
         Args:
-            emulator_name: 模拟器名称，如 'emulator-5554'
+            emulator_name: 模拟器名称，如 '127.0.0.1:5555'
 
         Returns:
             bool: 启动成功返回 True
@@ -163,6 +167,13 @@ class EmulatorManager:
             instance_name = self.EMULATOR_TO_INSTANCE.get(emulator_name)
             if not instance_name:
                 logger.error(f"❌ 未找到模拟器 {emulator_name} 对应的 BlueStacks 实例")
+                return False
+
+            # 从网络地址中提取端口号
+            try:
+                port = int(emulator_name.split(":")[1])
+            except (IndexError, ValueError):
+                logger.error(f"❌ 无效的模拟器地址格式: {emulator_name}")
                 return False
 
             logger.info(
@@ -322,22 +333,15 @@ class EmulatorManager:
 
         return all_success
 
-    def get_emulator_port(self, emulator_name: str) -> Optional[int]:
-        """获取模拟器对应的 ADB 端口"""
-        return self.BLUESTACKS_PORTS.get(emulator_name)
-
     def get_emulator_connection_string(self, emulator_name: str) -> str:
         """
-        获取 Airtest 连接字符串
+        获取 Airtest 连接字符串（网络连接方式）
 
         Args:
-            emulator_name: 模拟器名称
+            emulator_name: 模拟器名称，如 '127.0.0.1:5555'
 
         Returns:
-            str: Airtest 连接字符串，如 'Android://127.0.0.1:5555/emulator-5554'
+            str: Airtest 连接字符串，如 'Android://127.0.0.1:5555'
         """
-        port = self.get_emulator_port(emulator_name)
-        if port is None:
-            # 如果找不到映射的端口，使用默认的 ADB 服务器端口
-            port = 5037
-        return f"Android://127.0.0.1:{port}/{emulator_name}"
+        # 直接使用网络地址作为连接字符串
+        return f"Android://{emulator_name}"
