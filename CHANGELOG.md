@@ -1,5 +1,24 @@
 # 更新日志
 
+## [改进] 改进日志格式，添加文件名和行号 - 2025-11-01
+
+### 改进内容
+- 日志格式从 `%(asctime)s %(levelname)s %(message)s` 改为 `%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s`
+- 现在日志会显示文件名和行号，便于快速定位问题
+
+### 修改文件
+- `emulator_manager.py` - 更新日志格式
+- `auto_dungeon.py` - 更新日志格式
+
+### 日志示例
+- 旧格式：`11:10:05 INFO ✅ 使用 Airtest 内置 ADB: ...`
+- 新格式：`11:10:05 INFO emulator_manager.py:104 ✅ 使用 Airtest 内置 ADB: ...`
+
+### 测试结果
+- ✅ 13 个测试通过
+
+---
+
 ## [修复] 修复 emulator_manager 日志输出问题 - 2025-11-01
 
 ### 问题

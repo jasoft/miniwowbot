@@ -74,7 +74,7 @@ logging.getLogger("ocr_helper").setLevel(logging.INFO)
 coloredlogs.install(
     level="INFO",
     logger=logger,
-    fmt="%(asctime)s %(levelname)s %(message)s",
+    fmt="%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s",
     datefmt="%H:%M:%S",
     level_styles={
         "debug": {"color": "cyan"},

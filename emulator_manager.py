@@ -34,7 +34,7 @@ if not logger.handlers:
         coloredlogs.install(
             level="INFO",
             logger=logger,
-            fmt="%(asctime)s %(levelname)s %(message)s",
+            fmt="%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s",
             datefmt="%H:%M:%S",
             level_styles={
                 "debug": {"color": "cyan"},
@@ -52,7 +52,8 @@ if not logger.handlers:
         # 备选方案：使用标准 logging
         handler = logging.StreamHandler()
         formatter = logging.Formatter(
-            "%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S"
+            "%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s",
+            datefmt="%H:%M:%S",
         )
         handler.setFormatter(formatter)
         logger.addHandler(handler)
