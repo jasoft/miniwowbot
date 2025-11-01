@@ -1,5 +1,155 @@
 # 更新日志
 
+## [新增] 实现 Loki 日志系统 - 2025-11-01
+
+### 功能描述
+
+用 Loki + Grafana 替代腾讯云 CLS，实现简单的日志收集和查询系统。
+
+### 新增文件
+
+- `logstash_logger.py` - Loki 日志处理器
+- `docker-compose.loki.yml` - Docker Compose 配置
+- `loki-config.yml` - Loki 配置文件
+- `grafana-provisioning/datasources/loki.yml` - Grafana 数据源配置
+- `test_loki_logger.py` - 测试脚本
+- `LOKI_QUICK_START.md` - 快速开始指南
+
+### 删除文件
+
+- `cls_logger.py` - 腾讯云 CLS 日志模块
+- `cls_simple_logger.py` - 简单 CLS 日志模块
+- `example_cls_integration.py` - CLS 集成示例
+- `test_cls_module.py` - CLS 测试模块
+- `test_cls_simple.py` - CLS 简单测试
+- `test_cls_with_credentials.py` - CLS 凭证测试
+- `CLS_INTEGRATION_GUIDE.md` - CLS 集成指南
+- `CLS_QUICK_START.md` - CLS 快速开始指南
+- `.env.cls.test` - CLS 测试环境文件
+
+### 使用方式
+
+```python
+from logstash_logger import create_loki_logger
+
+# 创建日志记录器
+logger = create_loki_logger(
+    name="miniwow",
+    level="INFO",
+    loki_url="http://localhost:3100",
+    enable_loki=True,
+)
+
+# 记录日志
+logger.info("应用启动")
+logger.warning("警告信息")
+logger.error("错误信息")
+```
+
+### 快速开始
+
+```bash
+# 启动 Loki 和 Grafana
+docker-compose -f docker-compose.loki.yml up -d
+
+# 访问 Grafana
+# http://localhost:3000
+# 用户名: admin
+# 密码: admin
+```
+
+### 优势
+
+- ✅ 轻量级，资源占用少
+- ✅ 支持手机 APP 查看日志（通过 Grafana）
+- ✅ 支持网络浏览器查看日志
+- ✅ 快速搜索和过滤日志
+- ✅ 实时监控应用状态
+- ✅ 部署简单，开箱即用
+
+### 测试结果
+
+- ✅ Loki 处理器初始化成功
+- ✅ 日志缓冲和上传正常工作
+- ✅ 支持控制台和 Loki 双输出
+
+---
+
+## [修复] 删除所有 CLS 相关代码 - 2025-11-01
+
+### 问题描述
+
+腾讯云 CLS 集成存在以下问题：
+- 日志记录时程序卡住
+- coloredlogs.install() 导致阻塞
+- 与 logger_config 的交互产生问题
+
+### 解决方案
+
+- 删除所有 CLS 相关的文件和代码
+- 从 logger_config.py 中移除 CLS 相关的参数和代码
+- 准备用 Loki 替代
+
+---
+
+## [修复] 重写 CLS 日志模块，解决阻塞问题 - 2025-11-01
+
+### 问题描述
+原有的 CLS 日志集成存在以下问题：
+- 日志记录时程序卡住
+- coloredlogs.install() 导致阻塞
+- 与 logger_config 的交互产生问题
+
+### 解决方案
+创建了独立的简单 CLS 日志模块 `cls_simple_logger.py`：
+- ✅ 不依赖 logger_config，避免现有影响
+- ✅ 使用 logging.StreamHandler 而不是 coloredlogs.install()
+- ✅ 日志缓冲在单独的线程中上传，不阻塞主程序
+- ✅ 支持两种腾讯云 SDK（官方 CLS SDK 和通用 SDK）
+- ✅ 自动处理缺失的依赖（如 dotenv）
+
+### 新增文件
+- `cls_simple_logger.py` - 简单的 CLS 日志模块
+- `test_cls_simple.py` - 基础测试脚本
+- `test_cls_with_credentials.py` - 带凭证的测试脚本
+
+### 使用方式
+
+```python
+from cls_simple_logger import create_cls_logger
+
+# 创建日志记录器
+logger = create_cls_logger(name="my_app", level="INFO")
+
+# 记录日志
+logger.info("这是一条信息日志")
+logger.warning("这是一条警告日志")
+logger.error("这是一条错误日志")
+```
+
+### 配置说明
+
+在 `.env` 文件中配置腾讯云凭证（可选）：
+
+```env
+CLS_ENABLED=true
+TENCENTCLOUD_SECRET_ID=your_secret_id_here
+TENCENTCLOUD_SECRET_KEY=your_secret_key_here
+CLS_REGION=ap-beijing
+CLS_LOG_TOPIC_ID=your_log_topic_id_here
+LOG_BUFFER_SIZE=100
+LOG_UPLOAD_INTERVAL=5
+```
+
+### 测试结果
+
+✅ 基础日志记录测试通过
+✅ 日志输出到控制台正常
+✅ 后台上传线程正常工作
+✅ 缺失依赖时优雅降级
+
+---
+
 ## [新增] 实现腾讯云 CLS 日志集成模块 - 2025-11-01
 
 ### 功能描述

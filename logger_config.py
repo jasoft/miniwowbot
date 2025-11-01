@@ -1,7 +1,7 @@
 # -*- encoding=utf8 -*-
 """
 通用日志配置模块
-提供统一的日志配置功能，支持多种日志格式和输出方式，以及腾讯云 CLS 集成
+提供统一的日志配置功能，支持多种日志格式和输出方式
 """
 
 import logging
@@ -12,12 +12,6 @@ try:
     import coloredlogs
 except ImportError:
     coloredlogs = None
-
-# 导入 CLS 日志模块
-try:
-    from cls_logger import add_cls_to_logger
-except ImportError:
-    add_cls_to_logger = None
 
 
 class LoggerConfig:
@@ -33,7 +27,6 @@ class LoggerConfig:
         log_format: Optional[str] = None,
         date_format: Optional[str] = None,
         use_color: bool = True,
-        enable_cls: bool = False,
     ) -> logging.Logger:
         """
         配置日志记录器
@@ -44,7 +37,6 @@ class LoggerConfig:
             log_format: 日志格式，默认使用带颜色或普通格式
             date_format: 时间格式
             use_color: 是否使用彩色日志
-            enable_cls: 是否启用腾讯云 CLS 日志上传
         """
         import sys
 
@@ -78,9 +70,10 @@ class LoggerConfig:
         # 使用 coloredlogs 配置彩色日志
         if use_color and coloredlogs:
             try:
-                coloredlogs.install(
-                    level=level,
-                    logger=logger,
+                # 创建彩色处理器而不是使用 install()，避免阻塞
+                handler = coloredlogs.ColoredStreamHandler(stream=sys.stdout)
+                handler.setLevel(getattr(logging, level.upper()))
+                formatter = coloredlogs.ColoredFormatter(
                     fmt=log_format,
                     datefmt=date_format,
                     level_styles={
@@ -90,8 +83,9 @@ class LoggerConfig:
                         "error": {"color": "red"},
                         "critical": {"color": "red", "bold": True},
                     },
-                    stream=sys.stdout,
                 )
+                handler.setFormatter(formatter)
+                logger.addHandler(handler)
             except Exception as e:
                 print(f"配置彩色日志失败: {e}，使用标准日志")
                 # fallback到标准logging
@@ -110,13 +104,6 @@ class LoggerConfig:
 
         # 标记为已配置
         cls._configured_loggers.add(logger_name)
-
-        # 如果启用 CLS，添加 CLS 处理器
-        if enable_cls and add_cls_to_logger:
-            try:
-                add_cls_to_logger(logger)
-            except Exception as e:
-                print(f"⚠️ 添加 CLS 日志处理器失败: {e}")
 
         return logger
 
@@ -161,7 +148,6 @@ def setup_logger(
     log_format: Optional[str] = None,
     date_format: Optional[str] = None,
     use_color: bool = True,
-    enable_cls: bool = False,
 ) -> logging.Logger:
     """
     设置日志记录器
@@ -172,7 +158,6 @@ def setup_logger(
         log_format: 日志格式
         date_format: 时间格式
         use_color: 是否使用彩色日志
-        enable_cls: 是否启用腾讯云 CLS 日志上传
 
     Returns:
         配置好的日志记录器
@@ -183,7 +168,6 @@ def setup_logger(
         log_format=log_format,
         date_format=date_format,
         use_color=use_color,
-        enable_cls=enable_cls,
     )
 
 
