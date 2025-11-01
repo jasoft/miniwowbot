@@ -5,13 +5,19 @@
 """
 
 import logging
-from typing import Optional
+from typing import Optional, Dict
 
 # 导入 coloredlogs
 try:
     import coloredlogs
 except ImportError:
     coloredlogs = None
+
+# 导入 Loki 处理器
+try:
+    from logstash_logger import LokiHandler
+except ImportError:
+    LokiHandler = None
 
 
 class LoggerConfig:
@@ -27,6 +33,9 @@ class LoggerConfig:
         log_format: Optional[str] = None,
         date_format: Optional[str] = None,
         use_color: bool = True,
+        enable_loki: bool = False,
+        loki_url: Optional[str] = None,
+        loki_labels: Optional[Dict] = None,
     ) -> logging.Logger:
         """
         配置日志记录器
@@ -37,6 +46,9 @@ class LoggerConfig:
             log_format: 日志格式，默认使用带颜色或普通格式
             date_format: 时间格式
             use_color: 是否使用彩色日志
+            enable_loki: 是否启用 Loki 日志上传
+            loki_url: Loki 服务地址，如 http://localhost:3100
+            loki_labels: Loki 标签字典，如 {"env": "dev"}
         """
         import sys
 
@@ -102,6 +114,22 @@ class LoggerConfig:
             handler.setFormatter(formatter)
             logger.addHandler(handler)
 
+        # 添加 Loki 处理器（可选）
+        if enable_loki and LokiHandler:
+            try:
+                if loki_url is None:
+                    loki_url = "http://localhost:3100"
+
+                loki_handler = LokiHandler(
+                    loki_url=loki_url,
+                    app_name=logger_name or "miniwow",
+                    labels=loki_labels,
+                )
+                loki_handler.setLevel(getattr(logging, level.upper()))
+                logger.addHandler(loki_handler)
+            except Exception as e:
+                print(f"⚠️ 配置 Loki 处理器失败: {e}")
+
         # 标记为已配置
         cls._configured_loggers.add(logger_name)
 
@@ -148,6 +176,9 @@ def setup_logger(
     log_format: Optional[str] = None,
     date_format: Optional[str] = None,
     use_color: bool = True,
+    enable_loki: bool = False,
+    loki_url: Optional[str] = None,
+    loki_labels: Optional[Dict] = None,
 ) -> logging.Logger:
     """
     设置日志记录器
@@ -158,6 +189,9 @@ def setup_logger(
         log_format: 日志格式
         date_format: 时间格式
         use_color: 是否使用彩色日志
+        enable_loki: 是否启用 Loki 日志上传
+        loki_url: Loki 服务地址，如 http://localhost:3100
+        loki_labels: Loki 标签字典，如 {"env": "dev"}
 
     Returns:
         配置好的日志记录器
@@ -168,6 +202,9 @@ def setup_logger(
         log_format=log_format,
         date_format=date_format,
         use_color=use_color,
+        enable_loki=enable_loki,
+        loki_url=loki_url,
+        loki_labels=loki_labels,
     )
 
 
