@@ -9,7 +9,7 @@ import platform
 import time
 import logging
 import os
-from typing import List, Dict, Optional
+from typing import Dict, Optional
 
 # 导入 Airtest 的 ADB 模块
 try:
@@ -17,7 +17,45 @@ try:
 except ImportError:
     ADB = None
 
+# 导入 coloredlogs 用于彩色日志输出
+try:
+    import coloredlogs
+except ImportError:
+    coloredlogs = None
+
 logger = logging.getLogger(__name__)
+
+# 配置 logger（如果还没有配置过）
+if not logger.handlers:
+    logger.setLevel(logging.INFO)
+
+    if coloredlogs:
+        # 使用 coloredlogs 配置
+        coloredlogs.install(
+            level="INFO",
+            logger=logger,
+            fmt="%(asctime)s %(levelname)s %(message)s",
+            datefmt="%H:%M:%S",
+            level_styles={
+                "debug": {"color": "cyan"},
+                "info": {"color": "green"},
+                "warning": {"color": "yellow"},
+                "error": {"color": "red"},
+                "critical": {"color": "red", "bold": True},
+            },
+            field_styles={
+                "asctime": {"color": "blue"},
+                "levelname": {"color": "white", "bold": True},
+            },
+        )
+    else:
+        # 备选方案：使用标准 logging
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter(
+            "%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S"
+        )
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
 
 
 class EmulatorManager:
@@ -65,7 +103,7 @@ class EmulatorManager:
                     logger.info(f"✅ 使用 Airtest 内置 ADB: {airtest_adb_path}")
                     return airtest_adb_path
             except Exception as e:
-                logger.debug(f"⚠️ 获取 Airtest 内置 ADB 失败: {e}")
+                logger.error(f"⚠️ 获取 Airtest 内置 ADB 失败: {e}")
 
         # 备选方案：尝试从系统 PATH 中找到 ADB
         adb_name = "adb.exe" if platform.system() == "Windows" else "adb"
@@ -296,98 +334,6 @@ class EmulatorManager:
             logger.error(f"❌ 启动 BlueStacks 实例失败: {e}")
             return False
 
-    def start_emulator(self, emulator_name: str) -> bool:
-        """
-        启动指定的 BlueStacks 实例
-
-        Args:
-            emulator_name: 模拟器名称，如 'emulator-5554'
-
-        Returns:
-            bool: 启动成功返回 True
-        """
-        try:
-            if self.is_emulator_running(emulator_name):
-                logger.info(f"✅ 模拟器 {emulator_name} 已在运行")
-                return True
-
-            logger.info(f"🚀 正在启动模拟器: {emulator_name}")
-
-            if self.system == "Darwin":  # macOS
-                # macOS 上通过 open 命令启动
-                subprocess.Popen(
-                    ["open", "-a", "BlueStacks"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-            elif self.system == "Windows":
-                # Windows 上启动指定实例
-                bs_path = self.get_bluestacks_path()
-                if not bs_path:
-                    logger.error("❌ 未找到 BlueStacks 安装路径")
-                    return False
-
-                # BlueStacks 5 启动指定实例的命令
-                hd_player = os.path.join(bs_path, "HD-Player.exe")
-                if os.path.exists(hd_player):
-                    subprocess.Popen(
-                        [hd_player, "--instance", emulator_name],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
-                else:
-                    logger.error(f"❌ 未找到 HD-Player.exe: {hd_player}")
-                    return False
-            else:  # Linux
-                subprocess.Popen(
-                    ["bluestacks"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-
-            # 等待模拟器启动
-            logger.info(f"⏳ 等待模拟器 {emulator_name} 启动...")
-            max_wait = 60
-            wait_interval = 5
-            elapsed = 0
-
-            while elapsed < max_wait:
-                time.sleep(wait_interval)
-                elapsed += wait_interval
-                if self.is_emulator_running(emulator_name):
-                    logger.info(f"✅ 模拟器 {emulator_name} 已启动 (耗时 {elapsed} 秒)")
-                    time.sleep(5)  # 额外等待确保完全就绪
-                    return True
-                logger.info(f"⏳ 继续等待... ({elapsed}/{max_wait}秒)")
-
-            logger.error(f"❌ 模拟器 {emulator_name} 启动超时")
-            return False
-
-        except Exception as e:
-            logger.error(f"❌ 启动模拟器 {emulator_name} 失败: {e}")
-            return False
-
-    def start_multiple_emulators(self, emulator_names: List[str]) -> bool:
-        """
-        启动多个模拟器
-
-        Args:
-            emulator_names: 模拟器名称列表
-
-        Returns:
-            bool: 所有模拟器都启动成功返回 True
-        """
-        logger.info(f"🚀 准备启动 {len(emulator_names)} 个模拟器: {emulator_names}")
-
-        all_success = True
-        for emulator_name in emulator_names:
-            if not self.start_emulator(emulator_name):
-                all_success = False
-                logger.warning(f"⚠️ 模拟器 {emulator_name} 启动失败")
-            time.sleep(2)  # 模拟器之间间隔启动
-
-        return all_success
-
     def get_emulator_connection_string(self, emulator_name: str) -> str:
         """
         获取 Airtest 连接字符串（网络连接方式）
@@ -409,3 +355,33 @@ class EmulatorManager:
         # Airtest 需要完整的连接字符串格式：ADB服务器地址/模拟器地址
         # ADB 服务器默认在 127.0.0.1:5037
         return f"Android://127.0.0.1:5037/{emulator_name}"
+
+    def ensure_device_connected(self, emulator_name: str) -> bool:
+        """
+        确保设备连接正常，如果连接断开则尝试重新连接
+
+        Args:
+            emulator_name: 模拟器网络地址，如 '127.0.0.1:5555'
+
+        Returns:
+            bool: 设备连接正常返回 True，否则返回 False
+        """
+        try:
+            # 检查设备是否在列表中
+            devices = self.get_adb_devices()
+            if emulator_name in devices and devices[emulator_name] == "device":
+                logger.info(f"✅ 设备 {emulator_name} 连接正常")
+                return True
+
+            # 设备不在列表中，尝试重新连接
+            logger.warning(f"⚠️ 设备 {emulator_name} 连接断开，尝试重新连接...")
+            if self.try_adb_connect(emulator_name):
+                logger.info(f"✅ 成功重新连接到 {emulator_name}")
+                return True
+            else:
+                logger.error(f"❌ 无法重新连接到 {emulator_name}")
+                return False
+
+        except Exception as e:
+            logger.error(f"❌ 检查设备连接失败: {e}")
+            return False

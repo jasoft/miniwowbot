@@ -287,7 +287,7 @@ def check_and_start_emulator(emulator_name: Optional[str] = None):
         else:
             logger.info(f"✅ 模拟器 {emulator_name} 已在设备列表中")
 
-        if not emulator_manager.start_emulator(emulator_name):
+        if not emulator_manager.start_bluestacks_instance(emulator_name):
             logger.error(f"❌ 无法启动模拟器: {emulator_name}")
             # 发送 Bark 通知
             send_bark_notification(

@@ -24,7 +24,7 @@ $ADB kill-server
 
 
 # 模拟器 1: emulator-5554 (使用默认配置)
-EMU1="emulator-5554"
+EMU1="127.0.0.1:5555"
 LOG1="$LOG_DIR/emu_5554_$TIMESTAMP.log"
 
 echo ""
@@ -44,7 +44,7 @@ echo "✅ 已启动终端窗口: $EMU1"
 sleep 2
 
 # 模拟器 2: emulator-5564 (使用 mage_alt 配置)
-EMU2="emulator-5564"
+EMU2="127.0.0.1:5565"
 LOG2="$LOG_DIR/emu_5564_$TIMESTAMP.log"
 
 echo ""

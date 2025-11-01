@@ -1,5 +1,25 @@
 # 更新日志
 
+## [修复] 修复 emulator_manager 日志输出问题 - 2025-11-01
+
+### 问题
+- `emulator_manager.py` 中的日志无法显示
+- 原因：logger 没有配置 coloredlogs handler
+
+### 解决方案
+- 在 `emulator_manager.py` 中添加 coloredlogs 初始化
+- 如果 coloredlogs 不可用，使用标准 logging handler 作为备选方案
+- 确保 logger 在模块导入时就被正确配置
+
+### 修改文件
+- `emulator_manager.py` - 添加 logger 初始化代码
+
+### 测试结果
+- ✅ 13 个测试通过
+- ✅ 日志输出正常显示
+
+---
+
 ## [修复] 修复 Airtest 连接字符串格式 - 2025-11-01
 
 ### 问题
