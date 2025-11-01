@@ -1,5 +1,26 @@
 # 更新日志
 
+## [修复] 修复 Airtest 连接字符串格式 - 2025-11-01
+
+### 问题
+- Airtest 连接字符串格式不正确，导致 `IndexError: list index out of range`
+- 原格式：`Android://127.0.0.1:5555`
+- 正确格式：`Android://127.0.0.1:5037/127.0.0.1:5555`
+
+### 解决方案
+- 修改 `get_emulator_connection_string()` 方法
+- 使用正确的 Airtest 连接字符串格式：`Android://<adbhost>:<adbport>/<emulator_address>`
+- ADB 服务器地址默认为 `127.0.0.1:5037`
+
+### 修改文件
+- `emulator_manager.py` - 修复连接字符串格式
+
+### 测试结果
+- ✅ 13 个测试通过
+- ✅ 连接字符串格式验证通过
+
+---
+
 ## [改进] 优化模拟器启动流程：先尝试 adb connect，失败后再启动 BlueStacks - 2025-10-31
 
 ### 改进内容

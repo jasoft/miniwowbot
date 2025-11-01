@@ -392,11 +392,20 @@ class EmulatorManager:
         """
         获取 Airtest 连接字符串（网络连接方式）
 
+        Airtest 连接字符串格式：
+        Android://<adbhost>:<adbport>/<emulator_address>
+
+        例如：Android://127.0.0.1:5037/127.0.0.1:5555
+        其中：
+        - 127.0.0.1:5037 是 ADB 服务器地址（默认）
+        - 127.0.0.1:5555 是模拟器网络地址
+
         Args:
-            emulator_name: 模拟器名称，如 '127.0.0.1:5555'
+            emulator_name: 模拟器网络地址，如 '127.0.0.1:5555'
 
         Returns:
-            str: Airtest 连接字符串，如 'Android://127.0.0.1:5555'
+            str: Airtest 连接字符串，如 'Android://127.0.0.1:5037/127.0.0.1:5555'
         """
-        # 直接使用网络地址作为连接字符串
-        return f"Android://{emulator_name}"
+        # Airtest 需要完整的连接字符串格式：ADB服务器地址/模拟器地址
+        # ADB 服务器默认在 127.0.0.1:5037
+        return f"Android://127.0.0.1:5037/{emulator_name}"
