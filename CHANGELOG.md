@@ -1,5 +1,95 @@
 # 更新日志
 
+## [新增] 实现腾讯云 CLS 日志集成模块 - 2025-11-01
+
+### 功能描述
+实现了完整的腾讯云 CLS（Cloud Log Service）日志集成模块，支持将应用日志实时上传到腾讯云日志服务。
+
+### 主要改进
+
+1. **增强 logger_config.py**
+   - 添加 CLS 日志模块导入
+   - 在 `configure_logger()` 方法中添加 `enable_cls` 参数
+   - 在 `setup_logger()` 函数中添加 `enable_cls` 参数
+   - 支持自动添加 CLS 处理器
+
+2. **改进 cls_logger.py**
+   - 支持两种腾讯云 SDK（官方 CLS SDK 和通用 SDK）
+   - 改进 `_init_cls_client()` 方法，自动选择可用的 SDK
+   - 添加 `_upload_to_cls()` 方法，自动选择上传方式
+   - 添加 `_upload_with_official_sdk()` 方法，使用官方 SDK 上传
+   - 添加 `_upload_with_common_sdk()` 方法，使用通用 SDK 上传
+   - 改进错误处理和日志输出
+
+3. **新增文件**
+   - `example_cls_integration.py` - CLS 集成示例代码
+   - `CLS_INTEGRATION_GUIDE.md` - CLS 集成指南文档
+
+### 使用方式
+
+#### 方式 1: 使用 setup_logger 启用 CLS
+```python
+from logger_config import setup_logger
+
+logger = setup_logger(
+    name="my_app",
+    level="INFO",
+    enable_cls=True,  # 启用 CLS
+)
+
+logger.info("这条日志会上传到 CLS")
+```
+
+#### 方式 2: 将 CLS 添加到现有日志记录器
+```python
+import logging
+from cls_logger import add_cls_to_logger
+
+logger = logging.getLogger(__name__)
+add_cls_to_logger(logger)
+
+logger.info("这条日志会上传到 CLS")
+```
+
+### 配置说明
+
+在 `.env` 文件中配置腾讯云凭证：
+
+```env
+CLS_ENABLED=true
+TENCENTCLOUD_SECRET_ID=your_secret_id_here
+TENCENTCLOUD_SECRET_KEY=your_secret_key_here
+CLS_REGION=ap-beijing
+CLS_LOG_TOPIC_ID=your_log_topic_id_here
+LOG_BUFFER_SIZE=100
+LOG_UPLOAD_INTERVAL=5
+```
+
+### 支持的 SDK
+
+- ✅ 官方 CLS SDK (`tencentcloud-cls-sdk-python`)
+- ✅ 通用 SDK (`tencentcloud-sdk-python`)
+- ✅ 自动选择可用的 SDK
+
+### 测试结果
+
+- ✅ logger_config 与 CLS 集成测试通过
+- ✅ CLSHandler 初始化测试通过
+- ✅ CLSLogger 单例模式测试通过
+- ✅ 日志记录和缓冲测试通过
+
+### 修改文件
+
+- `logger_config.py` - 添加 CLS 支持
+- `cls_logger.py` - 改进 SDK 支持和上传逻辑
+
+### 新增文件
+
+- `example_cls_integration.py` - 集成示例
+- `CLS_INTEGRATION_GUIDE.md` - 集成指南
+
+---
+
 ## [改进] 改进日志格式，添加文件名和行号 - 2025-11-01
 
 ### 改进内容

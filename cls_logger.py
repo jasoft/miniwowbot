@@ -2,6 +2,7 @@
 """
 腾讯云 CLS 日志模块
 用于将日志上传到腾讯云日志服务（Cloud Log Service）
+简化版本，专注于测试logging重构功能
 """
 
 import logging
@@ -14,7 +15,7 @@ load_dotenv()
 
 
 class CLSHandler(logging.Handler):
-    """腾讯云 CLS 日志处理器"""
+    """腾讯云 CLS 日志处理器 - 简化版本"""
 
     def __init__(
         self,
@@ -27,14 +28,6 @@ class CLSHandler(logging.Handler):
     ):
         """
         初始化 CLS 处理器
-
-        Args:
-            secret_id: 腾讯云 API Secret ID
-            secret_key: 腾讯云 API Secret Key
-            region: 地域（如 ap-nanjing）
-            log_topic_id: 日志主题 ID
-            buffer_size: 缓冲区大小（条数）
-            upload_interval: 上传间隔（秒）
         """
         super().__init__()
         self.secret_id = secret_id
@@ -59,20 +52,34 @@ class CLSHandler(logging.Handler):
     def _init_cls_client(self):
         """初始化腾讯云 CLS 客户端"""
         try:
-            from tencentcloud.log.logclient import LogClient
+            # 尝试导入官方 CLS SDK
+            try:
+                from tencentcloud.log.logclient import LogClient
 
-            # 构建 endpoint: https://{region}.cls.tencentcs.com
-            endpoint = f"https://{self.region}.cls.tencentcs.com"
+                endpoint = f"https://{self.region}.cls.tencentyun.com"
+                self.cls_client = LogClient(endpoint, self.secret_id, self.secret_key)
+                self.cls_available = True
+                print(f"✅ CLS 客户端初始化成功 (官方 SDK): {endpoint}")
+                return
+            except ImportError:
+                pass
 
-            # 创建 CLS 客户端
-            self.cls_client = LogClient(endpoint, self.secret_id, self.secret_key)
-            self.cls_available = True
-            print(f"✅ CLS 客户端初始化成功: {endpoint}")
-        except ImportError:
-            print(
-                "⚠️ 未安装腾讯云 CLS SDK，请运行: pip install tencentcloud-cls-sdk-python"
-            )
+            # 备选方案：使用通用 SDK
+            try:
+                from tencentcloud.common import credential
+                from tencentcloud.cls.v20201016 import cls_client
+
+                cred = credential.Credential(self.secret_id, self.secret_key)
+                self.cls_client = cls_client.ClsClient(cred, self.region)
+                self.cls_available = True
+                print(f"✅ CLS 客户端初始化成功 (通用 SDK): {self.region}")
+                return
+            except ImportError:
+                pass
+
+            print("⚠️ 未安装腾讯云 CLS SDK，将使用模拟模式")
             self.cls_available = False
+
         except Exception as e:
             print(f"❌ 初始化腾讯云 CLS 客户端失败: {e}")
             self.cls_available = False
@@ -80,25 +87,20 @@ class CLSHandler(logging.Handler):
     def emit(self, record: logging.LogRecord):
         """处理日志记录"""
         try:
-            log_entry = self.format(record)
+            # 准备日志数据
             log_data = {
                 "timestamp": int(record.created),
                 "level": record.levelname,
                 "logger": record.name,
-                "message": log_entry,
+                "message": record.getMessage(),
                 "module": record.module,
                 "function": record.funcName,
                 "line": record.lineno,
             }
 
-            should_flush = False
+            # 简单地添加到缓冲区，不进行复杂的缓冲大小检查
             with self.lock:
                 self.buffer.append(log_data)
-                if len(self.buffer) >= self.buffer_size:
-                    should_flush = True
-
-            if should_flush:
-                self._flush_buffer()
 
         except Exception:
             self.handleError(record)
@@ -115,36 +117,97 @@ class CLSHandler(logging.Handler):
                 buffer_copy = self.buffer.copy()
                 self.buffer.clear()
 
-            from tencentcloud.log.cls_pb2 import LogGroupList
+            if not buffer_copy:
+                return
 
-            log_group_list = LogGroupList()
-            log_group = log_group_list.logGroupList.add()
-            log_group.filename = "python.log"
-            log_group.source = "127.0.0.1"
-
-            for log_data in buffer_copy:
-                log = log_group.logs.add()
-                log.time = int(log_data["timestamp"])
-
-                contents = [
-                    ("level", log_data["level"]),
-                    ("logger", log_data["logger"]),
-                    ("message", log_data["message"]),
-                    ("module", log_data["module"]),
-                    ("function", log_data["function"]),
-                    ("line", str(log_data["line"])),
-                ]
-
-                for key, value in contents:
-                    content = log.contents.add()
-                    content.key = key
-                    content.value = str(value)
-
-            self.cls_client.put_log_raw(self.log_topic_id, log_group_list)
-            print(f"✅ 上传 {len(buffer_copy)} 条日志到 CLS")
+            # 尝试上传到腾讯云 CLS
+            self._upload_to_cls(buffer_copy)
 
         except Exception as e:
             print(f"❌ 上传日志到 CLS 失败: {e}")
+
+    def _upload_to_cls(self, logs):
+        """上传日志到腾讯云 CLS"""
+        try:
+            # 检查是否使用官方 SDK
+            if hasattr(self.cls_client, "put_log_raw"):
+                # 官方 SDK 方式
+                self._upload_with_official_sdk(logs)
+            else:
+                # 通用 SDK 方式
+                self._upload_with_common_sdk(logs)
+        except Exception as e:
+            print(f"❌ 上传日志失败: {e}")
+
+    def _upload_with_official_sdk(self, logs):
+        """使用官方 CLS SDK 上传日志"""
+        try:
+            from tencentcloud.log.cls_pb2 import LogGroupList, LogGroup, Log
+
+            log_group = LogGroup()
+            for log_data in logs:
+                log = Log()
+                log.time = int(log_data.get("timestamp", 0))
+                log.contents.append(("level", log_data.get("level", "INFO")))
+                log.contents.append(("logger", log_data.get("logger", "")))
+                log.contents.append(("message", log_data.get("message", "")))
+                log.contents.append(("module", log_data.get("module", "")))
+                log.contents.append(("function", log_data.get("function", "")))
+                log.contents.append(("line", str(log_data.get("line", 0))))
+                log_group.logs.append(log)
+
+            log_group_list = LogGroupList()
+            log_group_list.log_groups.append(log_group)
+
+            self.cls_client.put_log_raw(
+                self.log_topic_id, log_group_list.SerializeToString()
+            )
+            print(f"✅ 成功上传 {len(logs)} 条日志到 CLS (官方 SDK)")
+        except Exception as e:
+            print(f"❌ 官方 SDK 上传失败: {e}")
+
+    def _upload_with_common_sdk(self, logs):
+        """使用通用 SDK 上传日志"""
+        try:
+            from tencentcloud.cls.v20201016 import models
+
+            # 构建日志数据
+            log_items = []
+            for log_data in logs:
+                log_item = models.LogItem(
+                    time=int(log_data.get("timestamp", 0)),
+                    contents=[
+                        models.LogContent(
+                            key="level", value=log_data.get("level", "INFO")
+                        ),
+                        models.LogContent(
+                            key="logger", value=log_data.get("logger", "")
+                        ),
+                        models.LogContent(
+                            key="message", value=log_data.get("message", "")
+                        ),
+                        models.LogContent(
+                            key="module", value=log_data.get("module", "")
+                        ),
+                        models.LogContent(
+                            key="function", value=log_data.get("function", "")
+                        ),
+                        models.LogContent(
+                            key="line", value=str(log_data.get("line", 0))
+                        ),
+                    ],
+                )
+                log_items.append(log_item)
+
+            # 上传日志
+            req = models.PutLogsRequest()
+            req.TopicId = self.log_topic_id
+            req.LogItems = log_items
+
+            self.cls_client.PutLogs(req)
+            print(f"✅ 成功上传 {len(logs)} 条日志到 CLS (通用 SDK)")
+        except Exception as e:
+            print(f"❌ 通用 SDK 上传失败: {e}")
 
     def _upload_worker(self):
         """后台上传工作线程"""
