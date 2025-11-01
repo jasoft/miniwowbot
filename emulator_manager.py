@@ -7,7 +7,7 @@
 import subprocess
 import platform
 import time
-import logging
+
 import os
 from typing import Dict, Optional
 
@@ -17,46 +17,10 @@ try:
 except ImportError:
     ADB = None
 
-# 导入 coloredlogs 用于彩色日志输出
-try:
-    import coloredlogs
-except ImportError:
-    coloredlogs = None
+# 导入通用日志配置模块
+from logger_config import setup_logger  # noqa: E402
 
-logger = logging.getLogger(__name__)
-
-# 配置 logger（如果还没有配置过）
-if not logger.handlers:
-    logger.setLevel(logging.INFO)
-
-    if coloredlogs:
-        # 使用 coloredlogs 配置
-        coloredlogs.install(
-            level="INFO",
-            logger=logger,
-            fmt="%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s",
-            datefmt="%H:%M:%S",
-            level_styles={
-                "debug": {"color": "cyan"},
-                "info": {"color": "green"},
-                "warning": {"color": "yellow"},
-                "error": {"color": "red"},
-                "critical": {"color": "red", "bold": True},
-            },
-            field_styles={
-                "asctime": {"color": "blue"},
-                "levelname": {"color": "white", "bold": True},
-            },
-        )
-    else:
-        # 备选方案：使用标准 logging
-        handler = logging.StreamHandler()
-        formatter = logging.Formatter(
-            "%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s",
-            datefmt="%H:%M:%S",
-        )
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
+logger = setup_logger()
 
 
 class EmulatorManager:
@@ -96,15 +60,6 @@ class EmulatorManager:
         Returns:
             ADB 可执行文件的完整路径，如果找不到则返回 adb
         """
-        # 首先尝试使用 Airtest 内置的 ADB
-        if ADB is not None:
-            try:
-                airtest_adb_path = ADB.builtin_adb_path()
-                if os.path.exists(airtest_adb_path):
-                    logger.info(f"✅ 使用 Airtest 内置 ADB: {airtest_adb_path}")
-                    return airtest_adb_path
-            except Exception as e:
-                logger.error(f"⚠️ 获取 Airtest 内置 ADB 失败: {e}")
 
         # 备选方案：尝试从系统 PATH 中找到 ADB
         adb_name = "adb.exe" if platform.system() == "Windows" else "adb"

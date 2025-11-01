@@ -7,10 +7,11 @@
 
 import json
 import os
-import logging
 from typing import Dict, List, Optional, TypeVar
+from logger_config import setup_logger
 
-logger = logging.getLogger(__name__)
+# 配置日志
+logger = setup_logger()
 
 T = TypeVar("T")
 

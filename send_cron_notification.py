@@ -7,17 +7,13 @@
 
 import sys
 import json
-import logging
 import requests
 import urllib.parse
 from system_config_loader import load_system_config
+from logger_config import setup_simple_logger
 
 # 设置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+logger = setup_simple_logger()
 
 
 def send_bark_notification(title: str, message: str, level: str = "active") -> bool:
@@ -88,7 +84,9 @@ def main():
     """
     if len(sys.argv) < 4:
         logger.error("❌ 参数不足")
-        logger.info("使用方式: python send_cron_notification.py <success_count> <failed_count> <total_count>")
+        logger.info(
+            "使用方式: python send_cron_notification.py <success_count> <failed_count> <total_count>"
+        )
         sys.exit(1)
 
     try:
@@ -106,7 +104,9 @@ def main():
         level = "timeSensitive"  # 失败时使用时间敏感级别
     else:
         title = "异世界勇者 - 副本运行成功"
-        message = f"副本运行完成\n总计: {total_count} 个账号\n✅ 全部成功: {success_count} 个"
+        message = (
+            f"副本运行完成\n总计: {total_count} 个账号\n✅ 全部成功: {success_count} 个"
+        )
         level = "active"
 
     # 发送通知
@@ -118,4 +118,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

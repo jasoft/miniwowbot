@@ -5,7 +5,6 @@
 使用 Peewee ORM 管理数据库
 """
 
-import logging
 from datetime import date, datetime, timedelta
 from peewee import (
     SqliteDatabase,
@@ -15,8 +14,10 @@ from peewee import (
     DateTimeField,
     fn,
 )
+from logger_config import setup_logger
 
-logger = logging.getLogger(__name__)
+# 配置日志
+logger = setup_logger()
 
 # 数据库实例
 db = SqliteDatabase(None)

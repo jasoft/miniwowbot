@@ -3,7 +3,6 @@ import time
 import sys
 import os
 import logging
-import coloredlogs
 import argparse
 import subprocess
 import platform
@@ -11,6 +10,7 @@ import requests
 import urllib.parse
 from typing import Optional
 from wrapt_timeout_decorator import timeout as timeout_decorator
+
 
 from airtest.core.api import (
     wait,
@@ -31,6 +31,10 @@ from tqdm import tqdm
 # 设置 Airtest 日志级别
 airtest_logger = logging.getLogger("airtest")
 airtest_logger.setLevel(logging.ERROR)
+
+
+# 导入通用日志配置模块
+from logger_config import setup_logger  # noqa: E402
 
 # 导入自定义的数据库模块和配置
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -62,32 +66,10 @@ CLICK_INTERVAL = 1
 STOP_FILE = ".stop_dungeon"  # 停止标记文件路径
 
 # 配置彩色日志
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-# 防止日志重复：移除已有的 handlers
-logger.handlers.clear()
-logger.propagate = False
+logger = setup_logger()
 
 # 设置 OCRHelper 的日志级别
 logging.getLogger("ocr_helper").setLevel(logging.INFO)
-
-coloredlogs.install(
-    level="INFO",
-    logger=logger,
-    fmt="%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s",
-    datefmt="%H:%M:%S",
-    level_styles={
-        "debug": {"color": "cyan"},
-        "info": {"color": "green"},
-        "warning": {"color": "yellow"},
-        "error": {"color": "red"},
-        "critical": {"color": "red", "bold": True},
-    },
-    field_styles={
-        "asctime": {"color": "blue"},
-        "levelname": {"color": "white", "bold": True},
-    },
-)
 
 
 # 全局变量，将在 main 函数中初始化

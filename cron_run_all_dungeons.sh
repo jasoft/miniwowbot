@@ -4,7 +4,6 @@
 
 # 切换到脚本目录
 SCRIPT_DIR="/Users/weiwang/Projects/miniwow"
-ADB="$SCRIPT_DIR/.venv/lib/python3.10/site-packages/airtest/core/android/static/adb/mac/adb"
 cd "$SCRIPT_DIR" || {
     echo "❌ 无法切换到目录: $SCRIPT_DIR"
     exit 1
@@ -20,7 +19,6 @@ echo "🚀 启动两个模拟器的副本脚本"
 echo "时间: $(date '+%Y-%m-%d %H:%M:%S')"
 echo "====================================="
 
-$ADB kill-server
 
 
 # 模拟器 1: emulator-5554 (使用默认配置)
