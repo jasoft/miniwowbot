@@ -1,5 +1,82 @@
 # 更新日志
 
+## [功能] 在 Loki 中添加配置文件名称标签 - 2025-11-02
+
+### 功能描述
+
+在 Loki 中添加配置文件名称作为标签，便于区分不同账号和职业的日志。
+
+### 实现方式
+
+1. **修改 logger_config.py**
+   - `setup_logger_from_config()` 函数新增 `loki_labels` 参数
+   - 支持传递额外的 Loki 标签字典
+
+2. **修改 auto_dungeon.py**
+   - 在 `initialize_configs()` 函数中获取配置文件名称
+   - 重新初始化日志，添加 `config` 标签
+   - 配置文件名称（如 `account1`、`account2`）作为标签值
+
+### 使用方式
+
+#### 在 Grafana 中查询特定配置的日志
+
+```
+# 查询 account1 配置的所有日志
+{config="account1"}
+
+# 查询 account1 配置的 ERROR 级别日志
+{config="account1"} | json | level="ERROR"
+
+# 查询 account1 配置中 auto_dungeon.py 的日志
+{config="account1"} | json | filename="auto_dungeon.py"
+
+# 查询 account2 配置的日志
+{config="account2"}
+```
+
+### Loki 标签结构
+
+现在 Loki 中的日志包含以下标签：
+
+| 标签 | 说明 | 示例 |
+|------|------|------|
+| `app` | 应用名称 | miniwow |
+| `host` | 主机名 | docker-host |
+| `config` | 配置文件名称 | account1, account2 |
+
+### 日志示例
+
+**Loki 中的日志现在包含 config 标签：**
+
+```json
+{
+  "level": "INFO",
+  "logger": "miniwow",
+  "message": "应用启动",
+  "module": "auto_dungeon",
+  "function": "main",
+  "line": 1725,
+  "filename": "auto_dungeon.py"
+}
+```
+
+**对应的 Loki 标签：**
+```
+app: miniwow
+host: docker-host
+config: account1
+```
+
+### 优势
+
+✅ **账号隔离** - 不同账号的日志可以独立查询
+✅ **职业区分** - 不同职业配置的日志可以区分
+✅ **灵活查询** - 在 Grafana 中可以按配置名称过滤日志
+✅ **便于调试** - 快速定位特定账号/职业的问题
+
+---
+
 ## [修复] Grafana 中中文显示为 Unicode 转义序列的问题 - 2025-11-02
 
 ### 问题描述
