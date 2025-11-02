@@ -78,11 +78,8 @@ def initialize_device_and_ocr(emulator_name: Optional[str] = None):
 
 def parse_gold_amount(text: str) -> Optional[int]:
     """
-    从文本中解析金币数量
-    支持以下格式:
-    - "2000k" -> 2000000
-    - "89888" -> 89888
-    - "2.5k" -> 2500
+    从 "一口价 xxxxk 金币" 格式的文本中解析金币数量
+    例如: "一口价 2000k 金币" -> 2000000
 
     Args:
         text: 要解析的文本
@@ -90,42 +87,38 @@ def parse_gold_amount(text: str) -> Optional[int]:
     Returns:
         金币数量（整数），如果解析失败返回 None
     """
-    # 移除空格
-    text = text.strip()
-
-    # 匹配 "XXXk" 或 "XXX" 的模式
-    match = re.search(r"(\d+(?:\.\d+)?)\s*k?", text)
+    # 匹配 "一口价 XXXk 金币" 的模式
+    match = re.search(r"一口价\s*(\d+(?:\.\d+)?)\s*k\s*金币", text)
     if match:
         amount_str = match.group(1)
         try:
             amount = float(amount_str)
-            # 检查是否有 'k' 后缀
-            if "k" in text[match.start() : match.end()]:
-                amount *= 1000
+            # k 表示千位
+            amount *= 1000
             return int(amount)
         except ValueError:
             return None
     return None
 
 
-def find_gold_price_text() -> Optional[dict]:
+def find_all_matching_prices(price_threshold: int) -> list:
     """
-    查找全屏幕中的一口价按钮及其旁边的价格信息
+    查找全屏幕中所有符合 "一口价 xxxxk 金币" 模式的文本，并返回价格低于阈值的结果
+
+    Args:
+        price_threshold: 价格阈值，只返回价格低于此值的结果
 
     Returns:
-        包含价格信息的字典，格式:
+        包含匹配结果的列表，每个元素为字典:
         {
-            "found": bool,
             "price": int,  # 金币数量
             "price_text": str,  # 原始价格文本
-            "button_pos": tuple,  # 一口价按钮位置
-            "price_pos": tuple,  # 价格文本位置
+            "center": tuple,  # 文字位置
         }
-        如果未找到返回 None
     """
     if ocr_helper is None:
         logger.error("❌ OCR助手未初始化")
-        return None
+        return []
 
     try:
         # 截图并获取全屏幕的所有文字
@@ -149,65 +142,44 @@ def find_gold_price_text() -> Optional[dict]:
 
         if not all_texts:
             logger.warning("⚠️ 未识别到任何文字")
-            return None
+            return []
 
-        # 查找"一口价"按钮
-        button_index = None
-        button_pos = None
+        logger.info(f"📝 识别到 {len(all_texts)} 个文字")
 
-        for i, text_info in enumerate(all_texts):
-            if "一口价" in text_info["text"]:
-                button_index = i
-                button_pos = text_info["center"]
-                logger.info(
-                    f"✅ 找到一口价按钮: {text_info['text']} 位置: {button_pos}"
-                )
-                break
+        # 查找所有符合 "一口价 xxxxk 金币" 模式的文本
+        matching_results = []
 
-        if button_index is None:
-            logger.warning("⚠️ 未找到一口价按钮")
-            return None
-
-        # 查找一口价按钮右侧的价格信息
-        # 价格通常在按钮的右侧，我们查找距离最近的数字文本
-        button_x, button_y = button_pos
-
-        best_price_info = None
-        best_distance = float("inf")
-
-        for i, text_info in enumerate(all_texts):
-            if i == button_index:
-                continue
-
+        for text_info in all_texts:
             text = text_info["text"].strip()
 
-            # 检查是否是价格文本（包含数字和可能的 'k'）
-            if re.search(r"\d+", text):
-                price_x, price_y = text_info["center"]
+            # 检查是否符合 "一口价 xxxxk 金币" 模式
+            if re.search(r"一口价\s*\d+\s*k\s*金币", text):
+                logger.info(f"✅ 找到匹配文本: {text}")
 
-                # 计算距离（优先考虑右侧的文本，且 Y 坐标接近）
-                # 如果在右侧（x > button_x）且 Y 坐标接近（|y - button_y| < 50）
-                if price_x > button_x and abs(price_y - button_y) < 50:
-                    distance = price_x - button_x
-                    if distance < best_distance:
-                        best_distance = distance
-                        best_price_info = text_info
+                # 解析价格
+                price = parse_gold_amount(text)
 
-        if best_price_info is None:
-            logger.warning("⚠️ 未找到价格信息")
-            return None
+                if price is not None:
+                    logger.info(f"   💰 价格: {price} 金币")
 
-        price_text = best_price_info["text"].strip()
-        price_pos = best_price_info["center"]
-
-        # 解析价格
-        price = parse_gold_amount(price_text)
-
-        if price is None:
-            logger.warning(f"⚠️ 无法解析价格: {price_text}")
-            return None
-
-        logger.info(f"💰 识别到价格: {price_text} ({price} 金币) 位置: {price_pos}")
+                    # 检查是否低于阈值
+                    if price < price_threshold:
+                        logger.info(
+                            f"   🎯 价格 ({price}) < 阈值 ({price_threshold})，加入结果"
+                        )
+                        matching_results.append(
+                            {
+                                "price": price,
+                                "price_text": text,
+                                "center": text_info["center"],
+                            }
+                        )
+                    else:
+                        logger.info(
+                            f"   ⏭️ 价格 ({price}) >= 阈值 ({price_threshold})，跳过"
+                        )
+                else:
+                    logger.warning(f"   ⚠️ 无法解析价格: {text}")
 
         # 清理临时截图
         try:
@@ -215,20 +187,15 @@ def find_gold_price_text() -> Optional[dict]:
         except Exception:
             pass
 
-        return {
-            "found": True,
-            "price": price,
-            "price_text": price_text,
-            "button_pos": button_pos,
-            "price_pos": price_pos,
-        }
+        logger.info(f"📊 找到 {len(matching_results)} 个符合条件的商品")
+        return matching_results
 
     except Exception as e:
         logger.error(f"❌ OCR 查找失败: {e}")
         import traceback
 
         logger.error(traceback.format_exc())
-        return None
+        return []
 
 
 def click_query_button(query_button_pos: Tuple[int, int]):
@@ -283,6 +250,7 @@ def click_confirm_button(confirm_button_pos: Tuple[int, int]):
 def auto_market_query(
     query_button_pos: Tuple[int, int],
     confirm_button_pos: Tuple[int, int],
+    price_threshold: int = 100000,
     interval: int = 5,
     max_iterations: Optional[int] = None,
 ):
@@ -292,11 +260,13 @@ def auto_market_query(
     Args:
         query_button_pos: 查询按钮的坐标 (x, y)
         confirm_button_pos: 确定按钮的坐标 (x, y)
+        price_threshold: 价格阈值，只拍下价格低于此值的商品（默认 100000）
         interval: 查询间隔（秒），默认 5 秒
         max_iterations: 最大迭代次数，None 表示无限循环
     """
     logger.info("=" * 60)
     logger.info("🤖 开始自动化市场查询")
+    logger.info(f"   价格阈值: {price_threshold} 金币")
     logger.info(f"   查询间隔: {interval} 秒")
     logger.info(f"   查询按钮: {query_button_pos}")
     logger.info(f"   确定按钮: {confirm_button_pos}")
@@ -321,20 +291,21 @@ def auto_market_query(
             # 2. 等待一段时间让界面刷新
             sleep(2)
 
-            # 3. 查找一口价按钮及其旁边的价格
-            price_result = find_gold_price_text()
+            # 3. 查找所有符合条件的商品
+            matching_items = find_all_matching_prices(price_threshold)
 
-            if price_result and price_result.get("found"):
-                price = price_result.get("price")
-                price_text = price_result.get("price_text", "")
-                price_pos = price_result.get("price_pos", (0, 0))
+            if matching_items:
+                logger.info(f"🎯 找到 {len(matching_items)} 个符合条件的商品")
 
-                logger.info(f"📝 识别价格: {price_text}")
-                logger.info(f"💰 金币数量: {price}")
+                # 4. 对每个符合条件的商品执行购买流程
+                for idx, item in enumerate(matching_items, 1):
+                    price = item["price"]
+                    price_text = item["price_text"]
+                    price_pos = item["center"]
 
-                # 4. 检查是否 < 100k
-                if price < 100000:
-                    logger.info(f"🎯 金币数量 ({price}) < 100k，执行购买流程")
+                    logger.info(
+                        f"\n   [{idx}/{len(matching_items)}] 处理商品: {price_text}"
+                    )
 
                     # 点击一口价按钮（基于价格位置计算）
                     click_one_key_price_button(price_pos)
@@ -343,11 +314,10 @@ def auto_market_query(
                     # 点击确定按钮
                     click_confirm_button(confirm_button_pos)
 
-                    logger.info("✅ 购买流程完成")
-                else:
-                    logger.info(f"⏭️ 金币数量 ({price}) >= 100k，跳过购买")
+                    logger.info(f"   ✅ 商品 {idx} 购买完成")
+                    sleep(1)  # 等待一下再处理下一个
             else:
-                logger.warning("⚠️ 未找到一口价按钮或价格信息")
+                logger.warning(f"⚠️ 未找到符合条件的商品（价格 < {price_threshold}）")
 
             # 6. 等待指定间隔后继续
             logger.info(f"⏳ 等待 {interval} 秒后继续...")
@@ -398,6 +368,12 @@ def main():
         help="查询间隔（秒），默认 5 秒",
     )
     parser.add_argument(
+        "--price-threshold",
+        type=int,
+        default=100000,
+        help="价格阈值，只拍下价格低于此值的商品（默认: 100000）",
+    )
+    parser.add_argument(
         "--max-iterations",
         type=int,
         default=None,
@@ -426,6 +402,7 @@ def main():
     auto_market_query(
         query_button_pos=query_button_pos,
         confirm_button_pos=confirm_button_pos,
+        price_threshold=args.price_threshold,
         interval=args.interval,
         max_iterations=args.max_iterations,
     )
