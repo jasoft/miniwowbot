@@ -17,9 +17,8 @@ from PIL import Image
 from datetime import datetime
 from airtest.core.api import snapshot, touch
 from airtest.aircv.cal_confidence import cal_ccoeff_confidence
-import logging
-import coloredlogs
 from typing import List, Tuple, Optional, Dict, Any
+from logger_config import setup_logger_from_config
 
 
 class OCRHelper:
@@ -80,24 +79,9 @@ class OCRHelper:
         os.makedirs(self.cache_dir, exist_ok=True)
         os.makedirs(self.temp_dir, exist_ok=True)
 
-        # 配置彩色日志（需要先初始化，因为缓存加载时会用到）
-        self.logger = logging.getLogger(f"{__name__}")
-        # 防止日志重复：移除已有的 handlers
-        self.logger.handlers.clear()
-        self.logger.propagate = False
-
-        coloredlogs.install(
-            level="INFO",  # 只输出 INFO 级别及以上的日志
-            logger=self.logger,
-            fmt="%(asctime)s %(name)s %(levelname)s %(message)s",
-            datefmt="%H:%M:%S",
-            level_styles={
-                "info": {"color": "blue"},
-                "warning": {"color": "yellow"},
-                "error": {"color": "red"},
-                "critical": {"color": "red", "bold": True},
-            },
-        )
+        # 配置彩色日志（从系统配置文件加载 Loki 配置）
+        # 需要先初始化，因为缓存加载时会用到
+        self.logger = setup_logger_from_config(use_color=True)
 
         # 初始化缓存
         # 格式: [(image_path, json_file_path), ...]

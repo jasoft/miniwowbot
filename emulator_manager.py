@@ -18,9 +18,9 @@ except ImportError:
     ADB = None
 
 # 导入通用日志配置模块
-from logger_config import setup_logger  # noqa: E402
+from logger_config import setup_logger_from_config  # noqa: E402
 
-logger = setup_logger()
+logger = setup_logger_from_config(use_color=True)
 
 
 class EmulatorManager:

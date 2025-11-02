@@ -11,8 +11,8 @@ import logging
 from typing import Dict
 from logger_config import setup_logger
 
-# 配置日志
-logger = setup_logger()
+# 配置日志（使用 setup_logger 避免循环依赖）
+logger = setup_logger(name="miniwow.system_config_loader", use_color=True)
 
 
 class SystemConfigLoader:

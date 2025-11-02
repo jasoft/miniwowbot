@@ -14,10 +14,10 @@ from peewee import (
     DateTimeField,
     fn,
 )
-from logger_config import setup_logger
+from logger_config import setup_logger_from_config
 
-# 配置日志
-logger = setup_logger()
+# 配置日志（从系统配置文件加载 Loki 配置）
+logger = setup_logger_from_config(use_color=True)
 
 # 数据库实例
 db = SqliteDatabase(None)

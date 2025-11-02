@@ -34,7 +34,7 @@ airtest_logger.setLevel(logging.ERROR)
 
 
 # 导入通用日志配置模块
-from logger_config import setup_logger  # noqa: E402
+from logger_config import setup_logger_from_config  # noqa: E402
 
 # 导入自定义的数据库模块和配置
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -65,8 +65,8 @@ from coordinates import (  # noqa: E402
 CLICK_INTERVAL = 1
 STOP_FILE = ".stop_dungeon"  # 停止标记文件路径
 
-# 配置彩色日志
-logger = setup_logger()
+# 配置彩色日志（从系统配置文件加载 Loki 配置）
+logger = setup_logger_from_config(use_color=True)
 
 # 设置 OCRHelper 的日志级别
 logging.getLogger("ocr_helper").setLevel(logging.INFO)
@@ -1776,6 +1776,7 @@ def main():
     initialize_device_and_ocr(args.emulator)
 
     # 启动游戏
+    logger.info("启动游戏...")
     start_app("com.ms.ysjyzr")
 
     # 8. 选择角色（如果配置了职业）
@@ -1784,6 +1785,7 @@ def main():
         sys.exit(1)
     char_class = config_loader.get_char_class()
     if char_class:
+        logger.info(f"选择角色: {char_class}")
         select_character(char_class)
     else:
         logger.info("⚠️ 未配置角色职业，跳过角色选择")
