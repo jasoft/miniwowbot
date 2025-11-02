@@ -39,7 +39,7 @@ docker-compose -f docker-compose.loki.yml ps
 ### 第 4 步：在代码中使用
 
 ```python
-from logstash_logger import create_loki_logger
+from loki_logger import create_loki_logger
 
 # 创建日志记录器
 logger = create_loki_logger(
@@ -145,14 +145,14 @@ from logger_config import setup_logger
 logger = setup_logger(name="auto_dungeon")
 
 # 改为
-from logstash_logger import create_loki_logger
+from loki_logger import create_loki_logger
 logger = create_loki_logger(name="auto_dungeon")
 ```
 
 ### 方式 2：同时使用控制台和 Loki
 
 ```python
-from logstash_logger import create_loki_logger
+from loki_logger import create_loki_logger
 
 # 创建日志记录器，同时输出到控制台和 Loki
 logger = create_loki_logger(

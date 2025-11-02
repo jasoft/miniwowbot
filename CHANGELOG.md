@@ -1,5 +1,118 @@
 # 更新日志
 
+## [重构] 日志系统命名和配置优化 - 2025-11-02
+
+### 概述
+
+完成了日志系统的命名规范化和配置集中管理，将 Logstash 相关的命名改为 Loki，并在系统配置文件中添加了 Loki 和 Grafana 的配置项。
+
+### 主要变更
+
+#### 1. 文件重命名
+
+- ✅ `logstash_logger.py` → `loki_logger.py`
+  - 原因：Loki 和 Logstash 没有关系，命名应该准确反映实际功能
+  - 更新了所有导入语句
+
+#### 2. 配置文件更新
+
+**system_config.json**
+- 添加 `logging` 配置段：用于配置日志记录器名称和级别
+  - `logger_name`: 日志记录器名称（默认 "miniwow"）
+  - `level`: 日志级别（默认 "INFO"）
+- 添加 `loki` 配置段：用于配置 Loki 日志服务
+  - `enabled`: 是否启用 Loki（默认 false）
+  - `server`: Loki 服务地址（默认 "http://localhost:3100"）
+  - `app_name`: 应用名称（默认 "miniwow"）
+  - `buffer_size`: 日志缓冲区大小（默认 50）
+  - `upload_interval`: 上传间隔秒数（默认 5）
+- 添加 `grafana` 配置段：用于配置 Grafana 可视化
+  - `enabled`: 是否启用 Grafana（默认 false）
+  - `server`: Grafana 服务地址（默认 "http://localhost:3000"）
+  - `username`: 用户名（默认 "admin"）
+  - `password`: 密码（默认 "admin"）
+
+#### 3. system_config_loader.py 增强
+
+新增方法：
+- `get_logging_config()`: 获取日志配置
+- `get_loki_config()`: 获取 Loki 配置
+- `is_loki_enabled()`: 检查 Loki 是否启用
+- `get_grafana_config()`: 获取 Grafana 配置
+- `is_grafana_enabled()`: 检查 Grafana 是否启用
+
+#### 4. logger_config.py 增强
+
+新增函数：
+- `setup_logger_from_config()`: 从系统配置文件加载日志配置并创建日志记录器
+
+#### 5. 文档更新
+
+- 更新 `LOKI_SETUP.md`: 修改所有 logstash_logger 导入为 loki_logger
+- 更新 `LOKI_QUICK_START.md`: 修改所有 logstash_logger 导入为 loki_logger
+- 更新 `LOKI_QUICK_REFERENCE.md`: 修改所有 logstash_logger 导入为 loki_logger
+- 新增 `LOGGING_NAME_GUIDE.md`: 详细说明 Logger Name 的含义和用法
+
+#### 6. 测试文件更新
+
+- `test_loki_logger.py`: 更新导入语句
+- `test_loki_basic.py`: 更新导入语句
+
+### Logger Name 说明
+
+`logging_setup` 中的 `name` 参数是日志记录器的唯一标识符，用于：
+1. 区分不同模块或组件的日志
+2. 在 Loki 中作为 `logger` 标签，用于日志查询和过滤
+3. 支持日志记录器的层级结构
+
+示例：
+```python
+# 为特定模块创建日志记录器
+logger = setup_logger(name="miniwow.auto_dungeon")
+
+# 在 Loki 中查询该模块的日志
+{app="miniwow"} | json | logger="miniwow.auto_dungeon"
+```
+
+### 使用方式
+
+#### 方式 1：从配置文件加载
+
+```python
+from logger_config import setup_logger_from_config
+
+logger = setup_logger_from_config()
+```
+
+#### 方式 2：在代码中指定
+
+```python
+from logger_config import setup_logger
+
+logger = setup_logger(name="miniwow.auto_dungeon")
+```
+
+#### 方式 3：使用 Loki 日志记录器
+
+```python
+from loki_logger import create_loki_logger
+
+logger = create_loki_logger(
+    name="miniwow.auto_dungeon",
+    level="INFO",
+    loki_url="http://localhost:3100",
+    enable_loki=True,
+)
+```
+
+### 向后兼容性
+
+- ✅ 所有现有代码继续正常工作
+- ✅ 导入语句已全部更新
+- ✅ 配置项为可选，使用默认值时行为不变
+
+---
+
 ## [修复] 模拟器启动等待检测逻辑 - 2025-11-02
 
 ### 问题描述
@@ -253,7 +366,7 @@ logger.info("这条日志会同时输出到 console 和 Loki")
 ### 使用方式
 
 ```python
-from logstash_logger import create_loki_logger
+from loki_logger import create_loki_logger
 
 # 创建日志记录器
 logger = create_loki_logger(

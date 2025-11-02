@@ -252,3 +252,4 @@ def create_loki_logger(
             print(f"⚠️ 添加 Loki 处理器失败: {e}")
 
     return logger
+

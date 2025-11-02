@@ -4,7 +4,7 @@
 """
 
 import time
-from logstash_logger import create_loki_logger
+from loki_logger import create_loki_logger
 
 print("=" * 70)
 print("测试 Loki 日志模块基本功能")
@@ -29,7 +29,7 @@ print("✅ 日志已记录")
 # 记录更多日志
 print("\n3. 记录更多日志...")
 for i in range(5):
-    logger.info(f"测试日志 {i+1}")
+    logger.info(f"测试日志 {i + 1}")
 print("✅ 更多日志已记录")
 
 print("\n" + "=" * 70)
@@ -42,4 +42,3 @@ print("   - 启动 Loki 和 Grafana: docker-compose -f docker-compose.loki.yml u
 print("   - 修改 enable_loki=True")
 print("   - 运行 test_loki_logger.py")
 print("=" * 70)
-

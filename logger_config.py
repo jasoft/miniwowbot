@@ -15,7 +15,7 @@ except ImportError:
 
 # 导入 Loki 处理器
 try:
-    from logstash_logger import LokiHandler
+    from loki_logger import LokiHandler
 except ImportError:
     LokiHandler = None
 
@@ -243,3 +243,41 @@ LOG_LEVELS = {
     "ERROR": logging.ERROR,
     "CRITICAL": logging.CRITICAL,
 }
+
+
+def setup_logger_from_config(
+    config_file: str = "system_config.json",
+    use_color: bool = True,
+) -> logging.Logger:
+    """
+    从系统配置文件中加载日志配置并创建日志记录器
+
+    Args:
+        config_file: 系统配置文件路径
+        use_color: 是否使用彩色日志
+
+    Returns:
+        配置好的日志记录器
+    """
+    try:
+        from system_config_loader import load_system_config
+
+        config_loader = load_system_config(config_file)
+        logging_config = config_loader.get_logging_config()
+        loki_config = config_loader.get_loki_config()
+
+        logger_name = logging_config.get("logger_name", "miniwow")
+        level = logging_config.get("level", "INFO")
+        enable_loki = loki_config.get("enabled", False)
+        loki_url = loki_config.get("server", "http://localhost:3100")
+
+        return setup_logger(
+            name=logger_name,
+            level=level,
+            use_color=use_color,
+            enable_loki=enable_loki,
+            loki_url=loki_url,
+        )
+    except Exception as e:
+        print(f"⚠️ 从配置文件加载日志配置失败: {e}，使用默认配置")
+        return setup_logger(name="miniwow", level="INFO", use_color=use_color)

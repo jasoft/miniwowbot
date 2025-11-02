@@ -1,5 +1,5 @@
 {
-    "description": "系统级配置 - 包含通知等全局设置",
+    "description": "系统级配置 - 包含通知、日志等全局设置",
     "bark": {
         "enabled": true,
         "server": "https://api.day.app/LkBmavbbbYqtmjDLVvsbMR/",
@@ -8,5 +8,25 @@
     },
     "timeout": {
         "wait_for_main": 300
+    },
+    "logging": {
+        "description": "日志配置 - 用于 logger_config.py 中的 setup_logger() 函数",
+        "logger_name": "miniwow",
+        "level": "INFO"
+    },
+    "loki": {
+        "description": "Loki 日志服务配置 - 用于集中日志管理",
+        "enabled": false,
+        "server": "http://localhost:3100",
+        "app_name": "miniwow",
+        "buffer_size": 50,
+        "upload_interval": 5
+    },
+    "grafana": {
+        "description": "Grafana 可视化配置 - 用于日志查询和展示",
+        "enabled": false,
+        "server": "http://localhost:3000",
+        "username": "admin",
+        "password": "admin"
     }
 }

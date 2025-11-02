@@ -50,7 +50,7 @@ docker-compose -f docker-compose.loki.yml ps
 
 ```python
 # 创建日志记录器
-from logstash_logger import create_loki_logger
+from loki_logger import create_loki_logger
 
 logger = create_loki_logger(
     name="miniwow",
@@ -100,7 +100,7 @@ logger.debug("调试")
 
 ## 🔧 配置文件
 
-### logstash_logger.py
+### loki_logger.py
 
 ```python
 # 创建日志记录器的参数
@@ -121,7 +121,7 @@ services:
   loki:
     ports:
       - "3100:3100"  # 改为 "3101:3100"
-  
+
   grafana:
     ports:
       - "3000:3000"  # 改为 "3001:3000"

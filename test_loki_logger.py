@@ -4,7 +4,7 @@
 """
 
 import time
-from logstash_logger import create_loki_logger
+from loki_logger import create_loki_logger
 
 print("=" * 70)
 print("测试 Loki 日志模块")

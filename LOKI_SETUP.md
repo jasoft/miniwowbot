@@ -23,7 +23,7 @@ docker-compose -f docker-compose.loki.yml up -d
 ### 3️⃣ 在代码中使用
 
 ```python
-from logstash_logger import create_loki_logger
+from loki_logger import create_loki_logger
 
 # 创建日志记录器
 logger = create_loki_logger(
@@ -80,7 +80,7 @@ docker-compose -f docker-compose.loki.yml down
 
 | 文件 | 说明 |
 |------|------|
-| `logstash_logger.py` | Loki 日志处理器 |
+| `loki_logger.py` | Loki 日志处理器 |
 | `docker-compose.loki.yml` | Docker Compose 配置 |
 | `loki-config.yml` | Loki 配置文件 |
 | `test_loki_logger.py` | 测试脚本 |
@@ -96,7 +96,7 @@ from logger_config import setup_logger
 logger = setup_logger(name="auto_dungeon")
 
 # 改为
-from logstash_logger import create_loki_logger
+from loki_logger import create_loki_logger
 logger = create_loki_logger(name="auto_dungeon")
 ```
 
@@ -108,7 +108,7 @@ from logger_config import setup_logger
 logger = setup_logger(name="emulator_manager")
 
 # 改为
-from logstash_logger import create_loki_logger
+from loki_logger import create_loki_logger
 logger = create_loki_logger(name="emulator_manager")
 ```
 
