@@ -1,5 +1,31 @@
 # 更新日志
 
+## [修复] coloredlogs 配置错误 - 2025-11-01
+
+### 修复内容
+
+修复了 `logger_config.py` 中 coloredlogs 的配置错误。
+
+**问题：**
+- 使用了不存在的 `coloredlogs.ColoredStreamHandler`
+- 使用了不存在的 `coloredlogs.StreamHandler`
+
+**解决方案：**
+- 使用标准的 `logging.StreamHandler()`
+- 配合 `coloredlogs.ColoredFormatter()`
+
+### 测试结果
+
+- ✅ 彩色日志配置成功
+- ✅ 日志正确输出到 console
+- ✅ Loki 日志上传正常
+
+### 提交信息
+
+- `63d9f2f` - fix: 修复 coloredlogs 配置错误
+
+---
+
 ## [新增] logger_config 中的 Loki 支持 - 2025-11-01
 
 ### 功能描述
