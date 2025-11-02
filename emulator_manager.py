@@ -167,18 +167,28 @@ class EmulatorManager:
             logger.warning(f"⚠️ adb connect 失败: {e}")
             return False
 
-    def is_emulator_running(self, emulator_name: str) -> bool:
+    def is_emulator_running(self, emulator_name: str, retry_count: int = 2) -> bool:
         """
         检查指定模拟器是否运行
 
         Args:
             emulator_name: 模拟器名称，如 '127.0.0.1:5555'
+            retry_count: 重试次数，默认 2 次
 
         Returns:
             bool: 模拟器是否在线
         """
-        devices = self.get_adb_devices()
-        return emulator_name in devices and devices[emulator_name] == "device"
+        # 尝试多次获取设备列表，以应对 ADB 缓存或延迟问题
+        for attempt in range(retry_count):
+            devices = self.get_adb_devices()
+            if emulator_name in devices and devices[emulator_name] == "device":
+                return True
+
+            # 如果不是最后一次尝试，等待后重试
+            if attempt < retry_count - 1:
+                time.sleep(0.5)  # 短暂等待后重试
+
+        return False
 
     def start_bluestacks_instance(self, emulator_name: str) -> bool:
         """
@@ -271,16 +281,19 @@ class EmulatorManager:
 
             # 等待模拟器启动
             max_wait = 60
-            wait_interval = 5
+            wait_interval = 2  # 改为 2 秒，更快的响应
             elapsed = 0
 
             while elapsed < max_wait:
-                time.sleep(wait_interval)
-                elapsed += wait_interval
+                # 先检查一次，不要先等待
                 if self.is_emulator_running(emulator_name):
                     logger.info(f"✅ 模拟器 {emulator_name} 已启动 (耗时 {elapsed} 秒)")
-                    time.sleep(5)  # 额外等待确保完全就绪
+                    time.sleep(2)  # 额外等待确保完全就绪（减少到 2 秒）
                     return True
+
+                # 如果未启动，再等待
+                time.sleep(wait_interval)
+                elapsed += wait_interval
                 logger.info(f"⏳ 继续等待... ({elapsed}/{max_wait}秒)")
 
             logger.error(f"❌ 模拟器 {emulator_name} 启动超时")

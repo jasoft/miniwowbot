@@ -2,6 +2,7 @@
 """
 多模拟器管理模块测试
 """
+
 import pytest
 import subprocess
 from unittest.mock import Mock, patch, MagicMock
@@ -48,9 +49,7 @@ class TestEmulatorManager:
     @patch("subprocess.run")
     def test_get_adb_devices_empty(self, mock_run, manager):
         """测试获取空的 ADB 设备列表"""
-        mock_run.return_value = Mock(
-            returncode=0, stdout="List of devices attached\n"
-        )
+        mock_run.return_value = Mock(returncode=0, stdout="List of devices attached\n")
 
         devices = manager.get_adb_devices()
         assert len(devices) == 0
@@ -74,6 +73,20 @@ class TestEmulatorManager:
         assert manager.is_emulator_running("emulator-5554") is True
         assert manager.is_emulator_running("emulator-5555") is False
         assert manager.is_emulator_running("emulator-5556") is False
+
+    @patch.object(EmulatorManager, "get_adb_devices")
+    def test_is_emulator_running_with_retry(self, mock_get_devices, manager):
+        """测试检查模拟器是否运行（带重试机制）"""
+        # 第一次返回空，第二次返回设备列表（模拟 ADB 延迟）
+        mock_get_devices.side_effect = [
+            {},  # 第一次尝试：设备列表为空
+            {"emulator-5554": "device"},  # 第二次尝试：设备已连接
+        ]
+
+        result = manager.is_emulator_running("emulator-5554", retry_count=2)
+        assert result is True
+        # 应该调用两次 get_adb_devices
+        assert mock_get_devices.call_count == 2
 
     @patch.object(EmulatorManager, "is_emulator_running")
     @patch("subprocess.Popen")
@@ -140,9 +153,7 @@ class TestEmulatorManager:
 class TestEmulatorManagerIntegration:
     """EmulatorManager 集成测试"""
 
-    @pytest.mark.skipif(
-        True, reason="需要真实的 BlueStacks 环境，跳过集成测试"
-    )
+    @pytest.mark.skipif(True, reason="需要真实的 BlueStacks 环境，跳过集成测试")
     def test_real_adb_devices(self):
         """测试真实 ADB 设备列表"""
         manager = EmulatorManager()
@@ -150,13 +161,10 @@ class TestEmulatorManagerIntegration:
         # 这个测试需要真实的 ADB 环境
         assert isinstance(devices, dict)
 
-    @pytest.mark.skipif(
-        True, reason="需要真实的 BlueStacks 环境，跳过集成测试"
-    )
+    @pytest.mark.skipif(True, reason="需要真实的 BlueStacks 环境，跳过集成测试")
     def test_real_emulator_status(self):
         """测试真实模拟器状态"""
         manager = EmulatorManager()
         # 这个测试需要真实的 ADB 环境
         result = manager.is_emulator_running("emulator-5554")
         assert isinstance(result, bool)
-

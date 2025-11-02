@@ -1,5 +1,72 @@
 # 更新日志
 
+## [修复] 模拟器启动等待检测逻辑 - 2025-11-02
+
+### 问题描述
+
+模拟器启动时存在以下问题：
+- 模拟器已经启动成功，但仍需等待 60 秒超时才能连接
+- 第二次运行程序时就能正常连接
+- 怀疑等待检测代码有问题
+
+### 根本原因
+
+在 `emulator_manager.py` 的 `start_bluestacks_instance()` 方法中，等待循环的逻辑有缺陷：
+
+**原有逻辑（错误）：**
+```python
+while elapsed < max_wait:
+    time.sleep(wait_interval)  # 先等待 5 秒
+    elapsed += wait_interval
+    if self.is_emulator_running(emulator_name):  # 再检查
+        return True
+```
+
+问题：即使模拟器已启动，也要先等待 5 秒才能检查，导致不必要的延迟。
+
+### 修复方案
+
+1. **改进等待循环逻辑**
+   - 先检查一次模拟器是否已启动，不要先等待
+   - 只在未启动时才等待
+   - 将等待间隔从 5 秒减少到 2 秒，提高响应速度
+
+2. **优化 `is_emulator_running()` 方法**
+   - 添加重试机制（默认 2 次）
+   - 应对 ADB 缓存或延迟问题
+   - 在重试之间等待 0.5 秒
+
+3. **减少额外等待时间**
+   - 启动成功后的额外等待从 5 秒减少到 2 秒
+
+### 修改文件
+
+**emulator_manager.py**
+- 修改 `is_emulator_running()` 方法：添加 `retry_count` 参数和重试机制
+- 修改 `start_bluestacks_instance()` 方法：改进等待循环逻辑
+
+**tests/test_emulator_manager.py**
+- 新增 `test_is_emulator_running_with_retry()` 测试：验证重试机制
+
+### 测试结果
+
+- ✅ `test_is_emulator_running` - 基础检查测试通过
+- ✅ `test_is_emulator_running_with_retry` - 重试机制测试通过
+- ✅ `test_start_bluestacks_instance_success` - 启动成功测试通过
+- ✅ `test_start_bluestacks_instance_adb_connect_success` - adb connect 成功测试通过
+- ✅ `test_start_bluestacks_instance_timeout` - 超时处理测试通过
+- ✅ `test_start_bluestacks_instance_unknown_emulator` - 未知模拟器测试通过
+- ✅ `test_start_bluestacks_instance_second_emulator` - 第二个实例测试通过
+- ✅ `test_start_bluestacks_instance_already_running` - 已运行实例测试通过
+
+### 性能改进
+
+- **响应时间**：从最多 60 秒减少到最多 30 秒（等待间隔从 5 秒改为 2 秒）
+- **启动成功检测**：模拟器启动成功后立即检测，不再强制等待 5 秒
+- **ADB 缓存处理**：通过重试机制更好地处理 ADB 延迟问题
+
+---
+
 ## [修复] coloredlogs 配置错误 - 2025-11-01
 
 ### 修复内容
