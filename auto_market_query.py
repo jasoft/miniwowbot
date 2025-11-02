@@ -145,6 +145,13 @@ def find_all_matching_prices(price_threshold: int) -> list:
             return []
 
         logger.info(f"📝 识别到 {len(all_texts)} 个文字")
+        logger.info("=" * 80)
+        logger.info("📋 全屏幕识别的文字列表:")
+        for i, text_info in enumerate(all_texts):
+            logger.info(
+                f"  [{i:2d}] {text_info['text']:30s} | 位置: {text_info['center']} | 置信度: {text_info.get('confidence', 'N/A')}"
+            )
+        logger.info("=" * 80)
 
         # 查找所有符合 "一口价 xxxxk 金币" 模式的文本
         matching_results = []
@@ -154,7 +161,7 @@ def find_all_matching_prices(price_threshold: int) -> list:
 
             # 检查是否符合 "一口价 xxxxk 金币" 模式
             if re.search(r"一口价\s*\d+\s*k\s*金币", text):
-                logger.info(f"✅ 找到匹配文本: {text}")
+                logger.info(f"\n✅ 找到匹配文本: {text}")
 
                 # 解析价格
                 price = parse_gold_amount(text)
@@ -165,13 +172,48 @@ def find_all_matching_prices(price_threshold: int) -> list:
                     # 检查是否低于阈值
                     if price < price_threshold:
                         logger.info(
-                            f"   🎯 价格 ({price}) < 阈值 ({price_threshold})，加入结果"
+                            f"   🎯 价格 ({price}) < 阈值 ({price_threshold})，处理此拍卖品"
                         )
+
+                        # 获取同一行的所有文字（y 坐标差值 ≤ 50）
+                        price_y = text_info["center"][1]
+                        item_texts = []
+
+                        for other_text_info in all_texts:
+                            other_y = other_text_info["center"][1]
+                            if abs(other_y - price_y) <= 50:
+                                item_texts.append(
+                                    {
+                                        "text": other_text_info["text"].strip(),
+                                        "center": other_text_info["center"],
+                                        "confidence": other_text_info.get(
+                                            "confidence", 0
+                                        ),
+                                    }
+                                )
+
+                        # 按 x 坐标排序
+                        item_texts.sort(key=lambda x: x["center"][0])
+
+                        # 构造拍卖品描述
+                        item_description = " | ".join([t["text"] for t in item_texts])
+
+                        logger.info(f"   📦 拍卖品信息:")
+                        logger.info(f"      Y 坐标: {price_y}")
+                        logger.info(f"      同行文字数: {len(item_texts)}")
+                        for idx, item_text in enumerate(item_texts):
+                            logger.info(
+                                f"        [{idx}] {item_text['text']:30s} | 位置: {item_text['center']}"
+                            )
+                        logger.info(f"      完整描述: {item_description}")
+
                         matching_results.append(
                             {
                                 "price": price,
                                 "price_text": text,
                                 "center": text_info["center"],
+                                "item_texts": item_texts,
+                                "item_description": item_description,
                             }
                         )
                     else:
@@ -187,7 +229,14 @@ def find_all_matching_prices(price_threshold: int) -> list:
         except Exception:
             pass
 
+        logger.info("\n" + "=" * 80)
         logger.info(f"📊 找到 {len(matching_results)} 个符合条件的商品")
+        for idx, result in enumerate(matching_results, 1):
+            logger.info(f"\n  [{idx}] 拍卖品信息:")
+            logger.info(f"      价格: {result['price']} 金币")
+            logger.info(f"      描述: {result['item_description']}")
+        logger.info("=" * 80)
+
         return matching_results
 
     except Exception as e:
@@ -295,17 +344,17 @@ def auto_market_query(
             matching_items = find_all_matching_prices(price_threshold)
 
             if matching_items:
-                logger.info(f"🎯 找到 {len(matching_items)} 个符合条件的商品")
+                logger.info(f"\n🎯 找到 {len(matching_items)} 个符合条件的商品")
 
                 # 4. 对每个符合条件的商品执行购买流程
                 for idx, item in enumerate(matching_items, 1):
-                    price = item["price"]
-                    price_text = item["price_text"]
+                    item_price = item["price"]
                     price_pos = item["center"]
+                    item_description = item["item_description"]
 
-                    logger.info(
-                        f"\n   [{idx}/{len(matching_items)}] 处理商品: {price_text}"
-                    )
+                    logger.info(f"\n   [{idx}/{len(matching_items)}] 处理商品:")
+                    logger.info(f"      价格: {item_price} 金币")
+                    logger.info(f"      描述: {item_description}")
 
                     # 点击一口价按钮（基于价格位置计算）
                     click_one_key_price_button(price_pos)
