@@ -116,4 +116,25 @@ def cleanup_output_directory():
 
 
 if __name__ == "__main__":
-    cleanup_output_directory()
+    import logging
+
+    # 初始化日志
+    try:
+        from logger_config import setup_logger_from_config
+
+        logger = setup_logger_from_config(use_color=True)
+    except Exception:
+        # 如果无法导入日志配置，使用基础日志
+        logging.basicConfig(level=logging.INFO)
+        logger = logging.getLogger(__name__)
+
+    try:
+        cleanup_output_directory()
+    except Exception as e:
+        import traceback
+
+        error_traceback = traceback.format_exc()
+        logger.critical(
+            f"缓存清理工具异常退出: {type(e).__name__}: {str(e)}\n{error_traceback}"
+        )
+        raise

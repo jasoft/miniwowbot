@@ -213,14 +213,14 @@ def timer_decorator(func):
             func_logger.debug(
                 f"⚡ {func.__name__} 执行时间: {elapsed_time:.4f}秒 (< 10ms)"
             )
-        elif elapsed_time < 0.1:
-            func_logger.info(f"⏱️ {func.__name__} 执行时间: {elapsed_time:.4f}秒")
+        elif elapsed_time < 0.5:
+            func_logger.debug(f"⏱️ {func.__name__} 执行时间: {elapsed_time:.4f}秒")
         elif elapsed_time < 1.0:
             func_logger.warning(
-                f"🐌 {func.__name__} 执行时间: {elapsed_time:.4f}秒 (> 100ms)"
+                f"🐌 {func.__name__} 执行时间: {elapsed_time:.4f}秒 (> 500ms)"
             )
         else:
-            func_logger.error(
+            func_logger.warning(
                 f"🐢 {func.__name__} 执行时间: {elapsed_time:.4f}秒 (> 1s)"
             )
 
@@ -1585,7 +1585,13 @@ def main_wrapper():
             logger.error(f"\n❌ 发生未预期的错误: {e}")
             import traceback
 
-            logger.error(traceback.format_exc())
+            error_traceback = traceback.format_exc()
+            logger.error(error_traceback)
+
+            # 发送 critical 日志，触发 Grafana 告警
+            logger.critical(
+                f"脚本异常退出: {type(e).__name__}: {str(e)}\n{error_traceback}"
+            )
 
             send_bark_notification(
                 "副本助手 - 错误", f"程序发生错误: {str(e)}", level="timeSensitive"

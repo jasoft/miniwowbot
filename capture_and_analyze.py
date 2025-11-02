@@ -313,55 +313,86 @@ class AndroidScreenshotAnalyzer:
                 print(f"  - 分析结果: {self.results_dir}/")
             print("=" * 70)
 
+        except Exception as e:
+            import traceback
+
+            error_traceback = traceback.format_exc()
+            print(f"\n❌ 截图工具异常: {type(e).__name__}: {str(e)}")
+            print(error_traceback)
+            raise
+
 
 def main():
     """主函数"""
     import argparse
+    import logging
 
-    parser = argparse.ArgumentParser(
-        description="安卓模拟器自动截图与 Roboflow 分析工具"
-    )
-    parser.add_argument(
-        "-o",
-        "--output",
-        default="analyzed_screenshots",
-        help="输出目录路径 (默认: analyzed_screenshots)",
-    )
-    parser.add_argument(
-        "-i", "--interval", type=float, default=3.0, help="截图间隔秒数 (默认: 3)"
-    )
-    parser.add_argument(
-        "--enable-roboflow", action="store_true", help="启用 Roboflow 实时分析"
-    )
-    parser.add_argument(
-        "--api-key", default="w6oOUMB3dpmlpFSXv8t5", help="Roboflow API 密钥"
-    )
-    parser.add_argument("--workspace", default="soj-demo", help="Roboflow 工作空间名称")
-    parser.add_argument(
-        "--workflow-id",
-        default="find-targetarrows-taskavailables-gobuttons-and-taskcompletes",
-        help="Roboflow 工作流 ID",
-    )
+    # 初始化日志
+    try:
+        from logger_config import setup_logger_from_config
 
-    args = parser.parse_args()
+        logger = setup_logger_from_config(use_color=True)
+    except Exception:
+        # 如果无法导入日志配置，使用基础日志
+        logging.basicConfig(level=logging.INFO)
+        logger = logging.getLogger(__name__)
 
-    # 准备 Roboflow 配置
-    roboflow_config = None
-    if args.enable_roboflow:
-        roboflow_config = {
-            "api_key": args.api_key,
-            "workspace": args.workspace,
-            "workflow_id": args.workflow_id,
-        }
+    try:
+        parser = argparse.ArgumentParser(
+            description="安卓模拟器自动截图与 Roboflow 分析工具"
+        )
+        parser.add_argument(
+            "-o",
+            "--output",
+            default="analyzed_screenshots",
+            help="输出目录路径 (默认: analyzed_screenshots)",
+        )
+        parser.add_argument(
+            "-i", "--interval", type=float, default=3.0, help="截图间隔秒数 (默认: 3)"
+        )
+        parser.add_argument(
+            "--enable-roboflow", action="store_true", help="启用 Roboflow 实时分析"
+        )
+        parser.add_argument(
+            "--api-key", default="w6oOUMB3dpmlpFSXv8t5", help="Roboflow API 密钥"
+        )
+        parser.add_argument(
+            "--workspace", default="soj-demo", help="Roboflow 工作空间名称"
+        )
+        parser.add_argument(
+            "--workflow-id",
+            default="find-targetarrows-taskavailables-gobuttons-and-taskcompletes",
+            help="Roboflow 工作流 ID",
+        )
 
-    # 创建截图分析器并运行
-    analyzer = AndroidScreenshotAnalyzer(
-        output_dir=args.output,
-        interval=args.interval,
-        enable_roboflow=args.enable_roboflow,
-        roboflow_config=roboflow_config,
-    )
-    analyzer.run()
+        args = parser.parse_args()
+
+        # 准备 Roboflow 配置
+        roboflow_config = None
+        if args.enable_roboflow:
+            roboflow_config = {
+                "api_key": args.api_key,
+                "workspace": args.workspace,
+                "workflow_id": args.workflow_id,
+            }
+
+        # 创建截图分析器并运行
+        analyzer = AndroidScreenshotAnalyzer(
+            output_dir=args.output,
+            interval=args.interval,
+            enable_roboflow=args.enable_roboflow,
+            roboflow_config=roboflow_config,
+        )
+        analyzer.run()
+
+    except Exception as e:
+        import traceback
+
+        error_traceback = traceback.format_exc()
+        logger.critical(
+            f"截图工具异常退出: {type(e).__name__}: {str(e)}\n{error_traceback}"
+        )
+        raise
 
 
 if __name__ == "__main__":

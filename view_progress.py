@@ -431,67 +431,91 @@ class ProgressViewer:
 
 def main():
     """主函数"""
-    parser = argparse.ArgumentParser(description="副本通关进度查看工具")
-    parser.add_argument(
-        "--db", default="database/dungeon_progress.db", help="数据库文件路径"
-    )
-    parser.add_argument(
-        "-c",
-        "--config",
-        type=str,
-        default="default",
-        help="配置名称 (默认: default)",
-    )
-    parser.add_argument("--today", action="store_true", help="显示今天的通关记录")
-    parser.add_argument("--recent", type=int, metavar="DAYS", help="显示最近N天的统计")
-    parser.add_argument("--zones", action="store_true", help="显示各区域统计")
-    parser.add_argument("--all", action="store_true", help="显示所有职业的进度")
-    parser.add_argument("--summary", action="store_true", help="显示总体统计摘要")
-    parser.add_argument("--clear-today", action="store_true", help="清除今天的记录")
-    parser.add_argument("--clear-all", action="store_true", help="清除所有记录")
+    import logging
 
-    args = parser.parse_args()
+    # 初始化日志
+    try:
+        from logger_config import setup_logger_from_config
 
-    viewer = ProgressViewer(args.db, args.config)
+        logger = setup_logger_from_config(use_color=True)
+    except Exception:
+        # 如果无法导入日志配置，使用基础日志
+        logging.basicConfig(level=logging.INFO)
+        logger = logging.getLogger(__name__)
 
     try:
-        # 如果没有指定任何参数，显示默认信息（新版本：显示所有职业和总体统计）
-        if len(sys.argv) == 1:
-            viewer.show_all_configs_progress()
-            viewer.show_summary()
-            viewer.show_recent_days(7, all_configs=True)
-        else:
-            if args.all:
+        parser = argparse.ArgumentParser(description="副本通关进度查看工具")
+        parser.add_argument(
+            "--db", default="database/dungeon_progress.db", help="数据库文件路径"
+        )
+        parser.add_argument(
+            "-c",
+            "--config",
+            type=str,
+            default="default",
+            help="配置名称 (默认: default)",
+        )
+        parser.add_argument("--today", action="store_true", help="显示今天的通关记录")
+        parser.add_argument(
+            "--recent", type=int, metavar="DAYS", help="显示最近N天的统计"
+        )
+        parser.add_argument("--zones", action="store_true", help="显示各区域统计")
+        parser.add_argument("--all", action="store_true", help="显示所有职业的进度")
+        parser.add_argument("--summary", action="store_true", help="显示总体统计摘要")
+        parser.add_argument("--clear-today", action="store_true", help="清除今天的记录")
+        parser.add_argument("--clear-all", action="store_true", help="清除所有记录")
+
+        args = parser.parse_args()
+
+        viewer = ProgressViewer(args.db, args.config)
+
+        try:
+            # 如果没有指定任何参数，显示默认信息（新版本：显示所有职业和总体统计）
+            if len(sys.argv) == 1:
                 viewer.show_all_configs_progress()
-
-            if args.summary:
                 viewer.show_summary()
+                viewer.show_recent_days(7, all_configs=True)
+            else:
+                if args.all:
+                    viewer.show_all_configs_progress()
 
-            if args.today:
-                viewer.show_today_progress()
+                if args.summary:
+                    viewer.show_summary()
 
-            if args.zones:
-                viewer.show_zone_stats()
+                if args.today:
+                    viewer.show_today_progress()
 
-            if args.recent:
-                viewer.show_recent_days(args.recent)
+                if args.zones:
+                    viewer.show_zone_stats()
 
-            if args.clear_today:
-                confirm = input("⚠️  确定要清除今天的记录吗？(yes/no): ")
-                if confirm.lower() == "yes":
-                    viewer.clear_today()
-                else:
-                    print("\n❌ 已取消\n")
+                if args.recent:
+                    viewer.show_recent_days(args.recent)
 
-            if args.clear_all:
-                confirm = input("⚠️  确定要清除所有记录吗？(yes/no): ")
-                if confirm.lower() == "yes":
-                    viewer.clear_all()
-                else:
-                    print("\n❌ 已取消\n")
+                if args.clear_today:
+                    confirm = input("⚠️  确定要清除今天的记录吗？(yes/no): ")
+                    if confirm.lower() == "yes":
+                        viewer.clear_today()
+                    else:
+                        print("\n❌ 已取消\n")
 
-    finally:
-        viewer.close()
+                if args.clear_all:
+                    confirm = input("⚠️  确定要清除所有记录吗？(yes/no): ")
+                    if confirm.lower() == "yes":
+                        viewer.clear_all()
+                    else:
+                        print("\n❌ 已取消\n")
+
+        finally:
+            viewer.close()
+
+    except Exception as e:
+        import traceback
+
+        error_traceback = traceback.format_exc()
+        logger.critical(
+            f"进度查看工具异常退出: {type(e).__name__}: {str(e)}\n{error_traceback}"
+        )
+        raise
 
 
 if __name__ == "__main__":

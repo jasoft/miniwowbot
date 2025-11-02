@@ -18,6 +18,7 @@ logger = create_loki_logger(
     loki_url="http://localhost:3100",
     enable_loki=True,
 )
+
 print("✅ 日志记录器创建成功")
 
 # 记录日志

@@ -26,7 +26,7 @@ class LokiHandler(logging.Handler):
     def __init__(
         self,
         loki_url: str,
-        app_name: str = "miniwow",
+        app_name: str = "lokilog",
         buffer_size: int = 50,
         upload_interval: int = 5,
         labels: Optional[Dict[str, str]] = None,
@@ -152,9 +152,7 @@ class LokiHandler(logging.Handler):
                 timeout=5,
             )
 
-            if response.status_code == 204:
-                print(f"✅ 成功上传 {len(logs)} 条日志到 Loki")
-            else:
+            if response.status_code != 204:
                 print(
                     f"⚠️ 上传日志到 Loki 失败: {response.status_code} - {response.text}"
                 )
@@ -197,7 +195,7 @@ class LokiHandler(logging.Handler):
 
 
 def create_loki_logger(
-    name: str = "miniwow",
+    name: str = "lokilog",
     level: str = "INFO",
     log_format: str = None,
     loki_url: str = None,
@@ -209,7 +207,7 @@ def create_loki_logger(
     Args:
         name: 日志记录器名称（仅在 Loki 中有意义，console 输出中不显示）
               用于在 Loki 中作为 logger 标签，区分不同模块的日志
-              示例: "miniwow", "miniwow.auto_dungeon", "miniwow.emulator_manager"
+              示例: "lokilog", "lokilog.auto_dungeon", "lokilog.emulator_manager"
         level: 日志级别 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         log_format: 日志格式字符串，默认为 "%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s"
                    如需在 console 中显示 logger name，可添加 %(name)s

@@ -1,5 +1,51 @@
 # 更新日志
 
+## [功能] 脚本异常处理和 Grafana 告警 - 2025-11-02
+
+### 功能描述
+
+为所有脚本添加全局异常处理，使用 `logger.critical()` 记录任何未捕获的异常。这样 Grafana 会自动按照设计规则进行告警。
+
+### 实现方式
+
+1. **auto_dungeon.py** - 主脚本
+   - 在 `main_wrapper()` 的异常处理中添加 `logger.critical()`
+   - 捕获所有未预期的异常并记录详细的错误堆栈
+
+2. **capture_and_analyze.py** - 截图分析工具
+   - 在 `run()` 方法中添加异常处理
+   - 在 `main()` 函数中初始化日志并添加异常处理
+
+3. **view_progress.py** - 进度查看工具
+   - 在 `main()` 函数中初始化日志并添加异常处理
+   - 捕获所有异常并记录到 Loki
+
+4. **cleanup_cache.py** - 缓存清理工具
+   - 在 `__main__` 块中初始化日志并添加异常处理
+   - 捕获所有异常并记录到 Loki
+
+### 效果
+
+- ✅ 所有脚本的异常都会被捕获并记录为 CRITICAL 级别
+- ✅ Grafana 会根据 CRITICAL 级别日志自动触发告警
+- ✅ 异常信息包含完整的错误堆栈跟踪
+- ✅ 便于快速定位和调试问题
+
+### Grafana 告警查询
+
+```
+# 查询所有 CRITICAL 级别的日志
+{app="lokilog"} | json | level="CRITICAL"
+
+# 查询特定配置的异常
+{config="account1"} | json | level="CRITICAL"
+
+# 查询特定脚本的异常
+{app="lokilog"} | json | level="CRITICAL" | filename=~"auto_dungeon|capture_and_analyze"
+```
+
+---
+
 ## [功能] 所有 Loki 日志添加 config 标签 - 2025-11-02
 
 ### 功能描述
