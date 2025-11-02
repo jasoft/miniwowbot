@@ -82,8 +82,8 @@ class LoggerConfig:
         # 使用 coloredlogs 配置彩色日志
         if use_color and coloredlogs:
             try:
-                # 创建彩色处理器而不是使用 install()，避免阻塞
-                handler = coloredlogs.ColoredStreamHandler(stream=sys.stdout)
+                # 使用标准 StreamHandler 配合 ColoredFormatter
+                handler = logging.StreamHandler(stream=sys.stdout)
                 handler.setLevel(getattr(logging, level.upper()))
                 formatter = coloredlogs.ColoredFormatter(
                     fmt=log_format,
@@ -99,7 +99,7 @@ class LoggerConfig:
                 handler.setFormatter(formatter)
                 logger.addHandler(handler)
             except Exception as e:
-                print(f"配置彩色日志失败: {e}，使用标准日志")
+                print(f"⚠️ 配置彩色日志失败: {e}，使用标准日志")
                 # fallback到标准logging
                 handler = logging.StreamHandler()
                 handler.setLevel(getattr(logging, level.upper()))
