@@ -279,19 +279,25 @@ class EmulatorManager:
                     stderr=subprocess.DEVNULL,
                 )
 
-            # 等待模拟器启动
+            # 等待模拟器启动并尝试连接
             max_wait = 60
-            wait_interval = 2  # 改为 2 秒，更快的响应
+            wait_interval = 1  # 改为 1 秒，更快的响应
             elapsed = 0
 
             while elapsed < max_wait:
-                # 先检查一次，不要先等待
-                if self.is_emulator_running(emulator_name):
-                    logger.info(f"✅ 模拟器 {emulator_name} 已启动 (耗时 {elapsed} 秒)")
-                    time.sleep(2)  # 额外等待确保完全就绪（减少到 2 秒）
+                # 先尝试 adb connect，这是最直接的连接方式
+                if self.try_adb_connect(emulator_name):
+                    logger.info(f"✅ 模拟器 {emulator_name} 已连接 (耗时 {elapsed} 秒)")
                     return True
 
-                # 如果未启动，再等待
+                # 如果连接失败，检查模拟器是否在运行
+                if self.is_emulator_running(emulator_name):
+                    logger.info(f"✅ 模拟器 {emulator_name} 已启动 (耗时 {elapsed} 秒)")
+                    time.sleep(1)  # 短暂等待后再尝试连接
+                    if self.try_adb_connect(emulator_name):
+                        return True
+
+                # 如果未连接，再等待
                 time.sleep(wait_interval)
                 elapsed += wait_interval
                 logger.info(f"⏳ 继续等待... ({elapsed}/{max_wait}秒)")

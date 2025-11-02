@@ -26,24 +26,44 @@ while elapsed < max_wait:
 
 ### 修复方案
 
-1. **改进等待循环逻辑**
-   - 先检查一次模拟器是否已启动，不要先等待
-   - 只在未启动时才等待
-   - 将等待间隔从 5 秒减少到 2 秒，提高响应速度
+1. **改进等待循环逻辑 - 不断尝试 adb connect**
+   - 在等待循环中不断尝试 `adb connect`，这是最直接的连接方式
+   - 如果 `adb connect` 成功，立即返回，无需等待
+   - 如果 `adb connect` 失败，检查模拟器是否在运行
+   - 如果模拟器已启动，再次尝试 `adb connect`
+   - 将等待间隔从 5 秒减少到 1 秒，提高响应速度
 
 2. **优化 `is_emulator_running()` 方法**
    - 添加重试机制（默认 2 次）
    - 应对 ADB 缓存或延迟问题
    - 在重试之间等待 0.5 秒
 
-3. **减少额外等待时间**
-   - 启动成功后的额外等待从 5 秒减少到 2 秒
+3. **新的等待循环逻辑**
+   ```python
+   while elapsed < max_wait:
+       # 先尝试 adb connect，这是最直接的连接方式
+       if self.try_adb_connect(emulator_name):
+           return True
+
+       # 如果连接失败，检查模拟器是否在运行
+       if self.is_emulator_running(emulator_name):
+           time.sleep(1)  # 短暂等待后再尝试连接
+           if self.try_adb_connect(emulator_name):
+               return True
+
+       # 如果未连接，再等待
+       time.sleep(wait_interval)
+       elapsed += wait_interval
+   ```
 
 ### 修改文件
 
 **emulator_manager.py**
 - 修改 `is_emulator_running()` 方法：添加 `retry_count` 参数和重试机制
-- 修改 `start_bluestacks_instance()` 方法：改进等待循环逻辑
+- 修改 `start_bluestacks_instance()` 方法：改进等待循环逻辑，不断尝试 adb connect
+
+**tests/test_auto_start_emulator.py**
+- 更新所有测试的 mock 设置，适应新的等待循环逻辑
 
 **tests/test_emulator_manager.py**
 - 新增 `test_is_emulator_running_with_retry()` 测试：验证重试机制
@@ -61,8 +81,9 @@ while elapsed < max_wait:
 
 ### 性能改进
 
-- **响应时间**：从最多 60 秒减少到最多 30 秒（等待间隔从 5 秒改为 2 秒）
-- **启动成功检测**：模拟器启动成功后立即检测，不再强制等待 5 秒
+- **响应时间**：从最多 60 秒减少到最多 60 秒（但实际连接速度更快）
+- **连接成功检测**：不断尝试 adb connect，一旦模拟器启动就立即连接
+- **等待间隔**：从 5 秒改为 1 秒，提高响应速度
 - **ADB 缓存处理**：通过重试机制更好地处理 ADB 延迟问题
 
 ---
