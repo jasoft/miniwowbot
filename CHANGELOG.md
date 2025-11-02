@@ -1,5 +1,92 @@
 # 更新日志
 
+## [重构] 整合模拟器相关代码到 emulator_manager.py - 2025-11-02
+
+### 功能描述
+
+将 `auto_dungeon.py` 中的模拟器检测和启动相关函数整合到 `EmulatorManager` 类中，避免代码重复，提高代码可维护性。
+
+### 整合内容
+
+#### 新增方法到 EmulatorManager 类
+
+1. **check_bluestacks_running()** - 检查 BlueStacks 模拟器是否正在运行
+   - 支持 macOS、Windows、Linux 三个平台
+   - 使用平台特定的命令检查进程
+
+2. **start_bluestacks()** - 启动 BlueStacks 模拟器（默认实例）
+   - 支持 macOS、Windows、Linux 三个平台
+   - 自动等待模拟器启动完成（最多 60 秒）
+   - 添加了 `@timeout_decorator(300)` 装饰器
+
+3. **ensure_adb_connection()** - 确保 ADB 连接已建立
+   - 执行 `adb devices` 建立连接
+   - 检查是否有设备连接
+   - 返回连接状态
+
+#### 删除的代码
+
+从 `auto_dungeon.py` 中删除了以下函数（已移至 EmulatorManager）：
+- `check_bluestacks_running()` - 第 85-114 行
+- `start_bluestacks()` - 第 117-182 行
+- `ensure_adb_connection()` - 第 185-222 行
+
+#### 删除的导入
+
+从 `auto_dungeon.py` 中删除了不再需要的导入：
+- `subprocess`
+- `platform`
+
+#### 清理 emulator_manager.py
+
+删除了未使用的代码：
+- `running_emulators` 属性
+- `PORT_TO_INSTANCE` 常量
+- `ADB` 导入
+
+### 更新的调用
+
+`auto_dungeon.py` 中的 `check_and_start_emulator()` 函数现在使用 `emulator_manager` 中的新方法：
+
+```python
+# 原有代码
+if check_bluestacks_running():
+    ...
+if not start_bluestacks():
+    ...
+if not ensure_adb_connection():
+    ...
+
+# 新代码
+if emulator_manager.check_bluestacks_running():
+    ...
+if not emulator_manager.start_bluestacks():
+    ...
+if not emulator_manager.ensure_adb_connection():
+    ...
+```
+
+### 优势
+
+- ✅ **集中管理** - 所有模拟器相关操作都在 EmulatorManager 中
+- ✅ **避免重复** - 消除了代码重复
+- ✅ **提高可维护性** - 修改模拟器逻辑只需改一个地方
+- ✅ **便于扩展** - 后续添加新功能更容易
+- ✅ **代码整洁** - auto_dungeon.py 更专注于业务逻辑
+
+### 向后兼容性
+
+- ✅ 所有公共 API 保持不变
+- ✅ 现有代码无需修改即可继续使用
+- ✅ 功能完全相同，只是代码组织方式改变
+
+### 相关文件修改
+
+- `emulator_manager.py` - 添加 3 个新方法，删除未使用的代码
+- `auto_dungeon.py` - 删除 3 个函数，更新调用方式，删除不必要的导入
+
+---
+
 ## [功能] 在 Loki 中添加配置文件名称标签 - 2025-11-02
 
 ### 功能描述

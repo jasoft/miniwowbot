@@ -10,12 +10,7 @@ import time
 
 import os
 from typing import Dict, Optional
-
-# 导入 Airtest 的 ADB 模块
-try:
-    from airtest.core.android.adb import ADB
-except ImportError:
-    ADB = None
+from wrapt_timeout_decorator import timeout as timeout_decorator
 
 # 导入通用日志配置模块
 from logger_config import setup_logger_from_config  # noqa: E402
@@ -34,17 +29,8 @@ class EmulatorManager:
         "127.0.0.1:5585": "Tiramisu64_3",  # 第四个实例，网络连接端口 5585
     }
 
-    # 网络连接端口到 BlueStacks 实例名称的映射（用于启动时检查）
-    PORT_TO_INSTANCE = {
-        5555: "Tiramisu64",
-        5565: "Tiramisu64_1",
-        5575: "Tiramisu64_2",
-        5585: "Tiramisu64_3",
-    }
-
     def __init__(self):
         self.system = platform.system()
-        self.running_emulators = {}
         self.adb_path = self._get_adb_path()
 
     @staticmethod
@@ -359,4 +345,145 @@ class EmulatorManager:
 
         except Exception as e:
             logger.error(f"❌ 检查设备连接失败: {e}")
+            return False
+
+    def check_bluestacks_running(self) -> bool:
+        """
+        检查BlueStacks模拟器是否正在运行
+
+        Returns:
+            bool: 如果BlueStacks正在运行返回True，否则返回False
+        """
+        try:
+            if self.system == "Darwin":  # macOS
+                result = subprocess.run(
+                    ["pgrep", "-f", "BlueStacks"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                return result.returncode == 0
+            elif self.system == "Windows":
+                result = subprocess.run(
+                    ["tasklist", "/FI", "IMAGENAME eq HD-Player.exe"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                return "HD-Player.exe" in result.stdout
+            else:  # Linux
+                result = subprocess.run(
+                    ["pgrep", "-f", "bluestacks"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                return result.returncode == 0
+        except Exception as e:
+            logger.warning(f"⚠️ 检查BlueStacks状态失败: {e}")
+            return False
+
+    @timeout_decorator(300, timeout_exception=TimeoutError)
+    def start_bluestacks(self) -> bool:
+        """
+        启动BlueStacks模拟器（默认实例）
+
+        Returns:
+            bool: 启动成功返回True，失败返回False
+        """
+        try:
+            logger.info("🚀 正在启动BlueStacks模拟器...")
+
+            if self.system == "Darwin":  # macOS
+                # macOS上通过open命令启动应用
+                subprocess.Popen(
+                    ["open", "-a", "BlueStacks"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            elif self.system == "Windows":
+                # Windows上启动BlueStacks
+                # 常见安装路径
+                paths = [
+                    r"C:\Program Files\BlueStacks_nxt\HD-Player.exe",
+                    r"C:\Program Files (x86)\BlueStacks_nxt\HD-Player.exe",
+                    r"C:\Program Files\BlueStacks\HD-Player.exe",
+                    r"C:\Program Files (x86)\BlueStacks\HD-Player.exe",
+                ]
+                for path in paths:
+                    if os.path.exists(path):
+                        subprocess.Popen(
+                            [path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                        )
+                        break
+                else:
+                    logger.error("❌ 未找到BlueStacks安装路径")
+                    return False
+            else:  # Linux
+                # Linux上通过命令启动
+                subprocess.Popen(
+                    ["bluestacks"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                )
+
+            # 等待模拟器启动
+            logger.info("⏳ 等待模拟器启动...")
+            max_wait_time = 60  # 最多等待60秒
+            wait_interval = 5
+            elapsed = 0
+
+            while elapsed < max_wait_time:
+                time.sleep(wait_interval)
+                elapsed += wait_interval
+                if self.check_bluestacks_running():
+                    logger.info(f"✅ BlueStacks已启动 (耗时 {elapsed} 秒)")
+                    # 额外等待一段时间让模拟器完全就绪
+                    logger.info("⏳ 等待模拟器完全就绪...")
+                    time.sleep(10)
+                    return True
+                logger.info(f"⏳ 继续等待... ({elapsed}/{max_wait_time}秒)")
+
+            logger.error("❌ BlueStacks启动超时")
+            return False
+
+        except Exception as e:
+            logger.error(f"❌ 启动BlueStacks失败: {e}")
+            return False
+
+    def ensure_adb_connection(self) -> bool:
+        """
+        确保ADB连接已建立
+        无论模拟器是否刚启动，都执行一次adb devices来建立连接
+
+        Returns:
+            bool: 连接成功返回True，失败返回False
+        """
+        try:
+            logger.info("🔌 执行 adb devices 建立连接...")
+            result = subprocess.run(
+                [self.adb_path, "devices"], capture_output=True, text=True, timeout=10
+            )
+
+            if result.returncode == 0:
+                # 检查是否有设备连接
+                lines = result.stdout.strip().split("\n")
+                devices = [line for line in lines if "\tdevice" in line]
+
+                if devices:
+                    logger.info(f"✅ 发现 {len(devices)} 个设备:")
+                    for device in devices:
+                        logger.info(f"  📱 {device}")
+                    return True
+                else:
+                    logger.warning("⚠️ 未发现已连接的设备")
+                    # 即使没有设备，也返回True，让后续的connect_device处理
+                    return True
+            else:
+                logger.error(f"❌ adb devices 执行失败: {result.stderr}")
+                return False
+
+        except FileNotFoundError:
+            logger.error("❌ 未找到adb命令，请确保Android SDK已安装并配置环境变量")
+            return False
+        except Exception as e:
+            logger.error(f"❌ 执行adb devices失败: {e}")
             return False
