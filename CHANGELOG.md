@@ -60,10 +60,12 @@
 
 ### Logger Name 说明
 
-`logging_setup` 中的 `name` 参数是日志记录器的唯一标识符，用于：
-1. 区分不同模块或组件的日志
-2. 在 Loki 中作为 `logger` 标签，用于日志查询和过滤
-3. 支持日志记录器的层级结构
+`logging_setup` 中的 `name` 参数是日志记录器的唯一标识符，**仅在 Loki 中有意义**：
+- **Loki 中的作用**：作为 `logger` 标签，用于日志查询和过滤
+- **Console 输出**：默认不显示 logger name（除非在日志格式中明确添加 `%(name)s`）
+- **层级结构**：支持日志记录器的层级结构（如 `miniwow.auto_dungeon`）
+
+**重要**：如果需要在 console 输出中显示 logger name，可以在创建日志记录器时指定 log_format 包含 `%(name)s`。
 
 示例：
 ```python

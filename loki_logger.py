@@ -204,14 +204,22 @@ def create_loki_logger(
     创建一个带 Loki 支持的日志记录器
 
     Args:
-        name: 日志记录器名称
-        level: 日志级别
-        log_format: 日志格式
-        loki_url: Loki 服务地址
-        enable_loki: 是否启用 Loki
+        name: 日志记录器名称（仅在 Loki 中有意义，console 输出中不显示）
+              用于在 Loki 中作为 logger 标签，区分不同模块的日志
+              示例: "miniwow", "miniwow.auto_dungeon", "miniwow.emulator_manager"
+        level: 日志级别 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        log_format: 日志格式字符串，默认为 "%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s"
+                   如需在 console 中显示 logger name，可添加 %(name)s
+        loki_url: Loki 服务地址，如 http://localhost:3100
+        enable_loki: 是否启用 Loki 日志上传
 
     Returns:
         配置好的日志记录器
+
+    Note:
+        - name 参数仅在 Loki 中有意义，用于日志查询和过滤
+        - console 输出中默认不显示 logger name
+        - 如需在 console 中显示 logger name，可在 log_format 中添加 %(name)s
     """
     # 从环境变量加载配置
     if loki_url is None:
@@ -252,4 +260,3 @@ def create_loki_logger(
             print(f"⚠️ 添加 Loki 处理器失败: {e}")
 
     return logger
-

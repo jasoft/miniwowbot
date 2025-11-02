@@ -184,9 +184,10 @@ def setup_logger(
     设置日志记录器
 
     Args:
-        name: 日志记录器名称
-        level: 日志级别
-        log_format: 日志格式
+        name: 日志记录器名称（仅在 Loki 中有意义，console 输出中不显示）
+              用于在 Loki 中作为 logger 标签，区分不同模块的日志
+        level: 日志级别 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        log_format: 日志格式字符串
         date_format: 时间格式
         use_color: 是否使用彩色日志
         enable_loki: 是否启用 Loki 日志上传
@@ -195,6 +196,11 @@ def setup_logger(
 
     Returns:
         配置好的日志记录器
+
+    Note:
+        - name 参数仅在 Loki 中有意义，用于日志查询和过滤
+        - console 输出中默认不显示 logger name
+        - 如需在 console 中显示 logger name，可在 log_format 中添加 %(name)s
     """
     return LoggerConfig.configure_logger(
         logger_name=name,
