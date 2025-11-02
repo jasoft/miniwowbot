@@ -290,3 +290,42 @@ def setup_logger_from_config(
     except Exception as e:
         print(f"⚠️ 从配置文件加载日志配置失败: {e}，使用默认配置")
         return setup_logger(name="miniwow", level="INFO", use_color=use_color)
+
+
+def update_all_loki_labels(loki_labels: Dict[str, str]) -> None:
+    """
+    更新所有日志记录器的 Loki 标签
+
+    这个函数用于在运行时更新所有已创建的日志记录器的 Loki 标签。
+    特别适用于在加载配置文件后，需要添加 config 标签的场景。
+
+    Args:
+        loki_labels: 要添加或更新的标签字典，如 {"config": "account1"}
+
+    Example:
+        # 在 auto_dungeon.py 中加载配置后调用
+        config_name = config_loader.get_config_name()
+        update_all_loki_labels({"config": config_name})
+    """
+    if not loki_labels:
+        return
+
+    # 获取所有已创建的日志记录器
+    for logger_name in logging.Logger.manager.loggerDict:
+        logger = logging.getLogger(logger_name)
+        if not isinstance(logger, logging.Logger):
+            continue
+
+        # 更新所有 LokiHandler 的标签
+        for handler in logger.handlers:
+            if handler.__class__.__name__ == "LokiHandler":
+                # 更新标签
+                if hasattr(handler, "labels"):
+                    handler.labels.update(loki_labels)
+
+    # 也更新 root logger
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers:
+        if handler.__class__.__name__ == "LokiHandler":
+            if hasattr(handler, "labels"):
+                handler.labels.update(loki_labels)

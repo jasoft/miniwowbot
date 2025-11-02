@@ -32,7 +32,7 @@ airtest_logger.setLevel(logging.ERROR)
 
 
 # 导入通用日志配置模块
-from logger_config import setup_logger_from_config  # noqa: E402
+from logger_config import setup_logger_from_config, update_all_loki_labels  # noqa: E402
 
 # 导入自定义的数据库模块和配置
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -1315,6 +1315,10 @@ def initialize_configs(config_path, env_overrides=None):
         logger = setup_logger_from_config(
             use_color=True, loki_labels={"config": config_name}
         )
+
+        # 更新所有已创建的日志记录器的 Loki 标签
+        # 这样 emulator_manager, ocr_helper 等模块的日志也会包含 config 标签
+        update_all_loki_labels({"config": config_name})
 
         # 应用环境变量覆盖
         if env_overrides:

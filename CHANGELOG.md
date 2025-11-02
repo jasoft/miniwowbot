@@ -1,5 +1,45 @@
 # 更新日志
 
+## [功能] 所有 Loki 日志添加 config 标签 - 2025-11-02
+
+### 功能描述
+
+为所有 Loki 日志添加 config 标签，标签值为当前加载的配置文件名称。这样可以在 Grafana 中快速区分不同账号和职业的日志。
+
+### 实现方式
+
+1. **新增函数** - `logger_config.py`
+   - `update_all_loki_labels(loki_labels: Dict[str, str])` - 在运行时更新所有日志记录器的 Loki 标签
+
+2. **修改文件** - `auto_dungeon.py`
+   - 在 `initialize_configs()` 中调用 `update_all_loki_labels()` 确保所有模块的日志都包含 config 标签
+   - 导入 `update_all_loki_labels` 函数
+
+### 效果
+
+- ✅ 所有日志记录器（包括 emulator_manager, ocr_helper 等）都会自动包含 config 标签
+- ✅ config 标签值为当前加载的配置文件名称（如 account1, warrior 等）
+- ✅ 在 Grafana 中可以通过 `{config="account1"}` 快速查询特定配置的所有日志
+- ✅ 支持多账号、多职业的日志隔离和查询
+
+### Grafana 查询示例
+
+```
+# 查询 account1 配置的所有日志
+{config="account1"}
+
+# 查询 account1 配置的 ERROR 日志
+{config="account1"} | json | level="ERROR"
+
+# 查询 account1 配置中 auto_dungeon.py 的日志
+{config="account1"} | json | filename="auto_dungeon.py"
+
+# 查询多个配置的日志
+{config=~"account1|account2"}
+```
+
+---
+
 ## [重构] 整合模拟器相关代码到 emulator_manager.py - 2025-11-02
 
 ### 功能描述
