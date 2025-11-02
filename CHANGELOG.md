@@ -1,5 +1,47 @@
 # 更新日志
 
+## [修复] Grafana 中中文显示为 Unicode 转义序列的问题 - 2025-11-02
+
+### 问题描述
+
+在 Grafana 中查看日志时，中文字符显示为 Unicode 转义序列，例如：
+```
+\u5185\u7f6e\u81ea\u52a8\u6218\u6597: False
+```
+
+### 解决方案
+
+1. **在 json.dumps() 中添加 ensure_ascii=False 参数**
+   - 保留中文字符，不转义为 Unicode 转义序列
+   - 确保 JSON 字符串中的中文正确保存
+
+2. **在 requests.post() 中添加 Content-Type 请求头**
+   - 指定 `Content-Type: application/json; charset=utf-8`
+   - 确保 HTTP 请求正确传输 UTF-8 编码的中文字符
+
+### 修改的文件
+
+- **loki_logger.py**
+  - 第 129 行：`json.dumps()` 添加 `ensure_ascii=False`
+  - 第 146 行：`requests.post()` 添加 `Content-Type` 请求头
+
+### 修复后的效果
+
+**Grafana 中的日志现在正确显示中文：**
+```json
+{
+  "level": "INFO",
+  "logger": "miniwow",
+  "message": "内置自动战斗: False",
+  "module": "auto_dungeon",
+  "function": "main",
+  "line": 1725,
+  "filename": "auto_dungeon.py"
+}
+```
+
+---
+
 ## [功能] 在所有主要文件中添加 Loki 日志支持 - 2025-11-02
 
 ### 概述
