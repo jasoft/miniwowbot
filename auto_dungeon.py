@@ -79,6 +79,7 @@ zone_dungeons = None
 ocr_helper = None
 emulator_manager = None
 target_emulator = None  # 目标模拟器名称
+config_name = None  # 配置文件名称（用于 Loki 标签）
 
 
 def check_bluestacks_running():
@@ -1436,7 +1437,7 @@ def initialize_configs(config_path, env_overrides=None):
         config_path: 配置文件路径
         env_overrides: 环境变量覆盖列表，格式为 ['key=value', ...]
     """
-    global config_loader, system_config, zone_dungeons
+    global config_loader, system_config, zone_dungeons, config_name, logger
 
     # 加载系统配置
     try:
@@ -1448,6 +1449,14 @@ def initialize_configs(config_path, env_overrides=None):
     # 加载用户配置
     try:
         config_loader = load_config(config_path)
+
+        # 获取配置文件名称，用于 Loki 标签
+        config_name = config_loader.get_config_name()
+
+        # 重新初始化日志，添加配置文件名称标签
+        logger = setup_logger_from_config(
+            use_color=True, loki_labels={"config": config_name}
+        )
 
         # 应用环境变量覆盖
         if env_overrides:
@@ -1657,7 +1666,7 @@ def run_dungeon_traversal(db, total_dungeons):
 
 def main_wrapper():
     """主函数包装器 - 处理超时和重启逻辑"""
-    global config_loader, system_config, zone_dungeons, ocr_helper
+    global config_loader, system_config, zone_dungeons, ocr_helper, logger
 
     max_restarts = 3  # 最大重启次数
     restart_count = 0
@@ -1724,7 +1733,7 @@ def main_wrapper():
 
 def main():
     """主函数 - 副本自动遍历脚本入口"""
-    global config_loader, system_config, zone_dungeons, ocr_helper
+    global config_loader, system_config, zone_dungeons, ocr_helper, logger
 
     # 1. 解析命令行参数
     args = parse_arguments()

@@ -254,6 +254,7 @@ LOG_LEVELS = {
 def setup_logger_from_config(
     config_file: str = "system_config.json",
     use_color: bool = True,
+    loki_labels: Optional[Dict] = None,
 ) -> logging.Logger:
     """
     从系统配置文件中加载日志配置并创建日志记录器
@@ -261,6 +262,7 @@ def setup_logger_from_config(
     Args:
         config_file: 系统配置文件路径
         use_color: 是否使用彩色日志
+        loki_labels: 额外的 Loki 标签字典，如 {"config": "account1"}
 
     Returns:
         配置好的日志记录器
@@ -283,6 +285,7 @@ def setup_logger_from_config(
             use_color=use_color,
             enable_loki=enable_loki,
             loki_url=loki_url,
+            loki_labels=loki_labels,
         )
     except Exception as e:
         print(f"⚠️ 从配置文件加载日志配置失败: {e}，使用默认配置")
