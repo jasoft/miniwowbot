@@ -134,7 +134,8 @@ class LokiHandler(logging.Handler):
                                     "module": log_entry["module"],
                                     "function": log_entry["function"],
                                     "line": log_entry["line"],
-                                }
+                                },
+                                ensure_ascii=False,
                             ),
                         ]
                     ],
@@ -143,9 +144,11 @@ class LokiHandler(logging.Handler):
 
             # 发送到 Loki
             payload = {"streams": streams}
+            headers = {"Content-Type": "application/json; charset=utf-8"}
             response = requests.post(
                 f"{self.loki_url}/loki/api/v1/push",
                 json=payload,
+                headers=headers,
                 timeout=5,
             )
 
