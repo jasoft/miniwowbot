@@ -63,7 +63,27 @@ class TestParseGoldAmount:
     def test_parse_gold_missing_k(self):
         """测试缺少 k 的文本"""
         result = parse_gold_amount("一口价 2000 金币")
-        assert result is None, f"期望 None，实际 {result}"
+        assert result == 2000, f"期望 2000，实际 {result}"
+
+    def test_parse_gold_uppercase_k(self):
+        """测试大写 K 格式 '一口价2000K金币'"""
+        result = parse_gold_amount("一口价2000K金币")
+        assert result == 2000000, f"期望 2000000，实际 {result}"
+
+    def test_parse_gold_uppercase_k_with_space(self):
+        """测试大写 K 格式带空格 '一口价 2000 K 金币'"""
+        result = parse_gold_amount("一口价 2000 K 金币")
+        assert result == 2000000, f"期望 2000000，实际 {result}"
+
+    def test_parse_gold_no_k_suffix(self):
+        """测试不带 k/K 的格式 '一口价88888金币'"""
+        result = parse_gold_amount("一口价88888金币")
+        assert result == 88888, f"期望 88888，实际 {result}"
+
+    def test_parse_gold_no_k_suffix_with_space(self):
+        """测试不带 k/K 的格式带空格 '一口价 88888 金币'"""
+        result = parse_gold_amount("一口价 88888 金币")
+        assert result == 88888, f"期望 88888，实际 {result}"
 
     def test_parse_gold_less_than_100k(self):
         """测试小于 100k 的金币"""

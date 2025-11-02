@@ -78,8 +78,11 @@ def initialize_device_and_ocr(emulator_name: Optional[str] = None):
 
 def parse_gold_amount(text: str) -> Optional[int]:
     """
-    从 "一口价 xxxxk 金币" 格式的文本中解析金币数量
-    例如: "一口价 2000k 金币" -> 2000000
+    从 "一口价 xxxxk 金币" 或 "一口价 xxxxx 金币" 格式的文本中解析金币数量
+    例如:
+    - "一口价 2000k 金币" -> 2000000
+    - "一口价2000K金币" -> 2000000
+    - "一口价88888金币" -> 88888
 
     Args:
         text: 要解析的文本
@@ -87,17 +90,28 @@ def parse_gold_amount(text: str) -> Optional[int]:
     Returns:
         金币数量（整数），如果解析失败返回 None
     """
-    # 匹配 "一口价 XXXk 金币" 的模式
-    match = re.search(r"一口价\s*(\d+(?:\.\d+)?)\s*k\s*金币", text)
+    # 先尝试匹配带 k/K 的格式: "一口价 XXXk 金币" 或 "一口价XXXk金币"
+    match = re.search(r"一口价\s*(\d+(?:\.\d+)?)\s*[kK]\s*金币", text)
     if match:
         amount_str = match.group(1)
         try:
             amount = float(amount_str)
-            # k 表示千位
+            # k/K 表示千位
             amount *= 1000
             return int(amount)
         except ValueError:
             return None
+
+    # 再尝试匹配不带 k/K 的格式: "一口价 XXXXX 金币"
+    match = re.search(r"一口价\s*(\d+(?:\.\d+)?)\s*金币", text)
+    if match:
+        amount_str = match.group(1)
+        try:
+            amount = float(amount_str)
+            return int(amount)
+        except ValueError:
+            return None
+
     return None
 
 
@@ -159,8 +173,8 @@ def find_all_matching_prices(price_threshold: int) -> list:
         for text_info in all_texts:
             text = text_info["text"].strip()
 
-            # 检查是否符合 "一口价 xxxxk 金币" 模式
-            if re.search(r"一口价\s*\d+\s*k\s*金币", text):
+            # 检查是否符合 "一口价 xxxxk 金币" 或 "一口价 xxxxx 金币" 模式
+            if re.search(r"一口价\s*\d+\s*[kK]?\s*金币", text):
                 logger.info(f"\n✅ 找到匹配文本: {text}")
 
                 # 解析价格
