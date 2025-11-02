@@ -24,6 +24,7 @@ from logger_config import setup_logger_from_config
 from ocr_helper import OCRHelper
 from emulator_manager import EmulatorManager
 
+logging.getLogger("airtest").setLevel(logging.ERROR)
 # 设置日志
 logger = setup_logger_from_config(use_color=True)
 
@@ -78,7 +79,10 @@ def initialize_device_and_ocr(emulator_name: Optional[str] = None):
 def parse_gold_amount(text: str) -> Optional[int]:
     """
     从文本中解析金币数量
-    例如: "一口价2000k金币" -> 2000000
+    支持以下格式:
+    - "2000k" -> 2000000
+    - "89888" -> 89888
+    - "2.5k" -> 2500
 
     Args:
         text: 要解析的文本
@@ -86,15 +90,17 @@ def parse_gold_amount(text: str) -> Optional[int]:
     Returns:
         金币数量（整数），如果解析失败返回 None
     """
-    # 匹配 "一口价XXXk金币" 或 "一口价XXX金币" 的模式，支持空格
-    match = re.search(r"一口价\s*(\d+(?:\.\d+)?)\s*k?\s*金币", text)
+    # 移除空格
+    text = text.strip()
+
+    # 匹配 "XXXk" 或 "XXX" 的模式
+    match = re.search(r"(\d+(?:\.\d+)?)\s*k?", text)
     if match:
         amount_str = match.group(1)
         try:
             amount = float(amount_str)
-            # 检查是否有 'k' 后缀（在数字和金币之间）
-            matched_text = text[match.start() : match.end()]
-            if "k" in matched_text:
+            # 检查是否有 'k' 后缀
+            if "k" in text[match.start() : match.end()]:
                 amount *= 1000
             return int(amount)
         except ValueError:
@@ -104,30 +110,124 @@ def parse_gold_amount(text: str) -> Optional[int]:
 
 def find_gold_price_text() -> Optional[dict]:
     """
-    查找全屏幕中的一口价金币文字
+    查找全屏幕中的一口价按钮及其旁边的价格信息
 
     Returns:
-        包含文字信息的字典，如果未找到返回 None
+        包含价格信息的字典，格式:
+        {
+            "found": bool,
+            "price": int,  # 金币数量
+            "price_text": str,  # 原始价格文本
+            "button_pos": tuple,  # 一口价按钮位置
+            "price_pos": tuple,  # 价格文本位置
+        }
+        如果未找到返回 None
     """
     if ocr_helper is None:
         logger.error("❌ OCR助手未初始化")
         return None
 
     try:
-        # 使用 OCRHelper 进行全屏幕 OCR
-        result = ocr_helper.capture_and_find_text(
-            "一口价",
-            confidence_threshold=0.6,
-            use_cache=False,
+        # 截图并获取全屏幕的所有文字
+        import tempfile
+        import uuid
+        from datetime import datetime
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        unique_id = str(uuid.uuid4())[:8]
+        screenshot_path = os.path.join(
+            tempfile.gettempdir(), f"market_screenshot_{timestamp}_{unique_id}.png"
         )
 
-        if result and result.get("found"):
-            logger.info(f"✅ 找到文字: {result.get('text')}")
-            return result
+        # 截图
+        from airtest.core.api import snapshot
 
-        return None
+        snapshot(filename=screenshot_path)
+
+        # 获取全屏幕的所有文字
+        all_texts = ocr_helper.get_all_texts_from_image(screenshot_path)
+
+        if not all_texts:
+            logger.warning("⚠️ 未识别到任何文字")
+            return None
+
+        # 查找"一口价"按钮
+        button_index = None
+        button_pos = None
+
+        for i, text_info in enumerate(all_texts):
+            if "一口价" in text_info["text"]:
+                button_index = i
+                button_pos = text_info["center"]
+                logger.info(
+                    f"✅ 找到一口价按钮: {text_info['text']} 位置: {button_pos}"
+                )
+                break
+
+        if button_index is None:
+            logger.warning("⚠️ 未找到一口价按钮")
+            return None
+
+        # 查找一口价按钮右侧的价格信息
+        # 价格通常在按钮的右侧，我们查找距离最近的数字文本
+        button_x, button_y = button_pos
+
+        best_price_info = None
+        best_distance = float("inf")
+
+        for i, text_info in enumerate(all_texts):
+            if i == button_index:
+                continue
+
+            text = text_info["text"].strip()
+
+            # 检查是否是价格文本（包含数字和可能的 'k'）
+            if re.search(r"\d+", text):
+                price_x, price_y = text_info["center"]
+
+                # 计算距离（优先考虑右侧的文本，且 Y 坐标接近）
+                # 如果在右侧（x > button_x）且 Y 坐标接近（|y - button_y| < 50）
+                if price_x > button_x and abs(price_y - button_y) < 50:
+                    distance = price_x - button_x
+                    if distance < best_distance:
+                        best_distance = distance
+                        best_price_info = text_info
+
+        if best_price_info is None:
+            logger.warning("⚠️ 未找到价格信息")
+            return None
+
+        price_text = best_price_info["text"].strip()
+        price_pos = best_price_info["center"]
+
+        # 解析价格
+        price = parse_gold_amount(price_text)
+
+        if price is None:
+            logger.warning(f"⚠️ 无法解析价格: {price_text}")
+            return None
+
+        logger.info(f"💰 识别到价格: {price_text} ({price} 金币) 位置: {price_pos}")
+
+        # 清理临时截图
+        try:
+            os.remove(screenshot_path)
+        except Exception:
+            pass
+
+        return {
+            "found": True,
+            "price": price,
+            "price_text": price_text,
+            "button_pos": button_pos,
+            "price_pos": price_pos,
+        }
+
     except Exception as e:
         logger.error(f"❌ OCR 查找失败: {e}")
+        import traceback
+
+        logger.error(traceback.format_exc())
         return None
 
 
@@ -221,39 +321,33 @@ def auto_market_query(
             # 2. 等待一段时间让界面刷新
             sleep(2)
 
-            # 3. 查找一口价文字
-            text_result = find_gold_price_text()
+            # 3. 查找一口价按钮及其旁边的价格
+            price_result = find_gold_price_text()
 
-            if text_result:
-                text = text_result.get("text", "")
-                text_pos = text_result.get("center", (0, 0))
+            if price_result and price_result.get("found"):
+                price = price_result.get("price")
+                price_text = price_result.get("price_text", "")
+                price_pos = price_result.get("price_pos", (0, 0))
 
-                logger.info(f"📝 识别文字: {text}")
+                logger.info(f"📝 识别价格: {price_text}")
+                logger.info(f"💰 金币数量: {price}")
 
-                # 4. 解析金币数量
-                gold_amount = parse_gold_amount(text)
+                # 4. 检查是否 < 100k
+                if price < 100000:
+                    logger.info(f"🎯 金币数量 ({price}) < 100k，执行购买流程")
 
-                if gold_amount is not None:
-                    logger.info(f"💰 金币数量: {gold_amount}")
+                    # 点击一口价按钮（基于价格位置计算）
+                    click_one_key_price_button(price_pos)
+                    sleep(1)
 
-                    # 5. 检查是否 < 100k
-                    if gold_amount < 100000:
-                        logger.info(f"🎯 金币数量 ({gold_amount}) < 100k，执行购买流程")
+                    # 点击确定按钮
+                    click_confirm_button(confirm_button_pos)
 
-                        # 点击一口价按钮
-                        click_one_key_price_button(text_pos)
-                        sleep(1)
-
-                        # 点击确定按钮
-                        click_confirm_button(confirm_button_pos)
-
-                        logger.info("✅ 购买流程完成")
-                    else:
-                        logger.info(f"⏭️ 金币数量 ({gold_amount}) >= 100k，跳过购买")
+                    logger.info("✅ 购买流程完成")
                 else:
-                    logger.warning(f"⚠️ 无法解析金币数量: {text}")
+                    logger.info(f"⏭️ 金币数量 ({price}) >= 100k，跳过购买")
             else:
-                logger.warning("⚠️ 未找到一口价文字")
+                logger.warning("⚠️ 未找到一口价按钮或价格信息")
 
             # 6. 等待指定间隔后继续
             logger.info(f"⏳ 等待 {interval} 秒后继续...")
