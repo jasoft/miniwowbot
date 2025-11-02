@@ -1,5 +1,102 @@
 # 更新日志
 
+## [功能] 在所有主要文件中添加 Loki 日志支持 - 2025-11-02
+
+### 概述
+
+完成了在所有主要输出日志的文件中添加 Loki 支持，确保 console 和 Loki 中的日志输出内容一致，包括文件名和行号。
+
+### 更新的文件
+
+#### 主程序文件
+- **auto_dungeon.py** - 使用 `setup_logger_from_config()` 从配置文件加载 Loki 配置
+- **emulator_manager.py** - 使用 `setup_logger_from_config()` 从配置文件加载 Loki 配置
+- **config_loader.py** - 使用 `setup_logger_from_config()` 从配置文件加载 Loki 配置
+- **ocr_helper.py** - 使用 `setup_logger_from_config()` 从配置文件加载 Loki 配置
+- **database/dungeon_db.py** - 使用 `setup_logger_from_config()` 从配置文件加载 Loki 配置
+
+#### 配置文件
+- **system_config_loader.py** - 使用 `setup_logger()` 避免循环依赖
+- **system_config.json** - 启用 Loki 和 Grafana，配置为 docker.home 地址
+
+### 日志输出一致性
+
+所有日志现在都支持 Loki，console 和 Loki 中的输出内容完全一致：
+
+**Console 输出示例：**
+```
+14:30:45 INFO auto_dungeon.py:1725 应用启动
+14:30:46 WARNING emulator_manager.py:156 模拟器连接超时
+14:30:47 ERROR ocr_helper.py:892 OCR 识别失败
+```
+
+**Loki 中的日志（JSON 格式）：**
+```json
+{
+  "level": "INFO",
+  "logger": "miniwow",
+  "message": "应用启动",
+  "module": "auto_dungeon",
+  "function": "main",
+  "line": 1725,
+  "filename": "auto_dungeon.py"
+}
+```
+
+### 配置说明
+
+在 `system_config.json` 中配置 Loki 和 Grafana：
+
+```json
+{
+  "loki": {
+    "enabled": true,
+    "server": "http://docker.home:3100",
+    "app_name": "miniwow",
+    "buffer_size": 50,
+    "upload_interval": 5
+  },
+  "grafana": {
+    "enabled": true,
+    "server": "http://docker.home:3099",
+    "username": "admin",
+    "password": "admin"
+  }
+}
+```
+
+### 使用方式
+
+所有文件现在都自动从 `system_config.json` 加载 Loki 配置，无需修改代码：
+
+```python
+# 自动从 system_config.json 加载配置
+logger = setup_logger_from_config(use_color=True)
+
+# 记录日志（同时输出到 console 和 Loki）
+logger.info("应用启动")
+logger.warning("警告信息")
+logger.error("错误信息")
+```
+
+### 在 Grafana 中查询日志
+
+```
+# 查询所有日志
+{app="miniwow"}
+
+# 查询特定模块的日志
+{app="miniwow"} | json | module="auto_dungeon"
+
+# 查询 ERROR 级别的日志
+{app="miniwow"} | json | level="ERROR"
+
+# 查询特定文件的日志
+{app="miniwow"} | json | filename="auto_dungeon.py"
+```
+
+---
+
 ## [重构] 日志系统命名和配置优化 - 2025-11-02
 
 ### 概述
