@@ -1,0 +1,341 @@
+"""
+自动化市场查询脚本
+每 5 秒点击一次查询按钮，识别全屏幕文字，匹配一口价金币数量
+如果金币数 < 100k，自动点击一口价按钮并确定
+"""
+
+import time
+import sys
+import os
+import logging
+import re
+from typing import Optional, Tuple
+
+from airtest.core.api import (
+    auto_setup,
+    connect_device,
+    touch,
+    sleep,
+    start_app,
+)
+
+# 导入通用日志配置模块
+from logger_config import setup_logger_from_config
+from ocr_helper import OCRHelper
+from emulator_manager import EmulatorManager
+
+# 设置日志
+logger = setup_logger_from_config(use_color=True)
+
+# 全局变量
+ocr_helper = None
+emulator_manager = None
+
+
+def initialize_device_and_ocr(emulator_name: Optional[str] = None):
+    """
+    初始化设备连接和OCR助手
+
+    Args:
+        emulator_name: 模拟器网络地址，如 '127.0.0.1:5555'
+    """
+    global ocr_helper, emulator_manager
+
+    # 确定连接字符串
+    if emulator_name:
+        if emulator_manager is None:
+            emulator_manager = EmulatorManager()
+
+        # 获取设备列表
+        devices = emulator_manager.get_adb_devices()
+        if emulator_name not in devices:
+            logger.warning(f"⚠️ 模拟器 {emulator_name} 不在设备列表中")
+            logger.info(f"   可用设备: {list(devices.keys()) if devices else '无'}")
+            raise RuntimeError(f"模拟器 {emulator_name} 不可用")
+
+        connection_string = emulator_manager.get_emulator_connection_string(
+            emulator_name
+        )
+        logger.info(f"📱 连接到模拟器: {emulator_name}")
+    else:
+        connection_string = "Android:///"
+        logger.info("📱 使用默认连接字符串")
+
+    # 连接设备
+    try:
+        auto_setup(__file__)
+        logger.info("自动配置设备中...")
+        connect_device(connection_string)
+        logger.info("   ✅ 成功连接到设备")
+    except Exception as e:
+        logger.error(f"   ❌ 连接设备失败: {e}")
+        raise
+
+    if ocr_helper is None:
+        ocr_helper = OCRHelper(output_dir="output")
+
+
+def parse_gold_amount(text: str) -> Optional[int]:
+    """
+    从文本中解析金币数量
+    例如: "一口价2000k金币" -> 2000000
+
+    Args:
+        text: 要解析的文本
+
+    Returns:
+        金币数量（整数），如果解析失败返回 None
+    """
+    # 匹配 "一口价XXXk金币" 或 "一口价XXX金币" 的模式，支持空格
+    match = re.search(r"一口价\s*(\d+(?:\.\d+)?)\s*k?\s*金币", text)
+    if match:
+        amount_str = match.group(1)
+        try:
+            amount = float(amount_str)
+            # 检查是否有 'k' 后缀（在数字和金币之间）
+            matched_text = text[match.start() : match.end()]
+            if "k" in matched_text:
+                amount *= 1000
+            return int(amount)
+        except ValueError:
+            return None
+    return None
+
+
+def find_gold_price_text() -> Optional[dict]:
+    """
+    查找全屏幕中的一口价金币文字
+
+    Returns:
+        包含文字信息的字典，如果未找到返回 None
+    """
+    if ocr_helper is None:
+        logger.error("❌ OCR助手未初始化")
+        return None
+
+    try:
+        # 使用 OCRHelper 进行全屏幕 OCR
+        result = ocr_helper.capture_and_find_text(
+            "一口价",
+            confidence_threshold=0.6,
+            use_cache=False,
+        )
+
+        if result and result.get("found"):
+            logger.info(f"✅ 找到文字: {result.get('text')}")
+            return result
+
+        return None
+    except Exception as e:
+        logger.error(f"❌ OCR 查找失败: {e}")
+        return None
+
+
+def click_query_button(query_button_pos: Tuple[int, int]):
+    """
+    点击查询按钮
+
+    Args:
+        query_button_pos: 查询按钮的坐标 (x, y)
+    """
+    try:
+        touch(query_button_pos)
+        logger.info(f"🔍 点击查询按钮: {query_button_pos}")
+        sleep(1)  # 等待界面刷新
+    except Exception as e:
+        logger.error(f"❌ 点击查询按钮失败: {e}")
+
+
+def click_one_key_price_button(text_pos: Tuple[int, int]):
+    """
+    点击一口价按钮
+    根据文字位置计算按钮位置: x+400, y-30
+
+    Args:
+        text_pos: 文字位置的坐标 (x, y)
+    """
+    button_x = text_pos[0] + 400
+    button_y = text_pos[1] - 30
+
+    try:
+        touch((button_x, button_y))
+        logger.info(f"💰 点击一口价按钮: ({button_x}, {button_y})")
+        sleep(1)
+    except Exception as e:
+        logger.error(f"❌ 点击一口价按钮失败: {e}")
+
+
+def click_confirm_button(confirm_button_pos: Tuple[int, int]):
+    """
+    点击确定按钮
+
+    Args:
+        confirm_button_pos: 确定按钮的坐标 (x, y)
+    """
+    try:
+        touch(confirm_button_pos)
+        logger.info(f"✅ 点击确定按钮: {confirm_button_pos}")
+        sleep(1)
+    except Exception as e:
+        logger.error(f"❌ 点击确定按钮失败: {e}")
+
+
+def auto_market_query(
+    query_button_pos: Tuple[int, int],
+    confirm_button_pos: Tuple[int, int],
+    interval: int = 5,
+    max_iterations: Optional[int] = None,
+):
+    """
+    自动化市场查询主循环
+
+    Args:
+        query_button_pos: 查询按钮的坐标 (x, y)
+        confirm_button_pos: 确定按钮的坐标 (x, y)
+        interval: 查询间隔（秒），默认 5 秒
+        max_iterations: 最大迭代次数，None 表示无限循环
+    """
+    logger.info("=" * 60)
+    logger.info("🤖 开始自动化市场查询")
+    logger.info(f"   查询间隔: {interval} 秒")
+    logger.info(f"   查询按钮: {query_button_pos}")
+    logger.info(f"   确定按钮: {confirm_button_pos}")
+    logger.info("=" * 60)
+
+    iteration = 0
+
+    try:
+        while True:
+            iteration += 1
+
+            # 检查是否达到最大迭代次数
+            if max_iterations and iteration > max_iterations:
+                logger.info(f"✅ 已达到最大迭代次数 ({max_iterations})，停止执行")
+                break
+
+            logger.info(f"\n[{iteration}] 执行查询...")
+
+            # 1. 点击查询按钮
+            click_query_button(query_button_pos)
+
+            # 2. 等待一段时间让界面刷新
+            sleep(2)
+
+            # 3. 查找一口价文字
+            text_result = find_gold_price_text()
+
+            if text_result:
+                text = text_result.get("text", "")
+                text_pos = text_result.get("center", (0, 0))
+
+                logger.info(f"📝 识别文字: {text}")
+
+                # 4. 解析金币数量
+                gold_amount = parse_gold_amount(text)
+
+                if gold_amount is not None:
+                    logger.info(f"💰 金币数量: {gold_amount}")
+
+                    # 5. 检查是否 < 100k
+                    if gold_amount < 100000:
+                        logger.info(f"🎯 金币数量 ({gold_amount}) < 100k，执行购买流程")
+
+                        # 点击一口价按钮
+                        click_one_key_price_button(text_pos)
+                        sleep(1)
+
+                        # 点击确定按钮
+                        click_confirm_button(confirm_button_pos)
+
+                        logger.info("✅ 购买流程完成")
+                    else:
+                        logger.info(f"⏭️ 金币数量 ({gold_amount}) >= 100k，跳过购买")
+                else:
+                    logger.warning(f"⚠️ 无法解析金币数量: {text}")
+            else:
+                logger.warning("⚠️ 未找到一口价文字")
+
+            # 6. 等待指定间隔后继续
+            logger.info(f"⏳ 等待 {interval} 秒后继续...")
+            sleep(interval)
+
+    except KeyboardInterrupt:
+        logger.info("\n⛔ 用户中断，程序退出")
+    except Exception as e:
+        logger.error(f"❌ 发生错误: {e}")
+        import traceback
+
+        logger.error(traceback.format_exc())
+
+
+def main():
+    """主函数"""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="自动化市场查询脚本")
+    parser.add_argument(
+        "--query-x",
+        type=int,
+        default=360,
+        help="查询按钮 X 坐标 (默认: 360)",
+    )
+    parser.add_argument(
+        "--query-y",
+        type=int,
+        default=640,
+        help="查询按钮 Y 坐标 (默认: 640)",
+    )
+    parser.add_argument(
+        "--confirm-x",
+        type=int,
+        default=360,
+        help="确定按钮 X 坐标 (默认: 360)",
+    )
+    parser.add_argument(
+        "--confirm-y",
+        type=int,
+        default=1000,
+        help="确定按钮 Y 坐标 (默认: 1000)",
+    )
+    parser.add_argument(
+        "--interval",
+        type=int,
+        default=5,
+        help="查询间隔（秒），默认 5 秒",
+    )
+    parser.add_argument(
+        "--max-iterations",
+        type=int,
+        default=None,
+        help="最大迭代次数，默认无限循环",
+    )
+    parser.add_argument(
+        "--emulator",
+        type=str,
+        help="指定模拟器网络地址（如：127.0.0.1:5555）",
+    )
+
+    args = parser.parse_args()
+
+    # 初始化设备和OCR
+    initialize_device_and_ocr(args.emulator)
+
+    # 启动游戏
+    logger.info("启动游戏...")
+    start_app("com.ms.ysjyzr")
+    sleep(3)
+
+    # 执行自动化查询
+    query_button_pos = (args.query_x, args.query_y)
+    confirm_button_pos = (args.confirm_x, args.confirm_y)
+
+    auto_market_query(
+        query_button_pos=query_button_pos,
+        confirm_button_pos=confirm_button_pos,
+        interval=args.interval,
+        max_iterations=args.max_iterations,
+    )
+
+
+if __name__ == "__main__":
+    main()
