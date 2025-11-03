@@ -1,5 +1,55 @@
 # 更新日志
 
+## [优化] 战斗进度条显示 - 显示副本进度而非时间进度 - 2025-11-03
+
+### 优化内容
+
+修改了战斗进度条的显示方式，现在显示的是已完成副本数/总需要完成副本数，而不是时间进度。
+
+### 主要改进
+
+1. **副本进度显示** - 进度条现在显示 `[已完成/总数]` 格式，例如 `[3/10]`
+2. **向后兼容** - 当不传递副本数参数时，仍然显示时间进度（秒数）
+3. **实时更新** - 每完成一个副本，进度条自动更新
+
+### 修改的函数
+
+1. **`auto_combat(completed_dungeons=0, total_dungeons=0)`**
+   - 新增参数：`completed_dungeons` - 已完成的副本数
+   - 新增参数：`total_dungeons` - 总需要完成的副本数
+   - 当 `total_dungeons > 0` 时，显示副本进度
+   - 当 `total_dungeons == 0` 时，显示时间进度（向后兼容）
+
+2. **`process_dungeon(..., completed_dungeons=0)`**
+   - 新增参数：`completed_dungeons` - 已完成的副本数
+   - 调用 `auto_combat` 时传递副本数信息
+
+3. **`run_dungeon_traversal()`**
+   - 调用 `process_dungeon` 时传递 `processed_dungeons` 参数
+
+### 进度条格式
+
+**副本进度模式**（当提供副本数时）：
+```
+⚔️ 战斗进度 [3/10] |████████░░░░░░░░░░░░| 3/10 [00:45<02:15]
+```
+
+**时间进度模式**（向后兼容，不提供副本数时）：
+```
+⚔️ 战斗进度 |████████░░░░░░░░░░░░| 45/60s [00:45<00:15]
+```
+
+### 测试覆盖
+
+新增 5 个单元测试，全部通过：
+- ✅ `test_auto_combat_signature` - 验证函数签名
+- ✅ `test_process_dungeon_signature` - 验证参数
+- ✅ `test_auto_combat_backward_compatibility` - 验证向后兼容性
+- ✅ `test_progress_bar_format` - 验证进度条格式
+- ✅ `test_auto_combat_uses_tqdm` - 验证 tqdm 使用
+
+---
+
 ## [优化] 自动化市场查询脚本 - 支持多种价格格式 - 2025-11-02
 
 ### 优化内容

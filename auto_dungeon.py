@@ -523,8 +523,13 @@ def open_map():
 
 
 @timeout_decorator(300, timeout_exception=TimeoutError)
-def auto_combat():
-    """自动战斗，带进度条显示"""
+def auto_combat(completed_dungeons=0, total_dungeons=0):
+    """自动战斗，带进度条显示
+
+    Args:
+        completed_dungeons: 已完成的副本数
+        total_dungeons: 总需要完成的副本数
+    """
     logger.info("⚔️ 开始自动战斗")
     find_text_and_click_safe("战斗", regions=[8])
 
@@ -544,14 +549,25 @@ def auto_combat():
     logger.info(f"内置自动战斗: {builtin_auto_combat_activated}")
 
     # 使用进度条显示战斗进度
-    # 估计战斗时间为 60 秒（可根据实际调整）
-    combat_timeout = 60
+    # 如果提供了副本数信息，显示副本进度；否则显示时间进度
+    if total_dungeons > 0:
+        # 显示副本进度：已完成/总数
+        desc = f"⚔️ 战斗进度 [{completed_dungeons}/{total_dungeons}]"
+        bar_format = "{desc} |{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]"
+        total_value = total_dungeons
+    else:
+        # 显示时间进度（向后兼容）
+        desc = "⚔️ 战斗进度"
+        bar_format = "{desc} |{bar}| {n_fmt}/{total_fmt}s [{elapsed}<{remaining}]"
+        total_value = 60
+
     with tqdm(
-        total=combat_timeout,
-        desc="⚔️ 战斗进度",
-        unit="s",
+        total=total_value,
+        desc=desc,
+        unit="" if total_dungeons > 0 else "s",
         ncols=80,
-        bar_format="{desc} |{bar}| {n_fmt}/{total_fmt}s [{elapsed}<{remaining}]",
+        bar_format=bar_format,
+        initial=completed_dungeons if total_dungeons > 0 else 0,
     ) as pbar:
         start_time = time.time()
         last_update = start_time
@@ -566,8 +582,13 @@ def auto_combat():
 
             # 每 0.5 秒更新一次进度条
             if current_time - last_update >= 0.5:
-                update_amount = current_time - last_update
-                pbar.update(update_amount)
+                if total_dungeons > 0:
+                    # 副本进度模式：不需要更新（副本数在完成后更新）
+                    pass
+                else:
+                    # 时间进度模式：更新时间
+                    update_amount = current_time - last_update
+                    pbar.update(update_amount)
                 last_update = current_time
 
             if builtin_auto_combat_activated:
@@ -578,10 +599,15 @@ def auto_combat():
             touch(positions[4])
             sleep(0.5)
 
-        # 战斗完成，更新进度条到 100%
-        remaining = combat_timeout - (time.time() - start_time)
-        if remaining > 0:
-            pbar.update(remaining)
+        # 战斗完成
+        if total_dungeons > 0:
+            # 副本进度模式：更新到已完成+1
+            pbar.update(1)
+        else:
+            # 时间进度模式：更新进度条到 100%
+            remaining = total_value - (time.time() - start_time)
+            if remaining > 0:
+                pbar.update(remaining)
         pbar.close()
         logger.info("✅ 战斗完成")
 
@@ -1104,8 +1130,16 @@ def daily_collect():
 
 
 @timeout_decorator(300, timeout_exception=TimeoutError)
-def process_dungeon(dungeon_name, zone_name, index, total, db):
+def process_dungeon(dungeon_name, zone_name, index, total, db, completed_dungeons=0):
     """处理单个副本, 返回是否成功完成
+
+    Args:
+        dungeon_name: 副本名称
+        zone_name: 区域名称
+        index: 当前副本在所有副本中的索引
+        total: 总副本数
+        db: 数据库实例
+        completed_dungeons: 已完成的副本数（用于进度条显示）
 
     注意：调用此函数前应该已经检查过是否已通关
     """
@@ -1122,7 +1156,7 @@ def process_dungeon(dungeon_name, zone_name, index, total, db):
         # 进入副本战斗，退出后会回到主界面
         find_text_and_click_safe("战斗", regions=[8])
 
-        auto_combat()
+        auto_combat(completed_dungeons=completed_dungeons, total_dungeons=total)
         logger.info(f"✅ 完成: {dungeon_name}")
 
         # 记录通关状态
@@ -1513,7 +1547,12 @@ def run_dungeon_traversal(db, total_dungeons):
 
             # 完成副本后会回到主界面，需要重新打开地图
             if process_dungeon(
-                dungeon_name, zone_name, dungeon_index, total_dungeons, db
+                dungeon_name,
+                zone_name,
+                dungeon_index,
+                total_dungeons,
+                db,
+                processed_dungeons,
             ):
                 processed_dungeons += 1
                 # 每完成3个副本就卖垃圾

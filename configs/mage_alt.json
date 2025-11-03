@@ -9,19 +9,19 @@
     },
     "zone_dungeons": {
         "风暴群岛": [
-            { "name": "真理之地", "selected": false },
-            { "name": "预言神殿", "selected": false },
-            { "name": "海底王宫", "selected": false },
-            { "name": "泰坦密室", "selected": false },
-            { "name": "黑暗庄园", "selected": false },
-            { "name": "海底囚牢", "selected": false },
-            { "name": "地精岛", "selected": false },
-            { "name": "泰坦遗迹", "selected": false },
-            { "name": "海盗监狱", "selected": false },
-            { "name": "巨魔陵墓", "selected": false },
-            { "name": "毒蛇神庙", "selected": false },
-            { "name": "腐化沼泽", "selected": false },
-            { "name": "海港城", "selected": false }
+            { "name": "真理之地", "selected": true },
+            { "name": "预言神殿", "selected": true },
+            { "name": "海底王宫", "selected": true },
+            { "name": "泰坦密室", "selected": true },
+            { "name": "黑暗庄园", "selected": true },
+            { "name": "海底囚牢", "selected": true },
+            { "name": "地精岛", "selected": true },
+            { "name": "泰坦遗迹", "selected": true },
+            { "name": "海盗监狱", "selected": true },
+            { "name": "巨魔陵墓", "selected": true },
+            { "name": "毒蛇神庙", "selected": true },
+            { "name": "腐化沼泽", "selected": true },
+            { "name": "海港城", "selected": true }
         ],
         "军团领域": [
             { "name": "大墓地密室", "selected": true },

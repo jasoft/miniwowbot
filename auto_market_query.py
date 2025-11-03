@@ -284,9 +284,8 @@ def click_one_key_price_button(text_pos: Tuple[int, int]):
     Args:
         text_pos: 文字位置的坐标 (x, y)
     """
-    button_x = text_pos[0] + 400
-    button_y = text_pos[1] - 30
-
+    button_x = text_pos[0] + 268
+    button_y = text_pos[1] + 10
     try:
         touch((button_x, button_y))
         logger.info(f"💰 点击一口价按钮: ({button_x}, {button_y})")
