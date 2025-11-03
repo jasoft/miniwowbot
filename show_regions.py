@@ -9,12 +9,51 @@ import sys
 import os
 import cv2
 import numpy as np
+import argparse
+from typing import Optional
 from PIL import Image, ImageDraw, ImageFont
 from airtest.core.api import connect_device, auto_setup, snapshot
 from ocr_helper import OCRHelper
+from emulator_manager import EmulatorManager
+from logger_config import setup_logger_from_config
 
 # 添加父目录到路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# 初始化日志
+logger = setup_logger_from_config(use_color=True)
+
+
+def _get_connection_string(emulator_name: Optional[str] = None) -> str:
+    """
+    获取连接字符串
+
+    Args:
+        emulator_name: 模拟器网络地址，如 '127.0.0.1:5555'
+
+    Returns:
+        str: Airtest 连接字符串
+    """
+    if emulator_name:
+        emulator_manager = EmulatorManager()
+
+        # 获取设备列表
+        devices = emulator_manager.get_adb_devices()
+        if emulator_name not in devices:
+            logger.warning(f"⚠️ 模拟器 {emulator_name} 不在设备列表中")
+            logger.info(f"   可用设备: {list(devices.keys()) if devices else '无'}")
+            raise RuntimeError(f"模拟器 {emulator_name} 不可用")
+
+        connection_string = emulator_manager.get_emulator_connection_string(
+            emulator_name
+        )
+        logger.info(f"📱 连接到模拟器: {emulator_name}")
+        logger.info(f"   连接字符串: {connection_string}")
+    else:
+        connection_string = "Android:///"
+        logger.info("📱 使用默认连接字符串")
+
+    return connection_string
 
 
 def draw_regions(image):
@@ -377,6 +416,18 @@ def recognize_and_overlay_text(image, ocr_helper):
 
 def main():
     """主函数"""
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(
+        description="显示游戏画面的9个区域划分，用于方便选择OCR识别区域"
+    )
+    parser.add_argument(
+        "--emulator",
+        type=str,
+        default=None,
+        help="指定模拟器连接，如 '127.0.0.1:5555'。不指定则使用默认模拟器",
+    )
+    args = parser.parse_args()
+
     print("\n" + "=" * 60)
     print("🎮 游戏画面区域划分工具")
     print("=" * 60 + "\n")
@@ -387,17 +438,18 @@ def main():
         ocr_helper = OCRHelper(output_dir="output")
         print("✅ OCR 引擎初始化成功\n")
     except Exception as e:
-        print(f"❌ OCR 引擎初始化失败: {e}")
+        logger.error(f"❌ OCR 引擎初始化失败: {e}")
         sys.exit(1)
 
     # 连接设备
     print("📱 连接设备...")
     try:
-        connect_device("Android:///")
+        connection_string = _get_connection_string(args.emulator)
         auto_setup(__file__)
+        connect_device(connection_string)
         print("✅ 设备连接成功\n")
     except Exception as e:
-        print(f"❌ 设备连接失败: {e}")
+        logger.error(f"❌ 设备连接失败: {e}")
         sys.exit(1)
 
     # 截取当前画面

@@ -1,5 +1,60 @@
 # 更新日志
 
+## [功能] show_regions.py 支持指定模拟器连接 - 2025-11-03
+
+### 功能描述
+
+修改 `show_regions.py` 脚本，使其支持通过命令行参数指定模拟器连接，而不仅限于默认模拟器。
+
+### 主要改进
+
+1. **命令行参数支持** - 新增 `--emulator` 参数，允许用户指定模拟器连接
+2. **灵活的连接方式** - 支持指定特定模拟器或使用默认模拟器
+3. **错误处理** - 当指定的模拟器不可用时，提供清晰的错误提示和可用设备列表
+4. **日志集成** - 使用统一的日志系统记录连接信息
+
+### 使用方式
+
+**使用默认模拟器**：
+```bash
+python3 show_regions.py
+```
+
+**指定特定模拟器**：
+```bash
+python3 show_regions.py --emulator 127.0.0.1:5555
+```
+
+**查看帮助信息**：
+```bash
+python3 show_regions.py --help
+```
+
+### 修改的文件
+
+1. **`show_regions.py`**
+   - 新增导入：`argparse`、`Optional`、`EmulatorManager`、`setup_logger_from_config`
+   - 新增函数：`_get_connection_string(emulator_name)` - 获取 Airtest 连接字符串
+   - 修改函数：`main()` - 添加命令行参数解析和模拟器连接逻辑
+
+### 实现细节
+
+1. **`_get_connection_string(emulator_name: Optional[str] = None) -> str`**
+   - 当 `emulator_name` 为 `None` 时，使用默认连接字符串 `"Android:///"`
+   - 当指定 `emulator_name` 时，使用 `EmulatorManager` 获取完整的连接字符串
+   - 验证指定的模拟器是否在设备列表中，不存在则抛出异常
+
+2. **`main()` 函数改进**
+   - 添加 `argparse` 参数解析
+   - 调用 `_get_connection_string()` 获取连接字符串
+   - 使用统一的日志系统记录连接过程
+
+### 向后兼容性
+
+✅ 完全向后兼容 - 不指定 `--emulator` 参数时，行为与原来完全相同
+
+---
+
 ## [优化] 战斗进度条显示 - 显示副本进度而非时间进度 - 2025-11-03
 
 ### 优化内容
