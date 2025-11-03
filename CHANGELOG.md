@@ -1,5 +1,61 @@
 # 更新日志
 
+## [功能] Cron 脚本日志输出到 Loki - 2025-11-03
+
+### 功能描述
+
+将 `cron_run_all_dungeons.sh` 脚本的日志输出到 Loki，实现集中日志管理。
+
+### 主要改进
+
+1. **创建 Python 启动器** - 新增 `cron_launcher.py` 脚本
+   - 使用 `create_loki_logger()` 创建 Loki 日志记录器
+   - 实时读取子进程输出并记录到 Loki
+   - 支持环境变量配置 `LOKI_URL` 和 `LOKI_ENABLED`
+
+2. **简化 Shell 脚本** - 修改 `cron_run_all_dungeons.sh`
+   - 移除复杂的 `osascript` GUI 启动逻辑
+   - 改为调用 Python 启动器
+   - 脚本更简洁，易于维护
+
+3. **日志功能**
+   - 所有模拟器的输出都会被记录到 Loki
+   - 支持实时查询和分析
+   - 便于调试和监控
+
+### 修改的文件
+
+1. **`cron_launcher.py`** (新增)
+   - 启动两个模拟器的副本脚本
+   - 实时读取输出并记录到 Loki
+   - 支持自定义配置
+
+2. **`cron_run_all_dungeons.sh`** (修改)
+   - 简化为调用 Python 启动器
+   - 设置 Loki 环境变量
+
+### 使用方式
+
+```bash
+# 直接运行
+./cron_run_all_dungeons.sh
+
+# 或指定 Loki 服务地址
+LOKI_URL=http://localhost:3100 ./cron_run_all_dungeons.sh
+
+# 禁用 Loki
+LOKI_ENABLED=false ./cron_run_all_dungeons.sh
+```
+
+### 日志查询
+
+在 Grafana 中查询 cron 日志：
+```
+{app="cron_launcher"}
+```
+
+---
+
 ## [修复] 战斗进度条显示 - 显示已完成/需要完成的副本数 - 2025-11-03
 
 ### 问题描述
