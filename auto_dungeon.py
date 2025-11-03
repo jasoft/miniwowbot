@@ -125,6 +125,8 @@ def check_and_start_emulator(emulator_name: Optional[str] = None):
                     level="timeSensitive",
                 )
                 return False
+            logger.info(f"✅ 模拟器 {emulator_name} 已启动, 等待60秒...")
+            sleep(60)  # 等待模拟器启动完毕
         else:
             logger.info(f"✅ 模拟器 {emulator_name} 已在设备列表中")
 
@@ -779,7 +781,7 @@ def sell_trashes():
     click_back()
     if find_text_and_click_safe("装备", regions=[7, 8, 9]):
         if find_text_and_click_safe("整理售卖", regions=[7, 8, 9]):
-            if find_text_and_click_safe("出售"):
+            if find_text_and_click_safe("出售", regions=[8, 9], use_cache=False):
                 logger.info("✅ 成功完成装备售卖流程")
             else:
                 raise Exception("❌ 点击'出售'按钮失败")
@@ -1092,7 +1094,7 @@ class DailyCollectManager:
             find_text_and_click("主城", regions=[9])
             find_text_and_click("宝库", regions=[9])
             find_text_and_click(chest_name, regions=[4, 5, 6, 7, 8])
-            res = find_text("开启10次", regions=[8, 9], use_cache=False)
+            res = find_text("开启10次", regions=[8, 9], use_cache=False, timeout=5)
             if res:
                 for _ in range(5):
                     touch(res["center"])
@@ -1130,7 +1132,15 @@ def daily_collect():
 
 
 @timeout_decorator(300, timeout_exception=TimeoutError)
-def process_dungeon(dungeon_name, zone_name, index, total, db, completed_dungeons=0):
+def process_dungeon(
+    dungeon_name,
+    zone_name,
+    index,
+    total,
+    db,
+    completed_dungeons=0,
+    remaining_dungeons=0,
+):
     """处理单个副本, 返回是否成功完成
 
     Args:
@@ -1140,6 +1150,7 @@ def process_dungeon(dungeon_name, zone_name, index, total, db, completed_dungeon
         total: 总副本数
         db: 数据库实例
         completed_dungeons: 已完成的副本数（用于进度条显示）
+        remaining_dungeons: 需要完成的副本总数（用于进度条显示）
 
     注意：调用此函数前应该已经检查过是否已通关
     """
@@ -1156,7 +1167,9 @@ def process_dungeon(dungeon_name, zone_name, index, total, db, completed_dungeon
         # 进入副本战斗，退出后会回到主界面
         find_text_and_click_safe("战斗", regions=[8])
 
-        auto_combat(completed_dungeons=completed_dungeons, total_dungeons=total)
+        auto_combat(
+            completed_dungeons=completed_dungeons, total_dungeons=remaining_dungeons
+        )
         logger.info(f"✅ 完成: {dungeon_name}")
 
         # 记录通关状态
@@ -1501,6 +1514,21 @@ def run_dungeon_traversal(db, total_dungeons):
     dungeon_index = 0
     processed_dungeons = 0
 
+    # 计算需要完成的副本总数（排除已完成和未选定的副本）
+    remaining_dungeons = 0
+    for zone_name, dungeons in zone_dungeons.items():
+        for dungeon_dict in dungeons:
+            if dungeon_dict.get("selected", True) and not db.is_dungeon_completed(
+                zone_name, dungeon_dict["name"]
+            ):
+                remaining_dungeons += 1
+
+    logger.info(f"📊 需要完成的副本总数: {remaining_dungeons}")
+
+    # 获取今天已完成的副本数
+    completed_today = db.get_today_completed_count()
+    logger.info(f"📊 今天已完成的副本数: {completed_today}")
+
     # 遍历所有区域
     for zone_idx, (zone_name, dungeons) in enumerate(zone_dungeons.items(), 1):
         logger.info(f"\n{'#' * 60}")
@@ -1552,7 +1580,8 @@ def run_dungeon_traversal(db, total_dungeons):
                 dungeon_index,
                 total_dungeons,
                 db,
-                processed_dungeons,
+                completed_today + processed_dungeons,
+                remaining_dungeons,
             ):
                 processed_dungeons += 1
                 # 每完成3个副本就卖垃圾

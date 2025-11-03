@@ -1,5 +1,44 @@
 # 更新日志
 
+## [修复] 战斗进度条显示 - 显示已完成/需要完成的副本数 - 2025-11-03
+
+### 问题描述
+
+之前的进度条显示的是 `[已完成/所有副本总数]`，但实际上应该显示的是 `[已完成/需要完成的副本数]`。
+当有些副本已经在之前的运行中完成时，重新运行脚本会显示错误的进度（例如 `[0/98]` 而实际只有 20 多个需要完成）。
+
+### 修复内容
+
+1. **计算需要完成的副本数** - 在 `run_dungeon_traversal()` 中计算 `remaining_dungeons`（排除已完成和未选定的副本）
+2. **获取今天已完成的副本数** - 从数据库读取 `completed_today`
+3. **传递正确的参数** - 将 `completed_today + processed_dungeons` 和 `remaining_dungeons` 传递给 `auto_combat()`
+4. **进度条显示** - 进度条现在正确显示 `[已完成/需要完成的总数]`
+
+### 修改的函数
+
+1. **`run_dungeon_traversal()`**
+   - 计算 `remaining_dungeons` - 需要完成的副本总数
+   - 获取 `completed_today` - 今天已完成的副本数
+   - 传递 `completed_today + processed_dungeons` 和 `remaining_dungeons` 给 `process_dungeon()`
+
+2. **`process_dungeon()`**
+   - 新增参数：`remaining_dungeons` - 需要完成的副本总数
+   - 调用 `auto_combat()` 时使用 `remaining_dungeons` 而不是 `total_dungeons`
+
+### 进度条显示效果
+
+**修复前**（错误）：
+```
+⚔️ 战斗进度 [0/98] |░░░░░░░░░░░░░░░░░░░░| 0/98 [00:00<...]
+```
+
+**修复后**（正确）：
+```
+⚔️ 战斗进度 [5/23] |██████████░░░░░░░░░░| 5/23 [00:45<02:15]
+```
+
+---
+
 ## [功能] show_regions.py 支持指定模拟器连接 - 2025-11-03
 
 ### 功能描述
