@@ -1,5 +1,52 @@
 # 更新日志
 
+## [优化] 自动化市场查询脚本 - 移除按钮坐标命令行参数 - 2025-11-03
+
+### 优化内容
+
+简化了 `auto_market_query.py` 脚本的命令行参数，将固定的按钮坐标直接写入代码。
+
+### 主要改进
+
+1. **移除冗余参数** - 移除了 `--query-x`、`--query-y`、`--confirm-x`、`--confirm-y` 参数
+2. **代码简化** - 将固定的按钮坐标定义为常量，提高代码可读性
+3. **简化命令行** - 用户只需指定必要的参数（价格阈值、查询间隔等）
+
+### 固定的按钮坐标
+
+```python
+QUERY_BUTTON_POS = (360, 640)      # 查询按钮位置
+CONFIRM_BUTTON_POS = (360, 1000)   # 确定按钮位置
+```
+
+### 保留的命令行参数
+
+- `--interval` - 查询间隔（秒），默认 5 秒
+- `--price-threshold` - 价格阈值，默认 100000
+- `--max-iterations` - 最大迭代次数，默认无限循环
+- `--emulator` - 指定模拟器网络地址
+
+### 使用示例
+
+```bash
+# 基础使用（使用所有默认值）
+python auto_market_query.py
+
+# 自定义价格阈值
+python auto_market_query.py --price-threshold 50000
+
+# 自定义查询间隔和价格阈值
+python auto_market_query.py --interval 3 --price-threshold 80000
+
+# 限制最大迭代次数
+python auto_market_query.py --max-iterations 50
+
+# 指定模拟器
+python auto_market_query.py --emulator 127.0.0.1:5555
+```
+
+---
+
 ## [功能] Cron 脚本日志输出到 Loki - 2025-11-03
 
 ### 功能描述

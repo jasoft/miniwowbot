@@ -310,8 +310,6 @@ def click_confirm_button(confirm_button_pos: Tuple[int, int]):
 
 
 def auto_market_query(
-    query_button_pos: Tuple[int, int],
-    confirm_button_pos: Tuple[int, int],
     price_threshold: int = 100000,
     interval: int = 5,
     max_iterations: Optional[int] = None,
@@ -320,18 +318,20 @@ def auto_market_query(
     自动化市场查询主循环
 
     Args:
-        query_button_pos: 查询按钮的坐标 (x, y)
-        confirm_button_pos: 确定按钮的坐标 (x, y)
         price_threshold: 价格阈值，只拍下价格低于此值的商品（默认 100000）
         interval: 查询间隔（秒），默认 5 秒
         max_iterations: 最大迭代次数，None 表示无限循环
     """
+    # 固定的按钮坐标
+    QUERY_BUTTON_POS = (360, 640)
+    CONFIRM_BUTTON_POS = (360, 1000)
+
     logger.info("=" * 60)
     logger.info("🤖 开始自动化市场查询")
     logger.info(f"   价格阈值: {price_threshold} 金币")
     logger.info(f"   查询间隔: {interval} 秒")
-    logger.info(f"   查询按钮: {query_button_pos}")
-    logger.info(f"   确定按钮: {confirm_button_pos}")
+    logger.info(f"   查询按钮: {QUERY_BUTTON_POS}")
+    logger.info(f"   确定按钮: {CONFIRM_BUTTON_POS}")
     logger.info("=" * 60)
 
     iteration = 0
@@ -348,7 +348,7 @@ def auto_market_query(
             logger.info(f"\n[{iteration}] 执行查询...")
 
             # 1. 点击查询按钮
-            click_query_button(query_button_pos)
+            click_query_button(QUERY_BUTTON_POS)
 
             # 2. 等待一段时间让界面刷新
             sleep(2)
@@ -374,7 +374,7 @@ def auto_market_query(
                     sleep(1)
 
                     # 点击确定按钮
-                    click_confirm_button(confirm_button_pos)
+                    click_confirm_button(CONFIRM_BUTTON_POS)
 
                     logger.info(f"   ✅ 商品 {idx} 购买完成")
                     sleep(1)  # 等待一下再处理下一个
@@ -399,30 +399,6 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="自动化市场查询脚本")
-    parser.add_argument(
-        "--query-x",
-        type=int,
-        default=360,
-        help="查询按钮 X 坐标 (默认: 360)",
-    )
-    parser.add_argument(
-        "--query-y",
-        type=int,
-        default=640,
-        help="查询按钮 Y 坐标 (默认: 640)",
-    )
-    parser.add_argument(
-        "--confirm-x",
-        type=int,
-        default=360,
-        help="确定按钮 X 坐标 (默认: 360)",
-    )
-    parser.add_argument(
-        "--confirm-y",
-        type=int,
-        default=1000,
-        help="确定按钮 Y 坐标 (默认: 1000)",
-    )
     parser.add_argument(
         "--interval",
         type=int,
@@ -458,12 +434,7 @@ def main():
     sleep(3)
 
     # 执行自动化查询
-    query_button_pos = (args.query_x, args.query_y)
-    confirm_button_pos = (args.confirm_x, args.confirm_y)
-
     auto_market_query(
-        query_button_pos=query_button_pos,
-        confirm_button_pos=confirm_button_pos,
         price_threshold=args.price_threshold,
         interval=args.interval,
         max_iterations=args.max_iterations,
