@@ -47,39 +47,38 @@ python auto_market_query.py --emulator 127.0.0.1:5555
 
 ---
 
-## [功能] Cron 脚本日志输出到 Loki - 2025-11-03
+## [功能] Cron 脚本在独立 Terminal 窗口中并行启动 - 2025-11-04
 
 ### 功能描述
 
-将 `cron_run_all_dungeons.sh` 脚本的日志输出到 Loki，实现集中日志管理。
+改进 `cron_launcher.py`，使其在独立的 Terminal 窗口中并行启动两个模拟器脚本，并将日志输出到 Loki。
 
 ### 主要改进
 
-1. **创建 Python 启动器** - 新增 `cron_launcher.py` 脚本
-   - 使用 `create_loki_logger()` 创建 Loki 日志记录器
-   - 实时读取子进程输出并记录到 Loki
+1. **并行启动 Terminal 窗口** - 使用 `osascript` 启动独立的 Terminal 窗口
+   - 每个模拟器在独立的 Terminal 窗口中运行
+   - 支持实时观察日志输出
+   - 方便调试和监控
+
+2. **Loki 日志集成**
+   - 所有启动日志都会被记录到 Loki
    - 支持环境变量配置 `LOKI_URL` 和 `LOKI_ENABLED`
+   - 便于集中日志管理
 
-2. **简化 Shell 脚本** - 修改 `cron_run_all_dungeons.sh`
-   - 移除复杂的 `osascript` GUI 启动逻辑
-   - 改为调用 Python 启动器
-   - 脚本更简洁，易于维护
-
-3. **日志功能**
-   - 所有模拟器的输出都会被记录到 Loki
-   - 支持实时查询和分析
-   - 便于调试和监控
+3. **改进的启动流程**
+   - 启动模拟器 1 → 等待 2 秒 → 启动模拟器 2
+   - 两个 Terminal 窗口独立运行，互不影响
+   - 支持在 Terminal 中按 `Ctrl+C` 中断
 
 ### 修改的文件
 
-1. **`cron_launcher.py`** (新增)
-   - 启动两个模拟器的副本脚本
-   - 实时读取输出并记录到 Loki
-   - 支持自定义配置
+1. **`cron_launcher.py`** (修改)
+   - 新增 `launch_emulator_in_terminal()` 函数
+   - 使用 `osascript` 启动 Terminal 窗口
+   - 改为并行启动两个模拟器
 
-2. **`cron_run_all_dungeons.sh`** (修改)
-   - 简化为调用 Python 启动器
-   - 设置 Loki 环境变量
+2. **`cron_run_all_dungeons.sh`** (保持不变)
+   - 继续调用 Python 启动器
 
 ### 使用方式
 
@@ -88,7 +87,7 @@ python auto_market_query.py --emulator 127.0.0.1:5555
 ./cron_run_all_dungeons.sh
 
 # 或指定 Loki 服务地址
-LOKI_URL=http://localhost:3100 ./cron_run_all_dungeons.sh
+LOKI_URL=http://docker.home:3100 ./cron_run_all_dungeons.sh
 
 # 禁用 Loki
 LOKI_ENABLED=false ./cron_run_all_dungeons.sh
@@ -100,6 +99,12 @@ LOKI_ENABLED=false ./cron_run_all_dungeons.sh
 ```
 {app="cron_launcher"}
 ```
+
+### 调试
+
+- 两个 Terminal 窗口会独立显示，可以实时观察日志
+- 在 Terminal 中按 `Ctrl+C` 可以中断脚本
+- 所有启动日志都会被记录到 Loki，便于事后分析
 
 ---
 

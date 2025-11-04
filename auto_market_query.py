@@ -323,8 +323,8 @@ def auto_market_query(
         max_iterations: 最大迭代次数，None 表示无限循环
     """
     # 固定的按钮坐标
-    QUERY_BUTTON_POS = (360, 640)
-    CONFIRM_BUTTON_POS = (360, 1000)
+    QUERY_BUTTON_POS = (560, 300)
+    CONFIRM_BUTTON_POS = (485, 710)
 
     logger.info("=" * 60)
     logger.info("🤖 开始自动化市场查询")
