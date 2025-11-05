@@ -652,7 +652,7 @@ def select_character(char_class):
     )
     try:
         in_character_selection = bool(
-            wait(enter_game_template, timeout=20, interval=0.1)
+            wait(enter_game_template, timeout=60, interval=0.1)
         )
     except Exception:
         in_character_selection = False

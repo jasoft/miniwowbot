@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/zsh
 # 异世界勇者副本定时任务管理脚本
 
 # 颜色定义
@@ -75,10 +75,10 @@ install_jobs() {
     <key>Label</key>
     <string>com.weiwang.dungeons.daily</string>
     <key>Program</key>
-    <string>/bin/bash</string>
+    <string>/bin/zsh</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/bin/bash</string>
+        <string>/bin/zsh</string>
         <string>-c</string>
         <string>/Users/weiwang/Projects/miniwow/cron_run_all_dungeons.sh</string>
     </array>
@@ -112,10 +112,10 @@ EOF
     <key>Label</key>
     <string>com.weiwang.dungeons.cleanup</string>
     <key>Program</key>
-    <string>/bin/bash</string>
+    <string>/bin/zsh</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/bin/bash</string>
+        <string>/bin/zsh</string>
         <string>-c</string>
         <string>find /Users/weiwang/cron_logs -name "dungeons_*.log" -mtime +30 -delete</string>
     </array>
