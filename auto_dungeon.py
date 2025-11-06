@@ -365,10 +365,10 @@ def find_text_and_click(
         assert result
         center = result["center"]
         touch(center)
-        sleep(CLICK_INTERVAL)  # 每个点击后面停顿一下等待界面刷新
 
         region_desc = f" [区域{regions}]" if regions else ""
         logger.info(f"✅ 成功点击: {text}{region_desc} at {center}")
+        sleep(CLICK_INTERVAL)  # 每个点击后面停顿一下等待界面刷新
         return result
 
     except Exception as e:
@@ -1096,7 +1096,7 @@ class DailyCollectManager:
             find_text_and_click(chest_name, regions=[4, 5, 6, 7, 8])
             res = find_text("开启10次", regions=[8, 9], use_cache=False, timeout=5)
             if res:
-                for _ in range(5):
+                for _ in range(6):
                     touch(res["center"])
                     sleep(0.2)
                     click_back()

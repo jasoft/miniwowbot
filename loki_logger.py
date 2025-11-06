@@ -4,11 +4,14 @@ Loki 日志模块
 将日志发送到 Loki 服务进行集中管理和查询
 """
 
+import json
 import logging
 import os
+import queue
 import threading
-import json
-from typing import Optional, Dict
+import time
+from typing import Dict, Optional
+
 import requests
 
 # 尝试加载 .env 文件
@@ -44,21 +47,25 @@ class LokiHandler(logging.Handler):
         super().__init__()
         self.loki_url = loki_url.rstrip("/")
         self.app_name = app_name
-        self.buffer_size = buffer_size
-        self.upload_interval = upload_interval
+        self.buffer_size = max(1, buffer_size)
+        self.upload_interval = max(0.01, upload_interval)
 
         # 初始化标签
         self.labels = {"app": app_name, "host": os.getenv("HOSTNAME", "unknown")}
         if labels:
             self.labels.update(labels)
 
-        # 日志缓冲
-        self.buffer = []
-        self.lock = threading.Lock()
+        # 日志上传队列与控制
+        self.queue: "queue.SimpleQueue[Optional[Dict]]" = queue.SimpleQueue()
+        self._sentinel = object()
         self.stop_event = threading.Event()
 
         # 启动后台上传线程
-        self.upload_thread = threading.Thread(target=self._upload_worker, daemon=True)
+        self.upload_thread = threading.Thread(
+            target=self._upload_worker,
+            name=f"LokiUploader-{app_name}",
+            daemon=True,
+        )
         self.upload_thread.start()
 
     def emit(self, record: logging.LogRecord):
@@ -75,42 +82,46 @@ class LokiHandler(logging.Handler):
                 "line": record.lineno,
             }
 
-            # 尝试添加到缓冲区，使用非阻塞方式
-            acquired = self.lock.acquire(blocking=False)
-            if acquired:
-                try:
-                    self.buffer.append(log_entry)
-                finally:
-                    self.lock.release()
-            else:
-                # 如果无法获取锁，直接上传此条日志
-                self._do_upload([log_entry])
-
+            # 将日志入队，由后台线程负责上传
+            self.queue.put(log_entry)
         except Exception:
             self.handleError(record)
 
     def _upload_worker(self):
         """后台上传工作线程"""
+        batch = []
+        last_flush_at = time.monotonic()
+
         try:
-            while not self.stop_event.is_set():
-                # 等待指定的时间间隔
-                if self.stop_event.wait(self.upload_interval):
-                    # 被设置为停止
+            while True:
+                timeout = max(0.0, self.upload_interval - (time.monotonic() - last_flush_at))
+
+                try:
+                    log_entry = self.queue.get(timeout=timeout)
+                except queue.Empty:
+                    if batch:
+                        self._flush_batch(batch)
+                        last_flush_at = time.monotonic()
+                    if self.stop_event.is_set():
+                        break
+                    continue
+
+                if log_entry is self._sentinel:
+                    if batch:
+                        self._flush_batch(batch)
                     break
 
-                # 刷新缓冲区
-                with self.lock:
-                    if self.buffer:
-                        buffer_copy = self.buffer.copy()
-                        self.buffer.clear()
-                    else:
-                        buffer_copy = []
-
-                if buffer_copy:
-                    self._do_upload(buffer_copy)
+                batch.append(log_entry)
+                now = time.monotonic()
+                if len(batch) >= self.buffer_size or (now - last_flush_at) >= self.upload_interval:
+                    self._flush_batch(batch)
+                    last_flush_at = now
 
         except Exception as e:
             print(f"⚠️ 后台上传线程错误: {e}")
+        finally:
+            if batch:
+                self._flush_batch(batch)
 
     def _do_upload(self, logs):
         """执行上传"""
@@ -164,29 +175,40 @@ class LokiHandler(logging.Handler):
         except Exception as e:
             print(f"❌ 上传日志到 Loki 失败: {e}")
 
+    def _flush_batch(self, batch):
+        """上传当前批次并清空"""
+        if not batch:
+            return
+
+        logs = list(batch)
+        try:
+            self._do_upload(logs)
+        finally:
+            batch.clear()
+
     def close(self):
         """关闭处理器"""
         try:
-            # 设置停止事件
+            # 设置停止事件并通知后台线程
             self.stop_event.set()
-
-            # 等待后台线程停止（非阻塞）
             if self.upload_thread.is_alive():
-                self.upload_thread.join(timeout=1)
+                self.queue.put(self._sentinel)
+                self.upload_thread.join(timeout=self.upload_interval + 1)
 
-            # 最后一次刷新缓冲区（非阻塞方式）
-            buffer_copy = []
-            acquired = self.lock.acquire(blocking=False)
-            if acquired:
+            # 兜底处理：如果线程意外仍存活或队列中还有数据，主线程直接刷新
+            pending = []
+            while True:
                 try:
-                    if self.buffer:
-                        buffer_copy = self.buffer.copy()
-                        self.buffer.clear()
-                finally:
-                    self.lock.release()
+                    item = self.queue.get_nowait()
+                except queue.Empty:
+                    break
 
-            if buffer_copy:
-                self._do_upload(buffer_copy)
+                if item is self._sentinel:
+                    continue
+                pending.append(item)
+
+            if pending:
+                self._do_upload(pending)
 
         except Exception as e:
             print(f"⚠️ 关闭处理器失败: {e}")
@@ -209,7 +231,7 @@ def create_loki_logger(
               用于在 Loki 中作为 logger 标签，区分不同模块的日志
               示例: "lokilog", "lokilog.auto_dungeon", "lokilog.emulator_manager"
         level: 日志级别 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-        log_format: 日志格式字符串，默认为 "%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s"
+        log_format: 日志格式字符串，默认为 "%(asctime)s.%(msecs)03d %(levelname)s %(filename)s:%(lineno)d %(message)s"
                    如需在 console 中显示 logger name，可添加 %(name)s
         loki_url: Loki 服务地址，如 http://localhost:3100
         enable_loki: 是否启用 Loki 日志上传
@@ -239,7 +261,9 @@ def create_loki_logger(
 
     # 默认日志格式
     if log_format is None:
-        log_format = "%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s"
+        log_format = (
+            "%(asctime)s.%(msecs)03d %(levelname)s %(filename)s:%(lineno)d %(message)s"
+        )
 
     # 添加控制台处理器
     console_handler = logging.StreamHandler()

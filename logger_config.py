@@ -71,7 +71,9 @@ class LoggerConfig:
 
         # 默认格式
         if log_format is None:
-            log_format = "%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s"
+            log_format = (
+                "%(asctime)s.%(msecs)03d %(levelname)s %(filename)s:%(lineno)d %(message)s"
+            )
 
         if date_format is None:
             if use_color and coloredlogs:
@@ -162,7 +164,7 @@ class LoggerConfig:
         # 使用basicConfig配置
         logging.basicConfig(
             level=getattr(logging, level.upper()),
-            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            format="%(asctime)s.%(msecs)03d - %(name)s - %(levelname)s - %(message)s",
             handlers=[logging.StreamHandler(sys.stdout)],
         )
 
@@ -237,9 +239,11 @@ def get_logger(name: Optional[str] = None) -> logging.Logger:
 
 
 # 导出常用的配置常量
-DEFAULT_COLOR_FORMAT = "%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s"
+DEFAULT_COLOR_FORMAT = (
+    "%(asctime)s.%(msecs)03d %(levelname)s %(filename)s:%(lineno)d %(message)s"
+)
 DEFAULT_COLOR_DATE_FORMAT = "%H:%M:%S"
-DEFAULT_SIMPLE_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+DEFAULT_SIMPLE_FORMAT = "%(asctime)s.%(msecs)03d - %(name)s - %(levelname)s - %(message)s"
 
 # 日志级别映射
 LOG_LEVELS = {

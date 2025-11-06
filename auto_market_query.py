@@ -160,11 +160,7 @@ def find_all_matching_prices(price_threshold: int) -> list:
 
         logger.info(f"📝 识别到 {len(all_texts)} 个文字")
         logger.info("=" * 80)
-        logger.info("📋 全屏幕识别的文字列表:")
-        for i, text_info in enumerate(all_texts):
-            logger.info(
-                f"  [{i:2d}] {text_info['text']:30s} | 位置: {text_info['center']} | 置信度: {text_info.get('confidence', 'N/A')}"
-            )
+        logger.info("all_texts")
         logger.info("=" * 80)
 
         # 查找所有符合 "一口价 xxxxk 金币" 模式的文本
