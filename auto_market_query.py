@@ -17,20 +17,31 @@ from airtest.core.api import (
     touch,
     sleep,
     start_app,
+    text,
+    keyevent,
 )
 
 # 导入通用日志配置模块
 from logger_config import setup_logger_from_config
 from ocr_helper import OCRHelper
 from emulator_manager import EmulatorManager
+from error_dialog_monitor import ErrorDialogMonitor
 
-logging.getLogger("airtest").setLevel(logging.ERROR)
+logging.getLogger("airtest").setLevel(logging.CRITICAL)
 # 设置日志
 logger = setup_logger_from_config(use_color=True)
 
 # 全局变量
 ocr_helper = None
 emulator_manager = None
+error_dialog_monitor: Optional[ErrorDialogMonitor] = None
+
+
+def get_error_dialog_monitor() -> ErrorDialogMonitor:
+    global error_dialog_monitor
+    if error_dialog_monitor is None:
+        error_dialog_monitor = ErrorDialogMonitor(logger)
+    return error_dialog_monitor
 
 
 def initialize_device_and_ocr(emulator_name: Optional[str] = None):
@@ -331,6 +342,7 @@ def auto_market_query(
     logger.info("=" * 60)
 
     iteration = 0
+    monitor = get_error_dialog_monitor()
 
     try:
         while True:
@@ -341,6 +353,7 @@ def auto_market_query(
                 logger.info(f"✅ 已达到最大迭代次数 ({max_iterations})，停止执行")
                 break
 
+            monitor.handle_once()
             logger.info(f"\n[{iteration}] 执行查询...")
 
             # 1. 点击查询按钮
@@ -393,6 +406,7 @@ def auto_market_query(
 def main():
     """主函数"""
     import argparse
+    global error_dialog_monitor
 
     parser = argparse.ArgumentParser(description="自动化市场查询脚本")
     parser.add_argument(
@@ -418,23 +432,36 @@ def main():
         type=str,
         help="指定模拟器网络地址（如：127.0.0.1:5555）",
     )
+    parser.add_argument(
+        "--name",
+        type=str,
+        help="要查询的装备名称",
+    )
 
     args = parser.parse_args()
 
-    # 初始化设备和OCR
-    initialize_device_and_ocr(args.emulator)
+    monitor = get_error_dialog_monitor()
+    monitor.start()
+    try:
+        # 初始化设备和OCR
+        initialize_device_and_ocr(args.emulator)
 
-    # 启动游戏
-    logger.info("启动游戏...")
-    start_app("com.ms.ysjyzr")
-    sleep(3)
+        touch((208, 290))  # 输入框
+        logger.info(f"输入装备名称: {args.name}")
+        for _ in range(10):
+            keyevent("67")
+        text(args.name)
 
-    # 执行自动化查询
-    auto_market_query(
-        price_threshold=args.price_threshold,
-        interval=args.interval,
-        max_iterations=args.max_iterations,
-    )
+        # 执行自动化查询
+        auto_market_query(
+            price_threshold=args.price_threshold,
+            interval=args.interval,
+            max_iterations=args.max_iterations,
+        )
+    finally:
+        monitor.stop()
+        if error_dialog_monitor is monitor:
+            error_dialog_monitor = None
 
 
 if __name__ == "__main__":

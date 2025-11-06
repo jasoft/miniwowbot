@@ -1,11 +1,11 @@
 __author__ = "Airtest"
-import time
 import sys
 import os
 import logging
 import argparse
 import requests
 import urllib.parse
+import time
 from typing import Optional
 from wrapt_timeout_decorator import timeout as timeout_decorator
 
@@ -40,6 +40,7 @@ from database import DungeonProgressDB  # noqa: E402
 from config_loader import load_config  # noqa: E402
 from system_config_loader import load_system_config  # noqa: E402
 from emulator_manager import EmulatorManager  # noqa: E402
+from error_dialog_monitor import ErrorDialogMonitor  # noqa: E402
 from coordinates import (  # noqa: E402
     DEPLOY_CONFIRM_BUTTON,
     ONE_KEY_DEPLOY,
@@ -78,6 +79,7 @@ ocr_helper = None
 emulator_manager = None
 target_emulator = None  # 目标模拟器名称
 config_name = None  # 配置文件名称（用于 Loki 标签）
+error_dialog_monitor = None  # 全局错误对话框监控器
 
 
 def check_and_start_emulator(emulator_name: Optional[str] = None):
@@ -623,28 +625,9 @@ def select_character(char_class):
     """
     logger.info(f"⚔️ 选择角色: {char_class}")
 
-    # 检查是否存在错误对话框
-    error_templates = [
-        Template(r"images/error_duplogin.png", resolution=(720, 1280)),
-        Template(r"images/error_network.png", resolution=(720, 1280)),
-    ]
-
-    ok_button_template = Template(r"images/ok_button.png", resolution=(720, 1280))
-
-    for error_template in error_templates:
-        try:
-            if wait(error_template, timeout=1, interval=0.1):
-                logger.warning("⚠️ 检测到错误对话框")
-                try:
-                    if wait(ok_button_template, timeout=1, interval=0.1):
-                        touch(ok_button_template)
-                        logger.info("✅ 点击OK按钮关闭错误对话框")
-                        sleep(1)
-                except Exception:
-                    pass
-                break
-        except Exception:
-            pass
+    global error_dialog_monitor
+    if error_dialog_monitor:
+        error_dialog_monitor.handle_once()
 
     # 使用 wait() 而不是 exists()，避免无限期卡住
     enter_game_template = Template(
@@ -1596,13 +1579,17 @@ def run_dungeon_traversal(db, total_dungeons):
 
 def main_wrapper():
     """主函数包装器 - 处理超时和重启逻辑"""
-    global config_loader, system_config, zone_dungeons, ocr_helper, logger
+    global config_loader, system_config, zone_dungeons, ocr_helper, logger, error_dialog_monitor
 
     max_restarts = 3  # 最大重启次数
     restart_count = 0
 
     while restart_count < max_restarts:
         try:
+            if error_dialog_monitor is None:
+                error_dialog_monitor = ErrorDialogMonitor(logger)
+            error_dialog_monitor.start()
+
             main()
             # 正常完成，退出循环
             return
@@ -1665,6 +1652,10 @@ def main_wrapper():
                 "副本助手 - 错误", f"程序发生错误: {str(e)}", level="timeSensitive"
             )
             sys.exit(1)
+        finally:
+            if error_dialog_monitor:
+                error_dialog_monitor.stop()
+                error_dialog_monitor = None
 
 
 def main():
