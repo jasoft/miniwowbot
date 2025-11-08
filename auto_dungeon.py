@@ -24,6 +24,7 @@ from airtest.core.api import (
     text,
     shell,
 )
+from airtest.core.error import TargetNotFoundError
 from tqdm import tqdm
 
 # 设置 Airtest 日志级别
@@ -63,6 +64,9 @@ from coordinates import (  # noqa: E402
 
 CLICK_INTERVAL = 1
 STOP_FILE = ".stop_dungeon"  # 停止标记文件路径
+ENTER_GAME_BUTTON_TEMPLATE = Template(
+    r"images/enter_game_button.png", resolution=(720, 1280)
+)
 
 # 配置彩色日志（从系统配置文件加载 Loki 配置）
 logger = setup_logger_from_config(use_color=True)
@@ -463,8 +467,8 @@ def send_bark_notification(title, message, level="active"):
     try:
         # 构造 Bark URL
         # 格式: https://api.day.app/{device_key}/{title}/{body}?group={group}&level={level}
-        encoded_title = urllib.parse.quote(title)
-        encoded_message = urllib.parse.quote(message)
+        encoded_title = urllib.parse.quote(title, safe="")
+        encoded_message = urllib.parse.quote(message, safe="")
 
         # 如果 server 已经包含完整路径，直接使用
         if "?" in server or server.endswith("/"):
@@ -613,7 +617,36 @@ def auto_combat(completed_dungeons=0, total_dungeons=0):
             if remaining > 0:
                 pbar.update(remaining)
         pbar.close()
-        logger.info("✅ 战斗完成")
+    logger.info("✅ 战斗完成")
+
+
+def is_on_character_selection(timeout=30):
+    """
+    检查当前是否位于角色选择界面，模板识别失败时回退到 OCR
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            wait(ENTER_GAME_BUTTON_TEMPLATE, timeout=3, interval=0.1)
+            return True
+        except TargetNotFoundError:
+            pass
+        except Exception as e:
+            logger.debug(f"检测角色选择界面时发生异常: {e}")
+
+        result = find_text(
+            "进入游戏",
+            timeout=1,
+            raise_exception=False,
+            use_cache=False,
+            similarity_threshold=0.6,
+            regions=[8, 9],
+        )
+        if result and result.get("found"):
+            logger.debug("通过 OCR 识别到进入游戏按钮")
+            return True
+
+    return False
 
 
 def select_character(char_class):
@@ -629,16 +662,7 @@ def select_character(char_class):
     if error_dialog_monitor:
         error_dialog_monitor.handle_once()
 
-    # 使用 wait() 而不是 exists()，避免无限期卡住
-    enter_game_template = Template(
-        r"images/enter_game_button.png", resolution=(720, 1280)
-    )
-    try:
-        in_character_selection = bool(
-            wait(enter_game_template, timeout=60, interval=0.1)
-        )
-    except Exception:
-        in_character_selection = False
+    in_character_selection = is_on_character_selection(timeout=120)
 
     if not in_character_selection:  # 如果不在选择角色界面，返回选择界面
         back_to_main()
@@ -647,7 +671,8 @@ def select_character(char_class):
 
         # 返回角色选择界面
         find_text_and_click_safe("返回角色选择界面")
-        wait(Template(r"images/enter_game_button.png", resolution=(720, 1280)), 10)
+        if not is_on_character_selection(timeout=20):
+            raise RuntimeError("无法进入角色选择界面，进入游戏按钮未出现")
     else:
         logger.info("已在角色选择界面")
 
@@ -764,10 +789,8 @@ def sell_trashes():
     click_back()
     if find_text_and_click_safe("装备", regions=[7, 8, 9]):
         if find_text_and_click_safe("整理售卖", regions=[7, 8, 9]):
-            if find_text_and_click_safe("出售", regions=[8, 9], use_cache=False):
-                logger.info("✅ 成功完成装备售卖流程")
-            else:
-                raise Exception("❌ 点击'出售'按钮失败")
+            touch((462, 958))  # 出售按钮
+            sleep(1)
         else:
             raise Exception("❌ 点击'整理售卖'按钮失败")
     else:
@@ -1114,6 +1137,44 @@ def daily_collect():
     daily_collect_manager.collect_daily_rewards()
 
 
+def focus_and_click_dungeon(dungeon_name, zone_name, max_attempts=2):
+    """
+    尝试聚焦到指定副本并点击，必要时重新刷新地图
+
+    Args:
+        dungeon_name (str): 副本名称
+        zone_name (str): 区域名称
+        max_attempts (int): 最大尝试次数
+
+    Returns:
+        bool: 是否成功点击副本入口
+    """
+    for attempt in range(max_attempts):
+        use_cache = attempt == 0
+        result = find_text_and_click_safe(
+            dungeon_name,
+            timeout=6,
+            occurrence=9,
+            use_cache=use_cache,
+        )
+        if result:
+            return True
+
+        logger.warning(
+            f"⚠️ 未能找到副本: {dungeon_name} (第 {attempt + 1}/{max_attempts} 次尝试)"
+        )
+
+        if attempt < max_attempts - 1:
+            logger.info("🔄 重新打开地图并刷新区域后再试")
+            open_map()
+            if not switch_to_zone(zone_name):
+                logger.warning(f"⚠️ 刷新区域失败: {zone_name}")
+                continue
+            sleep(1)
+
+    return False
+
+
 @timeout_decorator(300, timeout_exception=TimeoutError)
 def process_dungeon(
     dungeon_name,
@@ -1139,8 +1200,8 @@ def process_dungeon(
     """
     logger.info(f"\n🎯 [{index}/{total}] 处理副本: {dungeon_name}")
 
-    # 点击副本名称
-    if not find_text_and_click_safe(dungeon_name, timeout=5, occurrence=9):
+    # 点击副本名称（带自动重试）
+    if not focus_and_click_dungeon(dungeon_name, zone_name, max_attempts=3):
         logger.warning(f"⏭️ 跳过: {dungeon_name}")
         return False
     sleep(2)  # 等待界面刷新
@@ -1166,7 +1227,7 @@ def process_dungeon(
         db.mark_dungeon_completed(zone_name, dungeon_name)
         click_back()
 
-    return False
+    return True
 
 
 def parse_arguments():
@@ -1397,6 +1458,15 @@ def show_progress_statistics(db):
     )
     total_dungeons = sum(len(dungeons) for dungeons in zone_dungeons.values())
 
+    # 汇总所有待通关的副本，便于日志展示详细名单
+    remaining_dungeons_detail = []
+    for zone_name, dungeons in zone_dungeons.items():
+        for dungeon in dungeons:
+            if not dungeon.get("selected", True):
+                continue
+            if not db.is_dungeon_completed(zone_name, dungeon["name"]):
+                remaining_dungeons_detail.append((zone_name, dungeon["name"]))
+
     logger.info(f"📊 总计: {len(zone_dungeons)} 个区域, {total_dungeons} 个副本")
     logger.info(f"📊 选定: {total_selected_dungeons} 个副本")
     logger.info(f"📊 已完成: {completed_count} 个副本")
@@ -1409,8 +1479,13 @@ def show_progress_statistics(db):
         logger.info("💤 无需执行任何操作，脚本退出")
         return completed_count, total_selected_dungeons, total_dungeons
 
-    remaining_dungeons = total_selected_dungeons - completed_count
-    logger.info(f"📊 剩余: {remaining_dungeons} 个副本待通关\n")
+    remaining_dungeons = len(remaining_dungeons_detail)
+    logger.info(f"📊 剩余: {remaining_dungeons} 个副本待通关")
+    if remaining_dungeons_detail:
+        logger.info("📋 待通关副本清单:")
+        for zone_name, dungeon_name in remaining_dungeons_detail:
+            logger.info(f"  • {zone_name} - {dungeon_name}")
+    logger.info("")
 
     return completed_count, total_selected_dungeons, total_dungeons
 
@@ -1591,7 +1666,13 @@ def run_dungeon_traversal(db, total_dungeons):
 
 def main_wrapper():
     """主函数包装器 - 处理超时和重启逻辑"""
-    global config_loader, system_config, zone_dungeons, ocr_helper, logger, error_dialog_monitor
+    global \
+        config_loader, \
+        system_config, \
+        zone_dungeons, \
+        ocr_helper, \
+        logger, \
+        error_dialog_monitor
 
     max_restarts = 3  # 最大重启次数
     restart_count = 0
@@ -1725,6 +1806,8 @@ def main():
 
     # 启动游戏
     logger.info("启动游戏...")
+    stop_app("com.ms.ysjyzr")
+    sleep(2)
     start_app("com.ms.ysjyzr")
 
     # 8. 选择角色（如果配置了职业）

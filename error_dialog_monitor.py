@@ -10,6 +10,10 @@ from typing import Iterable, Optional, Sequence
 
 from airtest.core.api import Template, exists, touch, wait
 
+ENTER_GAME_BUTTON_TEMPLATE = Template(
+    r"images/enter_game_button.png", resolution=(720, 1280)
+)
+
 
 class ErrorDialogMonitor:
     """后台线程监控常见错误弹窗并自动关闭"""
@@ -19,6 +23,7 @@ class ErrorDialogMonitor:
         logger,
         error_templates: Optional[Sequence[Template]] = None,
         ok_button_template: Optional[Template] = None,
+        enter_game_template: Optional[Template] = None,
         check_interval: float = 0.5,
     ):
         """
@@ -34,14 +39,19 @@ class ErrorDialogMonitor:
         self._thread: Optional[threading.Thread] = None
 
         default_error_templates: Iterable[Template] = error_templates or [
-            Template(r"images/error_duplogin.png", resolution=(720, 1280)),
-            Template(r"images/error_network.png", resolution=(720, 1280)),
+            Template(
+                r"images/error_duplogin.png", resolution=(720, 1280), threshold=0.99
+            ),
+            Template(
+                r"images/error_network.png", resolution=(720, 1280), threshold=0.99
+            ),
         ]
         self.error_templates = list(default_error_templates)
 
         self.ok_button_template = ok_button_template or Template(
             r"images/ok_button.png", resolution=(720, 1280)
         )
+        self.enter_game_template = enter_game_template or ENTER_GAME_BUTTON_TEMPLATE
 
     def start(self):
         """启动后台监控线程"""
@@ -76,13 +86,9 @@ class ErrorDialogMonitor:
             for template in self.error_templates:
                 if exists(template):
                     self.logger.warning("⚠️ 检测到错误对话框")
-                    try:
-                        if wait(self.ok_button_template, timeout=1, interval=0.1):
-                            touch(self.ok_button_template)
-                            self.logger.info("✅ 点击OK按钮关闭错误对话框")
-                            time.sleep(1)
-                    except Exception:
-                        self.logger.debug("关闭错误对话框时出现异常", exc_info=True)
+                    handled = self._click_ok_button()
+                    if handled and self._requires_relogin(template):
+                        self._click_enter_game_button()
                     break
         except Exception:
             self.logger.debug("错误对话框监控出现异常", exc_info=True)
@@ -92,3 +98,31 @@ class ErrorDialogMonitor:
             self._handle_dialogs()
             if self._stop_event.wait(self.check_interval):
                 break
+
+    def _requires_relogin(self, template: Template) -> bool:
+        """根据弹窗模板判断是否需要重新点击进入游戏"""
+        filename = getattr(template, "filename", "") or ""
+        return "duplogin" in filename or "otheraccount" in filename
+
+    def _click_ok_button(self) -> bool:
+        """点击确认按钮"""
+        try:
+            if wait(self.ok_button_template, timeout=1, interval=0.1):
+                touch(self.ok_button_template)
+                self.logger.info("✅ 点击OK按钮关闭错误对话框")
+                time.sleep(1)
+                return True
+        except Exception:
+            self.logger.debug("关闭错误对话框时出现异常", exc_info=True)
+        return False
+
+    def _click_enter_game_button(self):
+        """在检测到账号被挤下线时，尝试重新点击进入游戏"""
+        self.logger.info("🔁 检测到账号被踢，尝试重新进入游戏")
+        try:
+            wait(self.enter_game_template, timeout=10, interval=0.3)
+            touch(self.enter_game_template)
+            self.logger.info("✅ 已点击进入游戏按钮")
+            time.sleep(1)
+        except Exception as e:
+            self.logger.warning(f"⚠️ 未能点击进入游戏按钮: {e}")

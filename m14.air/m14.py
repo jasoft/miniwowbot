@@ -22,10 +22,11 @@ while True:
         res=exists(Template("tpl1761359506125.png")) #quest complete icon
         if(res):
             touch(res)
-            sleep(0.5)
+            sleep(1)
             touch(Template(r"tpl1761909189197.png", record_pos=(0.001, 0.315), resolution=(720, 1280)))
+            sleep(1)
             touch(Template(r"tpl1761909210064.png", record_pos=(0.003, 0.325), resolution=(720, 1280)))
-            sleep(0.5)
+            sleep(1)
         else:
             break
     if is_main_world():

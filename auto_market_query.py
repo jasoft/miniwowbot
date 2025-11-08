@@ -406,6 +406,7 @@ def auto_market_query(
 def main():
     """主函数"""
     import argparse
+
     global error_dialog_monitor
 
     parser = argparse.ArgumentParser(description="自动化市场查询脚本")
@@ -445,12 +446,6 @@ def main():
     try:
         # 初始化设备和OCR
         initialize_device_and_ocr(args.emulator)
-
-        touch((208, 290))  # 输入框
-        logger.info(f"输入装备名称: {args.name}")
-        for _ in range(10):
-            keyevent("67")
-        text(args.name)
 
         # 执行自动化查询
         auto_market_query(
