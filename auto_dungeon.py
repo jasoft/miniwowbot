@@ -1480,6 +1480,24 @@ def initialize_device_and_ocr(emulator_name: Optional[str] = None):
         ocr_helper = OCRHelper(output_dir="output")
 
 
+def count_remaining_selected_dungeons(db):
+    """统计未完成的选定副本数量"""
+    global config_loader, zone_dungeons
+
+    if config_loader is None or zone_dungeons is None:
+        logger.warning("⚠️ 配置未初始化，无法计算剩余副本")
+        return 0
+
+    remaining = 0
+    for zone_name, dungeons in zone_dungeons.items():
+        for dungeon_dict in dungeons:
+            if not dungeon_dict.get("selected", True):
+                continue
+            if not db.is_dungeon_completed(zone_name, dungeon_dict["name"]):
+                remaining += 1
+    return remaining
+
+
 @timeout_decorator(7200, timeout_exception=TimeoutError)  # 2 小时超时
 def run_dungeon_traversal(db, total_dungeons):
     """执行副本遍历主循环
@@ -1498,13 +1516,7 @@ def run_dungeon_traversal(db, total_dungeons):
     processed_dungeons = 0
 
     # 计算需要完成的副本总数（排除已完成和未选定的副本）
-    remaining_dungeons = 0
-    for zone_name, dungeons in zone_dungeons.items():
-        for dungeon_dict in dungeons:
-            if dungeon_dict.get("selected", True) and not db.is_dungeon_completed(
-                zone_name, dungeon_dict["name"]
-            ):
-                remaining_dungeons += 1
+    remaining_dungeons = count_remaining_selected_dungeons(db)
 
     logger.info(f"📊 需要完成的副本总数: {remaining_dungeons}")
 
@@ -1732,7 +1744,19 @@ def main():
         sys.exit(1)
 
     with DungeonProgressDB(config_name=config_loader.get_config_name()) as db:
-        run_dungeon_traversal(db, total_dungeons)
+        iteration = 1
+        while True:
+            logger.info(f"\n🔁 开始第 {iteration} 轮副本遍历…")
+            run_dungeon_traversal(db, total_dungeons)
+
+            remaining_after_run = count_remaining_selected_dungeons(db)
+            if remaining_after_run <= 0:
+                break
+
+            logger.warning(
+                f"⚠️ 第 {iteration} 轮结束后仍有 {remaining_after_run} 个副本未完成，准备继续"
+            )
+            iteration += 1
 
         # 10. 显示完成信息
         logger.info("\n" + "=" * 60)
