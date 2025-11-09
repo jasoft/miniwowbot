@@ -126,6 +126,43 @@ class TestDungeonStatistics:
             assert isinstance(dungeon_name, str)
 
 
+class TestDailyCollectSpecialDungeon:
+    """测试每日收集记录逻辑"""
+
+    def test_mark_daily_collect_completed(self, temp_db):
+        """测试每日收集标记与查询"""
+        assert temp_db.is_daily_collect_completed() is False
+        temp_db.mark_daily_collect_completed()
+        assert temp_db.is_daily_collect_completed() is True
+
+    def test_daily_collect_excluded_from_counts_by_default(self, temp_db):
+        """每日收集默认不计入副本统计"""
+        temp_db.mark_daily_collect_completed()
+        temp_db.mark_dungeon_completed("风暴群岛", "真理之地")
+
+        assert temp_db.get_today_completed_count() == 1
+        assert temp_db.get_today_completed_count(include_special=True) == 2
+
+        dungeons_default = temp_db.get_today_completed_dungeons()
+        assert ("风暴群岛", "真理之地") in dungeons_default
+        assert all(zone != "__daily_collect__" for zone, _ in dungeons_default)
+
+        dungeons_full = temp_db.get_today_completed_dungeons(include_special=True)
+        assert ("__daily_collect__", "daily_collect") in dungeons_full
+
+    def test_daily_collect_excluded_from_zone_stats(self, temp_db):
+        """每日收集默认不计入区域统计"""
+        temp_db.mark_daily_collect_completed()
+        temp_db.mark_dungeon_completed("军团领域", "梦魇丛林")
+
+        zone_stats = temp_db.get_zone_stats()
+        assert zone_stats == [("军团领域", 1)]
+
+        zone_stats_full = dict(temp_db.get_zone_stats(include_special=True))
+        assert zone_stats_full["军团领域"] == 1
+        assert zone_stats_full["__daily_collect__"] == 1
+
+
 class TestDatabaseCleanup:
     """测试数据库清理功能"""
 

@@ -1131,10 +1131,25 @@ def daily_collect():
     保持向后兼容的函数包装器
     """
     global daily_collect_manager
+
+    if config_loader is None:
+        raise RuntimeError("配置加载器未初始化，无法执行每日收集")
+
     # 确保使用最新的配置
     if daily_collect_manager.config_loader != config_loader:
         daily_collect_manager = DailyCollectManager(config_loader)
-    daily_collect_manager.collect_daily_rewards()
+
+    config_name = config_loader.get_config_name() or "default"
+
+    with DungeonProgressDB(config_name=config_name) as db:
+        if db.is_daily_collect_completed():
+            logger.info("⏭️ 今日每日收集已完成，跳过重复执行")
+            return False
+
+        daily_collect_manager.collect_daily_rewards()
+        db.mark_daily_collect_completed()
+        logger.info("💾 已记录今日每日收集完成")
+        return True
 
 
 def focus_and_click_dungeon(dungeon_name, zone_name, max_attempts=2):
@@ -1586,7 +1601,9 @@ def run_dungeon_traversal(db, total_dungeons):
         logger.error("❌ 配置未初始化")
         sys.exit(1)
 
-    daily_collect_finished = False
+    daily_collect_finished = db.is_daily_collect_completed()
+    if daily_collect_finished and config_loader.is_daily_collect_enabled():
+        logger.info("⏭️ 今日每日收集任务已完成，跳过 daily_collect 步骤")
     dungeon_index = 0
     processed_dungeons = 0
 

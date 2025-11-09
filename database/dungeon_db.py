@@ -22,6 +22,11 @@ logger = setup_logger_from_config(use_color=True)
 # 数据库实例
 db = SqliteDatabase(None)
 
+# 特殊副本：每日收集
+DAILY_COLLECT_ZONE_NAME = "__daily_collect__"
+DAILY_COLLECT_DUNGEON_NAME = "daily_collect"
+SPECIAL_ZONE_NAMES = (DAILY_COLLECT_ZONE_NAME,)
+
 
 class BaseModel(Model):
     """基础模型"""
@@ -116,29 +121,49 @@ class DungeonProgressDB:
 
         logger.info(f"💾 记录通关: {zone_name} - {dungeon_name}")
 
-    def get_today_completed_count(self):
+    def mark_daily_collect_completed(self):
+        """标记每日收集任务为已完成"""
+        self.mark_dungeon_completed(
+            DAILY_COLLECT_ZONE_NAME, DAILY_COLLECT_DUNGEON_NAME
+        )
+
+    def is_daily_collect_completed(self):
+        """判断每日收集任务今天是否已完成"""
+        return self.is_dungeon_completed(
+            DAILY_COLLECT_ZONE_NAME, DAILY_COLLECT_DUNGEON_NAME
+        )
+
+    def _build_completed_query(self, target_date=None, include_special=False):
+        """构建已通关记录查询条件"""
+        if target_date is None:
+            target_date = self.get_today_date()
+
+        query = (
+            (DungeonProgress.config_name == self.config_name)
+            & (DungeonProgress.date == target_date)
+            & (DungeonProgress.completed == 1)
+        )
+
+        if not include_special and SPECIAL_ZONE_NAMES:
+            query &= ~(DungeonProgress.zone_name.in_(SPECIAL_ZONE_NAMES))
+
+        return query
+
+    def get_today_completed_count(self, include_special=False):
         """获取今天已通关的副本数量"""
         today = self.get_today_date()
         return (
             DungeonProgress.select()
-            .where(
-                (DungeonProgress.config_name == self.config_name)
-                & (DungeonProgress.date == today)
-                & (DungeonProgress.completed == 1)
-            )
+            .where(self._build_completed_query(today, include_special))
             .count()
         )
 
-    def get_today_completed_dungeons(self):
+    def get_today_completed_dungeons(self, include_special=False):
         """获取今天已通关的副本列表"""
         today = self.get_today_date()
         records = (
             DungeonProgress.select()
-            .where(
-                (DungeonProgress.config_name == self.config_name)
-                & (DungeonProgress.date == today)
-                & (DungeonProgress.completed == 1)
-            )
+            .where(self._build_completed_query(today, include_special))
             .order_by(DungeonProgress.completed_at)
         )
         return [(r.zone_name, r.dungeon_name) for r in records]
@@ -154,7 +179,7 @@ class DungeonProgressDB:
         if deleted_count > 0:
             logger.info(f"🗑️ 清理了 {deleted_count} 条旧记录")
 
-    def get_zone_stats(self):
+    def get_zone_stats(self, include_special=False):
         """获取各区域的通关统计"""
         today = self.get_today_date()
         query = (
@@ -162,28 +187,20 @@ class DungeonProgressDB:
                 DungeonProgress.zone_name,
                 fn.COUNT(DungeonProgress.id).alias("count"),
             )
-            .where(
-                (DungeonProgress.config_name == self.config_name)
-                & (DungeonProgress.date == today)
-                & (DungeonProgress.completed == 1)
-            )
+            .where(self._build_completed_query(today, include_special))
             .group_by(DungeonProgress.zone_name)
             .order_by(fn.COUNT(DungeonProgress.id).desc())
         )
         return [(r.zone_name, r.count) for r in query]
 
-    def get_recent_stats(self, days=7):
+    def get_recent_stats(self, days=7, include_special=False):
         """获取最近N天的统计"""
         stats = []
         for i in range(days):
             target_date = (date.today() - timedelta(days=i)).isoformat()
             count = (
                 DungeonProgress.select()
-                .where(
-                    (DungeonProgress.config_name == self.config_name)
-                    & (DungeonProgress.date == target_date)
-                    & (DungeonProgress.completed == 1)
-                )
+                .where(self._build_completed_query(target_date, include_special))
                 .count()
             )
             stats.append((target_date, count))
