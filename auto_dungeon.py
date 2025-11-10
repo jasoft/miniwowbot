@@ -502,6 +502,7 @@ def send_bark_notification(title, message, level="active"):
         return False
 
 
+@timeout_decorator(5, timeout_exception=TimeoutError)
 def is_main_world():
     """
     检查是否在主世界，并输出执行时间
@@ -832,11 +833,55 @@ def switch_account(account_name):
 
 
 @timeout_decorator(60, timeout_exception=TimeoutError)
-def back_to_main():
+def back_to_main(max_duration=55, backoff_interval=0.2):
+    """
+    返回主界面。即使 Airtest 底层调用阻塞，也依旧通过手动计时与兜底手段
+    保证最终会超时报错。
+
+    Args:
+        max_duration (float): 允许的最大等待时间，单位：秒。默认 55
+        backoff_interval (float): 每轮操作结束后的休眠时间，单位：秒
+    """
     logger.info("🔙 返回主界面")
-    while not is_main_world():
+    start_time = time.time()
+    attempt = 0
+
+    while True:
+        if is_main_world():
+            logger.info("✅ 已回到主界面")
+            return
+
+        elapsed = time.time() - start_time
+        if elapsed >= max_duration:
+            message = f"back_to_main 超时，已等待 {elapsed:.1f} 秒仍未检测到主界面"
+            logger.error(message)
+            raise TimeoutError(message)
+
+        attempt += 1
+
         for _ in range(3):
-            touch(BACK_BUTTON)
+            try:
+                touch(BACK_BUTTON)
+            except Exception as e:
+                logger.warning(f"⚠️ 发送返回点击失败: {e}")
+                break
+            sleep(0.1)
+
+        # 每三轮尝试一次系统返回键，进一步保证能触发 UI 返回
+        if attempt % 3 == 0:
+            try:
+                keyevent("BACK")
+            except Exception as e:
+                logger.warning(f"⚠️ 系统返回键发送失败: {e}")
+
+        # 偶尔直接调用 ADB 指令，避免 Airtest 卡死
+        if attempt % 5 == 0:
+            try:
+                shell("input keyevent 4")
+            except Exception as e:
+                logger.debug(f"ADB 返回指令失败: {e}")
+
+        sleep(backoff_interval)
 
 
 def switch_to(section_name):
