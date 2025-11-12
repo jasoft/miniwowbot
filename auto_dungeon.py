@@ -27,6 +27,7 @@ from airtest.core.api import (
 )
 from airtest.core.error import TargetNotFoundError
 from tqdm import tqdm
+from transitions import Machine, MachineError
 
 # 设置 Airtest 日志级别
 airtest_logger = logging.getLogger("airtest")
@@ -630,27 +631,13 @@ def is_on_character_selection(timeout=30):
     """
     检查当前是否位于角色选择界面，模板识别失败时回退到 OCR
     """
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            wait(ENTER_GAME_BUTTON_TEMPLATE, timeout=3, interval=0.1)
-            return True
-        except TargetNotFoundError:
-            pass
-        except Exception as e:
-            logger.debug(f"检测角色选择界面时发生异常: {e}")
-
-        result = find_text(
-            "进入游戏",
-            timeout=1,
-            raise_exception=False,
-            use_cache=False,
-            similarity_threshold=0.6,
-            regions=[8, 9],
-        )
-        if result and result.get("found"):
-            logger.debug("通过 OCR 识别到进入游戏按钮")
-            return True
+    try:
+        wait(ENTER_GAME_BUTTON_TEMPLATE, timeout=timeout, interval=0.1)
+        return True
+    except TargetNotFoundError:
+        pass
+    except Exception as e:
+        logger.debug(f"检测角色选择界面时发生异常: {e}")
 
     return False
 
@@ -670,18 +657,10 @@ def select_character(char_class):
         error_dialog_monitor.handle_once()
 
     in_character_selection = is_on_character_selection(timeout=120)
-
-    if not in_character_selection:  # 如果不在选择角色界面，返回选择界面
-        back_to_main()
-        touch(SETTINGS_BUTTON)
-        sleep(1)
-
-        # 返回角色选择界面
-        find_text_and_click_safe("返回角色选择界面")
-        if not is_on_character_selection(timeout=20):
-            raise RuntimeError("无法进入角色选择界面，进入游戏按钮未出现")
-    else:
-        logger.info("已在角色选择界面")
+    # 使用异常处理替代 assert，便于上层捕获和处理错误
+    if not in_character_selection:
+        logger.error("❌ 未在角色选择界面，无法选择角色")
+        raise RuntimeError("未在角色选择界面，无法选择角色")
 
     # 查找职业文字位置
     logger.info(f"🔍 查找职业: {char_class}")
@@ -701,14 +680,14 @@ def select_character(char_class):
         logger.info(f"✅ 成功选择角色: {char_class}")
     else:
         logger.error(f"❌ 未找到职业: {char_class}")
-        raise Exception(f"无法找到职业: {char_class}")
+        raise RuntimeError(f"无法找到职业: {char_class}")
 
     find_text_and_click("进入游戏")
     wait_for_main()
 
 
-@timeout_decorator(310, timeout_exception=TimeoutError)
-def wait_for_main():
+@timeout_decorator(300, timeout_exception=TimeoutError)
+def wait_for_main(timeout=300):
     """
     等待回到主界面
     如果 5 分钟（300秒）还没执行结束，则中断执行并发送通知
@@ -717,55 +696,17 @@ def wait_for_main():
     也能被外层的 timeout 机制中断。310秒的装饰器超时比内部300秒的超时稍长，
     这样可以确保内部的超时逻辑先触发。
     """
+
     logger.info("⏳ 等待战斗结束...")
-    timeout = 300  # 5 分钟超时
     start_time = time.time()
-
     try:
-        # 使用较短的循环检查，以便能及时中断
-        check_interval = 5  # 每5秒检查一次
-        while time.time() - start_time < timeout:
-            # 使用 wait() 而不是 exists()，因为 wait() 支持 timeout 参数
-            # 这样可以避免 exists() 无限期卡住
-            try:
-                result = wait(GIFTS_TEMPLATE, timeout=check_interval, interval=0.5)
-                if result:
-                    elapsed = time.time() - start_time
-                    logger.info(f"✅ 战斗结束，用时 {elapsed:.1f} 秒")
-                    return True
-            except Exception as e:
-                logger.debug(f"⏱️ 等待 GIFTS_TEMPLATE 超时或出错: {e}")
-                # 继续循环，不中断
-
-            # 检查是否有停止信号
-            if check_stop_signal():
-                logger.warning("⛔ 收到停止信号，中断等待")
-                send_bark_notification(
-                    "副本助手", "收到停止信号，已中断执行", level="timeSensitive"
-                )
-                raise KeyboardInterrupt("收到停止信号")
-
-        # 超时处理
-        elapsed = time.time() - start_time
-        error_msg = f"战斗超时（{elapsed:.1f}秒 > {timeout}秒），可能卡住了"
-        logger.error(f"❌ {error_msg}")
-
-        # 发送 Bark 通知
-        send_bark_notification("副本助手 - 超时警告", error_msg, level="timeSensitive")
-
-        # 抛出超时异常
-        raise TimeoutError(error_msg)
-
-    except TimeoutError:
-        raise
-    except KeyboardInterrupt:
-        raise
+        result = wait(GIFTS_TEMPLATE, timeout=timeout, interval=0.5)
+        if result:
+            elapsed = time.time() - start_time
+            logger.info(f"✅ 战斗结束，用时 {elapsed:.1f} 秒")
     except Exception as e:
-        logger.error(f"❌ 等待主界面时出错: {e}")
-        send_bark_notification(
-            "副本助手 - 错误", f"等待主界面时出错: {str(e)}", level="timeSensitive"
-        )
-        raise
+        logger.error(f"⏱️ 等待 GIFTS_TEMPLATE 超时或出错: {e}")
+        raise TimeoutError("等待主界面超时")
 
 
 def switch_to_zone(zone_name):
@@ -1171,6 +1112,223 @@ class DailyCollectManager:
         self.collect_daily_rewards()
 
 
+class AutoDungeonStateMachine:
+    """使用 transitions 管理副本执行状态"""
+
+    STATES = [
+        "character_selection",
+        "main_menu",
+        "dungeon_selection",
+        "dungeon_battle",
+        "reward_claim",
+        "sell_loot",
+    ]
+
+    def __init__(self, config_loader):
+        self.config_loader = config_loader
+        self.current_zone = None
+        self.active_dungeon = None
+        self.machine = Machine(
+            model=self,
+            states=self.STATES,
+            initial="character_selection",
+            auto_transitions=False,
+            send_event=True,
+            queued=True,
+        )
+        self._register_transitions()
+
+    def _register_transitions(self):
+        self.machine.add_transition(
+            trigger="trigger_select_character",
+            source="character_selection",
+            dest="main_menu",
+            before="_on_select_character",
+        )
+        self.machine.add_transition(
+            trigger="ensure_main_menu",
+            source="*",
+            dest="main_menu",
+            before="_on_return_to_main",
+        )
+        self.machine.add_transition(
+            trigger="prepare_dungeon",
+            source="main_menu",
+            dest="dungeon_selection",
+            conditions="_prepare_dungeon_selection",
+        )
+        self.machine.add_transition(
+            trigger="start_battle",
+            source="dungeon_selection",
+            dest="dungeon_battle",
+            conditions="_start_battle_sequence",
+        )
+        self.machine.add_transition(
+            trigger="complete_battle",
+            source="dungeon_battle",
+            dest="reward_claim",
+            before="_on_reward_state",
+        )
+        self.machine.add_transition(
+            trigger="claim_rewards",
+            source="main_menu",
+            dest="reward_claim",
+            before="_on_reward_state",
+        )
+        self.machine.add_transition(
+            trigger="return_to_main",
+            source=["reward_claim", "dungeon_selection"],
+            dest="main_menu",
+            before="_on_return_to_main",
+        )
+        self.machine.add_transition(
+            trigger="start_selling",
+            source="main_menu",
+            dest="sell_loot",
+            before="_on_sell_loot",
+        )
+        self.machine.add_transition(
+            trigger="finish_selling",
+            source="sell_loot",
+            dest="main_menu",
+            before="_on_return_to_main",
+        )
+
+    def _safe_trigger(self, trigger_name, **kwargs):
+        try:
+            trigger = getattr(self, trigger_name)
+            return trigger(**kwargs)
+        except (AttributeError, MachineError) as exc:
+            logger.error(f"⚠️ 状态机触发失败: {trigger_name} - {exc}")
+            return False
+
+    def select_character_state(self, char_class=None):
+        if char_class:
+            self._safe_trigger("trigger_select_character", char_class=char_class)
+            return self.state == "main_menu"
+        return self.ensure_main()
+
+    def ensure_main(self):
+        self._safe_trigger("ensure_main_menu")
+        return self.state == "main_menu"
+
+    def prepare_dungeon_state(self, zone_name, dungeon_name, max_attempts=3):
+        self._safe_trigger(
+            "prepare_dungeon",
+            zone_name=zone_name,
+            dungeon_name=dungeon_name,
+            max_attempts=max_attempts,
+        )
+        return self.state == "dungeon_selection"
+
+    def start_battle_state(
+        self, dungeon_name, completed_dungeons=0, total_dungeons=0
+    ):
+        self._safe_trigger(
+            "start_battle",
+            dungeon_name=dungeon_name,
+            completed_dungeons=completed_dungeons,
+            total_dungeons=total_dungeons,
+        )
+        return self.state == "dungeon_battle"
+
+    def complete_battle_state(self):
+        self._safe_trigger("complete_battle", reward_type="battle")
+        return self.state == "reward_claim"
+
+    def claim_daily_rewards(self):
+        self._safe_trigger("claim_rewards", reward_type="daily_collect")
+        return self.state == "reward_claim"
+
+    def return_to_main_state(self):
+        self._safe_trigger("return_to_main")
+        return self.state == "main_menu"
+
+    def sell_loot(self):
+        self._safe_trigger("start_selling")
+        return self.state == "sell_loot"
+
+    def finish_sell_loot(self):
+        self._safe_trigger("finish_selling")
+        return self.state == "main_menu"
+
+    # ----- 状态动作方法 -----
+    def _on_select_character(self, event):
+        char_class = event.kwargs.get("char_class")
+        if not char_class:
+            logger.warning("⚠️ 未提供职业信息，保持在主界面")
+            return
+        logger.info(f"🎭 状态机: 选择职业 {char_class}")
+        select_character(char_class)
+
+    def _prepare_dungeon_selection(self, event):
+        zone_name = event.kwargs.get("zone_name")
+        dungeon_name = event.kwargs.get("dungeon_name")
+        max_attempts = event.kwargs.get("max_attempts", 3)
+
+        if not zone_name or not dungeon_name:
+            logger.warning("⚠️ 状态机缺少区域或副本信息，无法进入选取状态")
+            return False
+
+        logger.info(f"🗺️ 状态机: 前往区域 {zone_name}，寻找副本 {dungeon_name}")
+        open_map()
+        if self.current_zone != zone_name:
+            if not switch_to_zone(zone_name):
+                logger.warning(f"⚠️ 状态机无法切换到区域: {zone_name}")
+                return False
+            self.current_zone = zone_name
+
+        success = focus_and_click_dungeon(
+            dungeon_name, zone_name, max_attempts=max_attempts
+        )
+
+        if success:
+            self.active_dungeon = dungeon_name
+        else:
+            logger.warning(f"⚠️ 状态机无法定位副本: {dungeon_name}")
+
+        return success
+
+    def _start_battle_sequence(self, event):
+        dungeon_name = event.kwargs.get("dungeon_name") or self.active_dungeon
+        completed = event.kwargs.get("completed_dungeons", 0)
+        total = event.kwargs.get("total_dungeons", 0)
+
+        if not dungeon_name:
+            logger.warning("⚠️ 状态机未记录当前副本，无法进入战斗")
+            return False
+
+        if not click_free_button():
+            logger.info(f"ℹ️ 副本 {dungeon_name} 今日已完成或无免费次数")
+            return False
+
+        logger.info(f"⚔️ 状态机: 进入副本战斗 - {dungeon_name}")
+        find_text_and_click_safe("战斗", regions=[8])
+        auto_combat(completed_dungeons=completed, total_dungeons=total)
+        return True
+
+    def _on_reward_state(self, event):
+        reward_type = event.kwargs.get("reward_type", "battle")
+
+        if reward_type == "daily_collect":
+            logger.info("🎁 状态机: 执行每日领取流程")
+            try:
+                daily_collect()
+            except Exception as exc:
+                logger.error(f"❌ 每日领取失败: {exc}")
+                raise
+        else:
+            logger.info("🎁 状态机: 处理副本奖励")
+
+    def _on_return_to_main(self, event):
+        logger.info("🏠 状态机: 返回主界面")
+        back_to_main()
+        self.current_zone = None
+        self.active_dungeon = None
+
+    def _on_sell_loot(self, event):
+        logger.info("🧹 状态机: 卖出垃圾道具")
+        sell_trashes()
 # 创建全局实例，保持向后兼容
 daily_collect_manager = DailyCollectManager(config_loader)
 
@@ -1250,6 +1408,7 @@ def process_dungeon(
     db,
     completed_dungeons=0,
     remaining_dungeons=0,
+    state_machine=None,
 ):
     """处理单个副本, 返回是否成功完成
 
@@ -1266,32 +1425,37 @@ def process_dungeon(
     """
     logger.info(f"\n🎯 [{index}/{total}] 处理副本: {dungeon_name}")
 
-    # 点击副本名称（带自动重试）
-    if not focus_and_click_dungeon(dungeon_name, zone_name, max_attempts=3):
-        logger.warning(f"⏭️ 跳过: {dungeon_name}")
+    if state_machine is None:
+        logger.error("❌ 状态机未初始化，无法处理副本")
         return False
 
-    # 尝试点击免费按钮
-    if click_free_button():
-        # 进入副本战斗，退出后会回到主界面
-        find_text_and_click_safe("战斗", regions=[8])
+    if not state_machine.prepare_dungeon_state(
+        zone_name=zone_name, dungeon_name=dungeon_name, max_attempts=3
+    ):
+        state_machine.ensure_main()
+        return False
 
-        auto_combat(
-            completed_dungeons=completed_dungeons, total_dungeons=remaining_dungeons
-        )
-        logger.info(f"✅ 完成: {dungeon_name}")
+    battle_started = state_machine.start_battle_state(
+        dungeon_name=dungeon_name,
+        completed_dungeons=completed_dungeons,
+        total_dungeons=remaining_dungeons,
+    )
 
-        # 记录通关状态
-        db.mark_dungeon_completed(zone_name, dungeon_name)
-
-        sleep(CLICK_INTERVAL)
-        return True
-    else:
-        # 没有免费按钮，说明今天已经通关过了，记录状态
+    if not battle_started:
         logger.warning("⚠️ 无免费按钮，标记为已完成")
         db.mark_dungeon_completed(zone_name, dungeon_name)
         click_back()
+        state_machine.return_to_main_state()
+        return True
 
+    logger.info(f"✅ 完成: {dungeon_name}")
+    state_machine.complete_battle_state()
+
+    # 记录通关状态
+    db.mark_dungeon_completed(zone_name, dungeon_name)
+
+    sleep(CLICK_INTERVAL)
+    state_machine.return_to_main_state()
     return True
 
 
@@ -1640,7 +1804,7 @@ def count_remaining_selected_dungeons(db):
 
 
 @timeout_decorator(7200, timeout_exception=TimeoutError)  # 2 小时超时
-def run_dungeon_traversal(db, total_dungeons):
+def run_dungeon_traversal(db, total_dungeons, state_machine):
     """执行副本遍历主循环
 
     Returns:
@@ -1648,7 +1812,11 @@ def run_dungeon_traversal(db, total_dungeons):
     """
     global config_loader, zone_dungeons
 
-    if config_loader is None or zone_dungeons is None:
+    if (
+        config_loader is None
+        or zone_dungeons is None
+        or state_machine is None
+    ):
         logger.error("❌ 配置未初始化")
         sys.exit(1)
 
@@ -1667,6 +1835,8 @@ def run_dungeon_traversal(db, total_dungeons):
     completed_today = db.get_today_completed_count()
     logger.info(f"📊 今天已完成的副本数: {completed_today}")
 
+    state_machine.ensure_main()
+
     # 遍历所有区域
     for zone_idx, (zone_name, dungeons) in enumerate(zone_dungeons.items(), 1):
         logger.info(f"\n{'#' * 60}")
@@ -1680,7 +1850,7 @@ def run_dungeon_traversal(db, total_dungeons):
             if check_stop_signal():
                 logger.info(f"\n📊 统计: 本次运行完成 {processed_dungeons} 个副本")
                 logger.info("👋 已停止执行")
-                back_to_main()
+                state_machine.ensure_main()
                 return processed_dungeons
 
             dungeon_name = dungeon_dict["name"]
@@ -1703,15 +1873,11 @@ def run_dungeon_traversal(db, total_dungeons):
 
             # 正式开始挂机 - 只在配置启用时执行
             if not daily_collect_finished and config_loader.is_daily_collect_enabled():
-                daily_collect()
-                daily_collect_finished = True
+                if state_machine.claim_daily_rewards():
+                    daily_collect_finished = True
+                    state_machine.return_to_main_state()
 
-            open_map()
-            if not switch_to_zone(zone_name):
-                logger.warning(f"⏭️ 跳过区域: {zone_name}")
-                continue
-
-            # 完成副本后会回到主界面，需要重新打开地图
+            # 完成副本后会回到主界面，需要状态机重新处理
             if process_dungeon(
                 dungeon_name,
                 zone_name,
@@ -1720,12 +1886,17 @@ def run_dungeon_traversal(db, total_dungeons):
                 db,
                 completed_today + processed_dungeons,
                 remaining_dungeons,
+                state_machine=state_machine,
             ):
                 processed_dungeons += 1
                 # 每完成3个副本就卖垃圾
                 if processed_dungeons % 3 == 0:
-                    sell_trashes()
-                    back_to_main()
+                    if state_machine.sell_loot():
+                        state_machine.finish_sell_loot()
+                    else:
+                        sell_trashes()
+                        back_to_main()
+                        state_machine.ensure_main()
 
         logger.info(f"\n✅ 完成区域: {zone_name}")
 
@@ -1873,6 +2044,8 @@ def main():
     # 7. 初始化设备和OCR
     initialize_device_and_ocr(args.emulator)
 
+    state_machine = AutoDungeonStateMachine(config_loader)
+
     # 启动游戏
     logger.info("启动游戏...")
     stop_app("com.ms.ysjyzr")
@@ -1888,10 +2061,11 @@ def main():
         sys.exit(1)
     char_class = config_loader.get_char_class()
     if char_class:
-        logger.info(f"选择角色: {char_class}")
-        select_character(char_class)
+        logger.info(f"开始选择角色: {char_class}")
+        state_machine.select_character_state(char_class=char_class)
     else:
         logger.info("⚠️ 未配置角色职业，跳过角色选择")
+        state_machine.ensure_main()
 
     # 9. 执行副本遍历
     if config_loader is None:
@@ -1902,7 +2076,7 @@ def main():
         iteration = 1
         while True:
             logger.info(f"\n🔁 开始第 {iteration} 轮副本遍历…")
-            run_dungeon_traversal(db, total_dungeons)
+            run_dungeon_traversal(db, total_dungeons, state_machine)
 
             remaining_after_run = count_remaining_selected_dungeons(db)
             if remaining_after_run <= 0:
@@ -1917,7 +2091,7 @@ def main():
         logger.info("\n" + "=" * 60)
         logger.info(f"🎉 全部完成！今天共通关 {db.get_today_completed_count()} 个副本")
         logger.info("=" * 60 + "\n")
-        back_to_main()
+        state_machine.ensure_main()
 
 
 if __name__ == "__main__":
