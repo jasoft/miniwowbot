@@ -25,12 +25,17 @@ from wow_class_colors import get_class_hex_color
 
 
 PAGE_TITLE = "副本进度监控面板"
-AUTO_REFRESH_MS = 60000
+AUTO_REFRESH_MS = 5000
 
 
 @st.cache_data(ttl=30)
 def _load_configs_cached(config_dir: str):
     return load_configurations(config_dir)
+
+
+@st.cache_resource(show_spinner=False)
+def _get_db(db_path: str) -> DungeonProgressDB:
+    return DungeonProgressDB(db_path)
 
 
 def _render_auto_refresh(interval_ms: int = AUTO_REFRESH_MS) -> int:
@@ -177,15 +182,28 @@ def _render_config_details(config_progress, selected_configs):
                 )
 
 
+def _render_dashboard(context: dict) -> None:
+    st.subheader("今日概览")
+    _render_summary(context["summary"])
+
+    st.subheader("最近几天的完成趋势")
+    _render_recent_stats(context["recent_stats"])
+
+    st.subheader("今天的区域分布")
+    _render_zone_stats(context["zone_stats"])
+
+    st.subheader("今日详细记录")
+    _render_today_records(context["today_records"], context["selected_configs"])
+
+    st.subheader("职业详情")
+    _render_config_details(context["config_progress"], context["selected_configs"])
+
+
 def main() -> None:
     st.set_page_config(page_title=PAGE_TITLE, page_icon="📊", layout="wide")
     st.title(PAGE_TITLE)
     refresh_count = _render_auto_refresh(AUTO_REFRESH_MS)
     st.caption(f"数据每 5 秒自动刷新 (第 {refresh_count} 次), 随时掌握当前进度")
-
-    if "progress_body_container" not in st.session_state:
-        st.session_state["progress_body_container"] = st.container()
-    body_container = st.session_state["progress_body_container"]
 
     with st.sidebar:
         st.header("面板设置")
@@ -202,15 +220,12 @@ def main() -> None:
 
     configs = _load_configs_cached(config_dir)
 
-    db = DungeonProgressDB(db_path)
-    try:
-        today_records = fetch_today_records(db, include_special=include_special)
-        config_progress = build_config_progress(configs, today_records)
-        recent_stats = compute_recent_totals(
-            db, days=recent_days, include_special=include_special
-        )
-    finally:
-        db.close()
+    db = _get_db(db_path)
+    today_records = fetch_today_records(db, include_special=include_special)
+    config_progress = build_config_progress(configs, today_records)
+    recent_stats = compute_recent_totals(
+        db, days=recent_days, include_special=include_special
+    )
 
     available_configs = [entry["config_name"] for entry in config_progress]
     selected_configs = st.sidebar.multiselect(
@@ -223,45 +238,39 @@ def main() -> None:
     summary = summarize_progress(filtered_progress)
     zone_stats = compute_zone_stats(today_records)
 
+    selected_configs_sorted = sorted(selected_configs)
     snapshot_payload = {
         "records": today_records,
         "progress": config_progress,
         "recent_stats": recent_stats,
         "zone_stats": zone_stats,
+        "filters": {
+            "selected_configs": selected_configs_sorted,
+            "include_special": include_special,
+            "recent_days": recent_days,
+            "db_path": db_path,
+            "config_dir": config_dir,
+        },
     }
-    render_inputs = {
-        "snapshot": snapshot_payload,
-        "selected_configs": sorted(selected_configs),
-        "include_special": include_special,
-        "recent_days": recent_days,
-        "db_path": db_path,
-        "config_dir": config_dir,
-    }
-    current_hash = compute_snapshot_hash(render_inputs)
+    current_hash = compute_snapshot_hash(snapshot_payload)
     previous_hash = st.session_state.get("progress_snapshot_hash")
 
-    if previous_hash == current_hash and st.session_state.get("progress_render_initialized"):
-        return
+    render_context = {
+        "summary": summary,
+        "recent_stats": recent_stats,
+        "zone_stats": zone_stats,
+        "today_records": today_records,
+        "config_progress": config_progress,
+        "selected_configs": selected_configs_sorted,
+    }
 
-    st.session_state["progress_snapshot_hash"] = current_hash
-    st.session_state["progress_render_initialized"] = True
+    if previous_hash != current_hash or "progress_render_data" not in st.session_state:
+        st.session_state["progress_snapshot_hash"] = current_hash
+        st.session_state["progress_render_data"] = render_context
+    else:
+        render_context = st.session_state["progress_render_data"]
 
-    body_container.empty()
-    with body_container:
-        st.subheader("今日概览")
-        _render_summary(summary)
-
-        st.subheader("最近几天的完成趋势")
-        _render_recent_stats(recent_stats)
-
-        st.subheader("今天的区域分布")
-        _render_zone_stats(zone_stats)
-
-        st.subheader("今日详细记录")
-        _render_today_records(today_records, selected_configs)
-
-        st.subheader("职业详情")
-        _render_config_details(config_progress, selected_configs)
+    _render_dashboard(render_context)
 
 
 if __name__ == "__main__":
