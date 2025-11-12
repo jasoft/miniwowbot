@@ -116,6 +116,7 @@ def build_config_progress(
             (zone["zone_name"], dungeon["name"])
             for zone in config_payload.get("zones", [])
             for dungeon in zone.get("dungeons", [])
+            if bool(dungeon.get("selected", True))
         }
 
         zones_output = []
@@ -130,21 +131,23 @@ def build_config_progress(
 
             for dungeon in zone.get("dungeons", []):
                 should_run = bool(dungeon.get("selected", True))
+                if not should_run:
+                    continue
+
                 dungeon_name = dungeon["name"]
                 is_completed = (
                     (zone_name, dungeon_name) in completion_map.get(config_name, set())
                 )
-                if should_run:
-                    planned_count += 1
-                    total_planned += 1
-                    if is_completed:
-                        completed_planned += 1
-                        zone_completed += 1
+                planned_count += 1
+                total_planned += 1
+                if is_completed:
+                    completed_planned += 1
+                    zone_completed += 1
 
                 dungeon_entries.append(
                     {
                         "name": dungeon_name,
-                        "selected": should_run,
+                        "selected": True,
                         "completed": is_completed,
                         "completed_at": completion_times.get(
                             (config_name, zone_name, dungeon_name)
@@ -152,14 +155,15 @@ def build_config_progress(
                     }
                 )
 
-            zones_output.append(
-                {
-                    "zone_name": zone_name,
-                    "planned_count": planned_count,
-                    "completed_count": zone_completed,
-                    "dungeons": dungeon_entries,
-                }
-            )
+            if dungeon_entries:
+                zones_output.append(
+                    {
+                        "zone_name": zone_name,
+                        "planned_count": planned_count,
+                        "completed_count": zone_completed,
+                        "dungeons": dungeon_entries,
+                    }
+                )
 
         extra_completions = [
             {

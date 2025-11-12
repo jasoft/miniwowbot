@@ -115,6 +115,11 @@ def test_build_config_progress_matches_completion_flags(temp_db_path, temp_confi
     assert alpha_data["completed_planned"] == 2
     assert len(alpha_data["extra_completions"]) == 1
 
+    zones = {zone["zone_name"]: zone for zone in alpha_data["zones"]}
+    assert "风暴群岛" in zones
+    assert len(zones["风暴群岛"]["dungeons"]) == 1  # 未勾选的副本不会展示
+    assert zones["风暴群岛"]["dungeons"][0]["name"] == "真理之地"
+
 
 def test_compute_recent_totals_counts_each_day(temp_db_path):
     today = date.today()
