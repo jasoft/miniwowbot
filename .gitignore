@@ -21,3 +21,6 @@ accounts.json
 .stop_dungeon
 *.db
 *.backup
+log/
+logs/
+.DS_Store

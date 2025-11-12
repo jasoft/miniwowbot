@@ -23,6 +23,7 @@ from airtest.core.api import (
     keyevent,
     text,
     shell,
+    log,
 )
 from airtest.core.error import TargetNotFoundError
 from tqdm import tqdm
@@ -654,6 +655,7 @@ def is_on_character_selection(timeout=30):
     return False
 
 
+@timeout_decorator(300, timeout_exception=TimeoutError)
 def select_character(char_class):
     """
     选择角色
@@ -837,7 +839,7 @@ def switch_account(account_name):
 
 
 @timeout_decorator(60, timeout_exception=TimeoutError)
-def back_to_main(max_duration=55, backoff_interval=0.2):
+def back_to_main(max_duration=15, backoff_interval=0.2):
     """
     返回主界面。即使 Airtest 底层调用阻塞，也依旧通过手动计时与兜底手段
     保证最终会超时报错。
@@ -1268,7 +1270,6 @@ def process_dungeon(
     if not focus_and_click_dungeon(dungeon_name, zone_name, max_attempts=3):
         logger.warning(f"⏭️ 跳过: {dungeon_name}")
         return False
-    sleep(2)  # 等待界面刷新
 
     # 尝试点击免费按钮
     if click_free_button():
@@ -1386,7 +1387,8 @@ def handle_load_account_mode(account_name, emulator_name: Optional[str] = None):
 
     # 关键：先连接设备，再调用 auto_setup
     # 这样可以避免 auto_setup 重新初始化导致其他设备断开
-    auto_setup(__file__)
+    auto_setup(__file__, logdir=True)
+
     connect_device(connection_string)
 
     ocr_helper = OCRHelper(
@@ -1606,7 +1608,7 @@ def initialize_device_and_ocr(emulator_name: Optional[str] = None):
     try:
         # 关键：先连接设备，再调用 auto_setup
         # 这样可以避免 auto_setup 重新初始化导致其他设备断开
-        auto_setup(__file__)
+        auto_setup(__file__, logdir=True)
         logger.info("自动配置设备中...")
         connect_device(connection_string)
         logger.info("   ✅ 成功连接到设备")
@@ -1757,6 +1759,7 @@ def main_wrapper():
             restart_count += 1
             logger.error(f"\n❌ 检测到超时错误: {e}")
             logger.error("⏱️ 操作超时，可能是网络错误或识别失败导致的卡死")
+            log("超时错误" + str(e), snapshot=True)
 
             if restart_count < max_restarts:
                 logger.warning(
@@ -1876,6 +1879,9 @@ def main():
     sleep(2)
     start_app("com.ms.ysjyzr")
 
+    # 等待进入角色选择界面
+    if is_on_character_selection(120):
+        logger.info("已在角色选择界面")
     # 8. 选择角色（如果配置了职业）
     if config_loader is None:
         logger.error("❌ 配置加载器未初始化")

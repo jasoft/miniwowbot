@@ -64,8 +64,8 @@
             { "name": "玄牛寺", "selected": false }
         ],
         "元素之地": [
-            { "name": "火焰宫殿", "selected": true },
-            { "name": "守护者神殿", "selected": true },
+            { "name": "火焰宫殿", "selected": false },
+            { "name": "守护者神殿", "selected": false },
             { "name": "黑龙宫殿", "selected": false },
             { "name": "黑暗堡垒", "selected": false },
             { "name": "潮汐宫殿", "selected": false },
@@ -91,7 +91,7 @@
         ],
         "虚空领域": [
             { "name": "魔法之井", "selected": false },
-            { "name": "虚空要塞", "selected": true },
+            { "name": "虚空要塞", "selected": false },
             { "name": "海底神殿", "selected": false },
             { "name": "守护者之塔上层", "selected": false },
             { "name": "黑暗神殿", "selected": false },
@@ -101,7 +101,7 @@
             { "name": "沼泽水库", "selected": false },
             { "name": "山丘城堡", "selected": false },
             { "name": "地狱火堡垒", "selected": false },
-            { "name": "亡者之城", "selected": true }
+            { "name": "亡者之城", "selected": false }
         ],
         "东部大陆": [
             { "name": "亡灵要塞", "selected": true },

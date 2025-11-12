@@ -3,7 +3,7 @@
     "class": "战士",
     "enable_daily_collect": true,
     "enable_quick_afk": true,
-    "chestname": "风暴宝箱",
+    "chestname": "军团宝箱",
     "ocr_correction_map": {
         "梦魔丛林": "梦魇丛林"
     },
@@ -28,20 +28,20 @@
             { "name": "流放王座", "selected": true },
             { "name": "毁灭之地", "selected": true },
             { "name": "大墓地圣殿", "selected": true },
-            { "name": "封印地窟", "selected": true },
-            { "name": "魔能宫殿", "selected": true },
-            { "name": "魔能要塞", "selected": true },
-            { "name": "魔法高台", "selected": true },
-            { "name": "地底巢穴", "selected": true },
-            { "name": "风暴绿洲", "selected": true },
-            { "name": "渡鸦堡垒", "selected": true },
-            { "name": "梦魇丛林", "selected": true },
-            { "name": "守护者大殿", "selected": true }
+            { "name": "封印地窟", "selected": false },
+            { "name": "魔能宫殿", "selected": false },
+            { "name": "魔能要塞", "selected": false },
+            { "name": "魔法高台", "selected": false },
+            { "name": "地底巢穴", "selected": false },
+            { "name": "风暴绿洲", "selected": false },
+            { "name": "渡鸦堡垒", "selected": false },
+            { "name": "梦魇丛林", "selected": false },
+            { "name": "守护者大殿", "selected": false }
         ],
         "暗影大陆": [
             { "name": "钢铁码头", "selected": false },
             { "name": "食人魔王国", "selected": true },
-            { "name": "黑暗熔炉", "selected": true },
+            { "name": "黑暗熔炉", "selected": false },
             { "name": "通天峰", "selected": false },
             { "name": "熔渣车间", "selected": true },
             { "name": "食人魔矿井", "selected": false },
@@ -67,8 +67,8 @@
             { "name": "玄牛寺", "selected": false }
         ],
         "元素之地": [
-            { "name": "火焰宫殿", "selected": true },
-            { "name": "守护者神殿", "selected": true },
+            { "name": "火焰宫殿", "selected": false },
+            { "name": "守护者神殿", "selected": false },
             { "name": "黑龙宫殿", "selected": false },
             { "name": "黑暗堡垒", "selected": false },
             { "name": "潮汐宫殿", "selected": false },
@@ -94,7 +94,7 @@
         ],
         "虚空领域": [
             { "name": "魔法之井", "selected": false },
-            { "name": "虚空要塞", "selected": true },
+            { "name": "虚空要塞", "selected": false },
             { "name": "海底神殿", "selected": false },
             { "name": "守护者之塔上层", "selected": false },
             { "name": "黑暗神殿", "selected": false },
@@ -104,7 +104,7 @@
             { "name": "沼泽水库", "selected": false },
             { "name": "山丘城堡", "selected": false },
             { "name": "地狱火堡垒", "selected": false },
-            { "name": "亡者之城", "selected": true }
+            { "name": "亡者之城", "selected": false }
         ],
         "东部大陆": [
             { "name": "亡灵要塞", "selected": true },
