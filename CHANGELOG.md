@@ -938,8 +938,8 @@ logger.error("错误信息")
 
 #### 6. 测试文件更新
 
-- `test_loki_logger.py`: 更新导入语句
-- `test_loki_basic.py`: 更新导入语句
+- `examples/test_loki_logger.py`: 更新导入语句
+- `examples/test_loki_basic.py`: 更新导入语句
 
 ### Logger Name 说明
 
@@ -1149,7 +1149,7 @@ logger.info("这条日志会同时输出到 console 和 Loki")
 
 ### 新增文件
 
-- `test_logger_with_loki.py` - 测试脚本
+- `examples/test_logger_with_loki.py` - 测试脚本
 
 ### 测试结果
 
@@ -1167,14 +1167,14 @@ logger.info("这条日志会同时输出到 console 和 Loki")
 
 ### 修复内容
 
-修复了 `test_loki_logger.py` 脚本无法自动退出的问题：
+修复了 `examples/test_loki_logger.py` 脚本无法自动退出的问题：
 
 1. **问题原因**
    - 后台线程没有正确关闭
    - `close()` 方法中获取锁时可能卡住
 
 2. **解决方案**
-   - 在 `test_loki_logger.py` 中添加显式的处理器关闭逻辑
+   - 在 `examples/test_loki_logger.py` 中添加显式的处理器关闭逻辑
    - 在 `logstash_logger.py` 的 `close()` 方法中使用非阻塞锁获取
    - 确保后台线程能正确停止
 
@@ -1233,7 +1233,7 @@ logger.info("这条日志会同时输出到 console 和 Loki")
 - `docker-compose.loki.yml` - Docker Compose 配置
 - `loki-config.yml` - Loki 配置文件
 - `grafana-provisioning/datasources/loki.yml` - Grafana 数据源配置
-- `test_loki_logger.py` - 测试脚本
+- `examples/test_loki_logger.py` - 测试脚本
 - `LOKI_QUICK_START.md` - 快速开始指南
 
 ### 删除文件
@@ -4066,4 +4066,3 @@ python view_progress.py --clear-all
 - OCR 文字识别
 - 自动点击免费按钮
 - 自动卖垃圾装备
-
