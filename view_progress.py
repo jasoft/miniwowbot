@@ -11,6 +11,7 @@ import json
 from datetime import datetime
 import argparse
 from database import DungeonProgressDB
+from wow_class_colors import get_class_ansi_color
 
 
 # ANSI 颜色代码
@@ -235,17 +236,6 @@ class ProgressViewer:
         # 加载配置文件获取职业信息
         config_classes = self._load_config_classes()
 
-        # 职业颜色映射
-        class_colors = {
-            "战士": Colors.RED,
-            "法师": Colors.BLUE,
-            "猎人": Colors.GREEN,
-            "盗贼": Colors.YELLOW,
-            "圣骑士": Colors.BRIGHT_YELLOW,
-            "术士": Colors.MAGENTA,
-            "德鲁伊": Colors.BRIGHT_GREEN,
-        }
-
         # 显示每个配置的统计
         total_dungeons = 0
         for stat in all_stats:
@@ -260,7 +250,7 @@ class ProgressViewer:
 
             # 获取职业名称和颜色
             class_name = config_classes.get(config_name, "未知")
-            class_color = class_colors.get(class_name, Colors.WHITE)
+            class_color = get_class_ansi_color(class_name)
 
             config_colored = colored(config_name, class_color, bold=True)
             class_colored = colored(class_name, class_color)
@@ -315,17 +305,6 @@ class ProgressViewer:
         # 加载配置文件获取职业信息
         config_classes = self._load_config_classes()
 
-        # 职业颜色映射
-        class_colors = {
-            "战士": Colors.RED,
-            "法师": Colors.BLUE,
-            "猎人": Colors.GREEN,
-            "盗贼": Colors.YELLOW,
-            "圣骑士": Colors.BRIGHT_YELLOW,
-            "术士": Colors.MAGENTA,
-            "德鲁伊": Colors.BRIGHT_GREEN,
-        }
-
         # 统计数据
         total_dungeons = 0
         config_counts = []
@@ -367,7 +346,7 @@ class ProgressViewer:
                 rank_str = f"{idx}."
 
             # 职业颜色
-            class_color = class_colors.get(class_name, Colors.WHITE)
+            class_color = get_class_ansi_color(class_name)
             config_colored = colored(config_name, class_color, bold=True)
             class_colored = colored(class_name, class_color)
             count_colored = colored(f"{count:3d}", bar_color, bold=True)

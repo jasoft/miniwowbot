@@ -20,6 +20,7 @@ from view_progress_dashboard import (
     load_configurations,
     summarize_progress,
 )
+from wow_class_colors import get_class_hex_color
 
 
 PAGE_TITLE = "副本进度监控面板"
@@ -36,6 +37,14 @@ def _render_auto_refresh(interval_ms: int = AUTO_REFRESH_MS) -> int:
     return st_autorefresh(interval=interval_ms, limit=None, key="progress_autorefresh")
 
 
+def _class_label(config_name: str, class_name: str | None) -> str:
+    color = get_class_hex_color(class_name)
+    class_display = class_name or "未知"
+    return (
+        f"<span style='color:{color}; font-weight:600'>{config_name} ({class_display})</span>"
+    )
+
+
 def _render_summary(summary: dict) -> None:
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("今日完成副本", summary.get("total_completed", 0))
@@ -47,17 +56,13 @@ def _render_summary(summary: dict) -> None:
     ranking = summary.get("ranking", [])
     if ranking:
         st.caption("👉 职业完成度排名")
-        ranking_df = pd.DataFrame(
-            [
-                {
-                    "职业": f"{item['config_name']} ({item['class_name']})",
-                    "计划内完成": item["completed"],
-                    "总记录": item["actual_completed"],
-                }
-                for item in ranking
-            ]
-        )
-        st.dataframe(ranking_df, hide_index=True, use_container_width=True)
+        ranking_lines = []
+        for idx, item in enumerate(ranking, 1):
+            colored_label = _class_label(item["config_name"], item.get("class_name"))
+            ranking_lines.append(
+                f"{idx}. {colored_label} — 计划内完成 {item['completed']} / 总记录 {item['actual_completed']}"
+            )
+        st.markdown("<br/>".join(ranking_lines), unsafe_allow_html=True)
 
 
 def _render_recent_stats(recent_stats):
@@ -125,6 +130,7 @@ def _render_config_details(config_progress, selected_configs):
             f" - {config['completed_planned']}/{config['total_planned']} 计划完成"
         )
         with st.expander(header, expanded=True):
+            st.markdown(_class_label(config["config_name"], config.get("class_name")), unsafe_allow_html=True)
             if config.get("description"):
                 st.write(config["description"])
 
@@ -137,7 +143,7 @@ def _render_config_details(config_progress, selected_configs):
                 container.metric(
                     f"{zone['zone_name']}",
                     f"{zone['completed_count']}/{planned}",
-                    delta=f"{ratio*100:.0f}%",
+                    delta=f"{ratio * 100:.0f}%",
                 )
                 check_cols = container.columns(2)
                 for dungeon_idx, dungeon in enumerate(zone.get("dungeons", [])):
@@ -173,9 +179,7 @@ def main() -> None:
     st.set_page_config(page_title=PAGE_TITLE, page_icon="📊", layout="wide")
     st.title(PAGE_TITLE)
     refresh_count = _render_auto_refresh(AUTO_REFRESH_MS)
-    st.caption(
-        f"数据每 5 秒自动刷新 (第 {refresh_count} 次), 随时掌握当前进度"
-    )
+    st.caption(f"数据每 5 秒自动刷新 (第 {refresh_count} 次), 随时掌握当前进度")
 
     with st.sidebar:
         st.header("面板设置")
