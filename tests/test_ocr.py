@@ -10,6 +10,8 @@ import tempfile
 import shutil
 import pytest
 
+from project_paths import resolve_project_path
+
 # 添加父目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -48,6 +50,12 @@ class TestOCRHelperBasic:
         ocr = OCRHelper(output_dir=temp_output_dir)
         assert os.path.exists(ocr.cache_dir)
         assert ocr.cache_dir == os.path.join(temp_output_dir, "cache")
+
+    def test_default_output_dir_relative_to_auto_dungeon(self):
+        """默认输出目录应相对 auto_dungeon.py"""
+        ocr = OCRHelper()
+        expected_dir = str(resolve_project_path("output"))
+        assert ocr.output_dir == expected_dir
 
     def test_ocr_cache_initialization(self, temp_output_dir):
         """测试 OCR 缓存初始化"""

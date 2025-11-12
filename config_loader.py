@@ -8,6 +8,7 @@
 import json
 import os
 from typing import Dict, List, Optional, TypeVar
+from project_paths import ensure_project_path
 from logger_config import setup_logger_from_config
 
 # 配置日志（从系统配置文件加载 Loki 配置）
@@ -26,7 +27,8 @@ class ConfigLoader:
         Args:
             config_file: 配置文件路径
         """
-        self.config_file = config_file
+        resolved_config = ensure_project_path(config_file)
+        self.config_file = str(resolved_config)
         self.config_name = self._get_config_name()
         self.zone_dungeons = {}
         self.ocr_correction_map = {}

@@ -18,6 +18,7 @@ from datetime import datetime
 from airtest.core.api import snapshot, touch
 from airtest.aircv.cal_confidence import cal_ccoeff_confidence
 from typing import List, Tuple, Optional, Dict, Any
+from project_paths import ensure_project_path
 from logger_config import setup_logger_from_config
 
 
@@ -52,7 +53,8 @@ class OCRHelper:
             hash_type (str): 哈希算法类型，默认"dhash"（差分哈希，最快）
             hash_threshold (int): 哈希汉明距离阈值，默认10
         """
-        self.output_dir = output_dir
+        resolved_output_dir = ensure_project_path(output_dir)
+        self.output_dir = str(resolved_output_dir)
         self.resize_image = resize_image
         self.max_width = max_width
         self.delete_temp_screenshots = delete_temp_screenshots

@@ -9,6 +9,7 @@ import json
 import os
 import logging
 from typing import Dict
+from project_paths import ensure_project_path
 from logger_config import setup_logger
 
 # 配置日志（使用 setup_logger 避免循环依赖）
@@ -25,7 +26,8 @@ class SystemConfigLoader:
         Args:
             config_file: 系统配置文件路径，默认为 system_config.json
         """
-        self.config_file = config_file
+        resolved_config = ensure_project_path(config_file)
+        self.config_file = str(resolved_config)
         self.bark_config = {}
         self.timeout_config = {}
         self.logging_config = {}

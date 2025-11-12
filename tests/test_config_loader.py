@@ -8,6 +8,7 @@ import pytest
 import json
 import tempfile
 import os
+from project_paths import resolve_project_path
 from config_loader import ConfigLoader, load_config
 
 
@@ -268,3 +269,12 @@ class TestConfigLoaderIntegration:
         # 这里只验证它们都有选定的副本
         assert warrior.get_selected_dungeon_count() > 0
         assert mage.get_selected_dungeon_count() > 0
+
+    def test_load_config_after_changing_cwd(self, tmp_path, monkeypatch):
+        """切换工作目录后, 相对路径配置仍可加载"""
+        monkeypatch.chdir(tmp_path)
+        config = load_config("configs/default.json")
+        assert config.get_config_name() == "default"
+        assert config.config_file == str(
+            resolve_project_path("configs", "default.json")
+        )

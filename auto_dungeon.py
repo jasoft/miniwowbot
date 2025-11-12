@@ -34,6 +34,7 @@ airtest_logger.setLevel(logging.ERROR)
 
 # 导入通用日志配置模块
 from logger_config import setup_logger_from_config, update_all_loki_labels  # noqa: E402
+from project_paths import resolve_project_path  # noqa: E402
 
 # 导入自定义的数据库模块和配置
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -63,9 +64,10 @@ from coordinates import (  # noqa: E402
 
 
 CLICK_INTERVAL = 1
-STOP_FILE = ".stop_dungeon"  # 停止标记文件路径
+STOP_FILE = str(resolve_project_path(".stop_dungeon"))  # 停止标记文件路径
 ENTER_GAME_BUTTON_TEMPLATE = Template(
-    r"images/enter_game_button.png", resolution=(720, 1280)
+    str(resolve_project_path("images", "enter_game_button.png")),
+    resolution=(720, 1280),
 )
 
 # 配置彩色日志（从系统配置文件加载 Loki 配置）
@@ -185,13 +187,15 @@ def check_stop_signal():
 
 
 SETTINGS_TEMPLATE = Template(
-    r"images/settings_button.png",
+    str(resolve_project_path("images", "settings_button.png")),
     resolution=(720, 1280),
     record_pos=(0.426, -0.738),
 )
 
 GIFTS_TEMPLATE = Template(
-    r"images/gifts_button.png", resolution=(720, 1280), record_pos=(0.428, -0.424)
+    str(resolve_project_path("images", "gifts_button.png")),
+    resolution=(720, 1280),
+    record_pos=(0.428, -0.424),
 )
 
 
@@ -544,7 +548,7 @@ def auto_combat(completed_dungeons=0, total_dungeons=0):
 
     # 使用 wait() 而不是 exists()，避免无限期卡住
     autocombat_template = Template(
-        r"images/autocombat_flag.png",
+        str(resolve_project_path("images", "autocombat_flag.png")),
         record_pos=(-0.001, -0.299),
         resolution=(720, 1280),
     )
