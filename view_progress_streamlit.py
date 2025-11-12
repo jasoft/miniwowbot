@@ -16,6 +16,7 @@ from view_progress_dashboard import (
     build_config_progress,
     compute_recent_totals,
     compute_zone_stats,
+    compute_snapshot_hash,
     fetch_today_records,
     load_configurations,
     summarize_progress,
@@ -24,7 +25,7 @@ from wow_class_colors import get_class_hex_color
 
 
 PAGE_TITLE = "副本进度监控面板"
-AUTO_REFRESH_MS = 5000
+AUTO_REFRESH_MS = 60000
 
 
 @st.cache_data(ttl=30)
@@ -40,9 +41,7 @@ def _render_auto_refresh(interval_ms: int = AUTO_REFRESH_MS) -> int:
 def _class_label(config_name: str, class_name: str | None) -> str:
     color = get_class_hex_color(class_name)
     class_display = class_name or "未知"
-    return (
-        f"<span style='color:{color}; font-weight:600'>{config_name} ({class_display})</span>"
-    )
+    return f"<span style='color:{color}; font-weight:600'>{config_name} ({class_display})</span>"
 
 
 def _render_summary(summary: dict) -> None:
@@ -130,7 +129,10 @@ def _render_config_details(config_progress, selected_configs):
             f" - {config['completed_planned']}/{config['total_planned']} 计划完成"
         )
         with st.expander(header, expanded=True):
-            st.markdown(_class_label(config["config_name"], config.get("class_name")), unsafe_allow_html=True)
+            st.markdown(
+                _class_label(config["config_name"], config.get("class_name")),
+                unsafe_allow_html=True,
+            )
             if config.get("description"):
                 st.write(config["description"])
 
@@ -181,6 +183,10 @@ def main() -> None:
     refresh_count = _render_auto_refresh(AUTO_REFRESH_MS)
     st.caption(f"数据每 5 秒自动刷新 (第 {refresh_count} 次), 随时掌握当前进度")
 
+    if "progress_body_container" not in st.session_state:
+        st.session_state["progress_body_container"] = st.container()
+    body_container = st.session_state["progress_body_container"]
+
     with st.sidebar:
         st.header("面板设置")
         db_path = st.text_input("数据库路径", "database/dungeon_progress.db")
@@ -211,25 +217,51 @@ def main() -> None:
         "筛选职业", options=available_configs, default=available_configs
     )
 
-    st.subheader("今日概览")
     filtered_progress = [
         entry for entry in config_progress if entry["config_name"] in selected_configs
     ]
     summary = summarize_progress(filtered_progress)
-    _render_summary(summary)
-
-    st.subheader("最近几天的完成趋势")
-    _render_recent_stats(recent_stats)
-
-    st.subheader("今天的区域分布")
     zone_stats = compute_zone_stats(today_records)
-    _render_zone_stats(zone_stats)
 
-    st.subheader("今日详细记录")
-    _render_today_records(today_records, selected_configs)
+    snapshot_payload = {
+        "records": today_records,
+        "progress": config_progress,
+        "recent_stats": recent_stats,
+        "zone_stats": zone_stats,
+    }
+    render_inputs = {
+        "snapshot": snapshot_payload,
+        "selected_configs": sorted(selected_configs),
+        "include_special": include_special,
+        "recent_days": recent_days,
+        "db_path": db_path,
+        "config_dir": config_dir,
+    }
+    current_hash = compute_snapshot_hash(render_inputs)
+    previous_hash = st.session_state.get("progress_snapshot_hash")
 
-    st.subheader("职业详情")
-    _render_config_details(config_progress, selected_configs)
+    if previous_hash == current_hash and st.session_state.get("progress_render_initialized"):
+        return
+
+    st.session_state["progress_snapshot_hash"] = current_hash
+    st.session_state["progress_render_initialized"] = True
+
+    body_container.empty()
+    with body_container:
+        st.subheader("今日概览")
+        _render_summary(summary)
+
+        st.subheader("最近几天的完成趋势")
+        _render_recent_stats(recent_stats)
+
+        st.subheader("今天的区域分布")
+        _render_zone_stats(zone_stats)
+
+        st.subheader("今日详细记录")
+        _render_today_records(today_records, selected_configs)
+
+        st.subheader("职业详情")
+        _render_config_details(config_progress, selected_configs)
 
 
 if __name__ == "__main__":

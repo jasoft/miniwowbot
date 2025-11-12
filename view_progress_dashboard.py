@@ -7,8 +7,9 @@ from __future__ import annotations
 import json
 import os
 from collections import defaultdict
-from datetime import date, timedelta
-from typing import Dict, Iterable, List, Sequence, Tuple
+import hashlib
+from datetime import date, datetime, timedelta
+from typing import Any, Dict, Iterable, List, Sequence, Tuple
 
 from database import DungeonProgressDB
 from database.dungeon_db import DungeonProgress, SPECIAL_ZONE_NAMES
@@ -271,6 +272,18 @@ def summarize_progress(config_progress: Sequence[dict]) -> dict:
     }
 
 
+def compute_snapshot_hash(snapshot: Any) -> str:
+    """对任意嵌套数据结构计算稳定哈希, 用于判断数据是否变化。"""
+
+    def _json_default(obj):
+        if isinstance(obj, (datetime, date)):
+            return obj.isoformat()
+        return obj
+
+    normalized = json.dumps(snapshot, sort_keys=True, default=_json_default, ensure_ascii=False)
+    return hashlib.md5(normalized.encode("utf-8")).hexdigest()
+
+
 __all__ = [
     "load_configurations",
     "fetch_today_records",
@@ -278,4 +291,5 @@ __all__ = [
     "compute_zone_stats",
     "compute_recent_totals",
     "summarize_progress",
+    "compute_snapshot_hash",
 ]

@@ -19,6 +19,7 @@ from view_progress_dashboard import (
     build_config_progress,
     compute_recent_totals,
     compute_zone_stats,
+    compute_snapshot_hash,
     fetch_today_records,
     load_configurations,
     summarize_progress,
@@ -166,3 +167,22 @@ def test_summarize_progress_returns_ranking():
     assert summary["total_completed"] == 3
     assert summary["active_configs"] == 2
     assert summary["ranking"][0]["config_name"] == "alpha"
+
+
+def test_compute_snapshot_hash_handles_dates_and_order():
+    payload_a = {
+        "records": [
+            {"completed_at": datetime(2024, 1, 1, 8, 0), "name": "副本1"},
+            {"completed_at": datetime(2024, 1, 1, 9, 0), "name": "副本2"},
+        ],
+        "meta": {"recent_days": 7},
+    }
+    payload_b = {
+        "meta": {"recent_days": 7},
+        "records": [
+            {"name": "副本1", "completed_at": datetime(2024, 1, 1, 8, 0)},
+            {"name": "副本2", "completed_at": datetime(2024, 1, 1, 9, 0)},
+        ],
+    }
+
+    assert compute_snapshot_hash(payload_a) == compute_snapshot_hash(payload_b)
