@@ -542,7 +542,7 @@ def open_map():
 
     touch(MAP_BUTTON)
     logger.info("🗺️ 打开地图")
-    wait(MAP_DUNGEON_TEMPLATE, timeout=3, interval=0.1)
+    sleep(CLICK_INTERVAL)
 
 
 def is_on_map():
