@@ -24,7 +24,9 @@ from airtest.core.api import (
     text,
     shell,
     log,
+    exists,
 )
+from airtest.core.settings import Settings as ST
 from airtest.core.error import TargetNotFoundError
 from tqdm import tqdm
 from transitions import Machine, MachineError
@@ -33,6 +35,8 @@ from transitions import Machine, MachineError
 airtest_logger = logging.getLogger("airtest")
 airtest_logger.setLevel(logging.ERROR)
 
+ST.FIND_TIMEOUT = 10  # type: ignore[assignment]
+ST.FIND_TIMEOUT_TMP = 0.1  # type: ignore[assignment]
 
 # 导入通用日志配置模块
 from logger_config import setup_logger_from_config, update_all_loki_labels  # noqa: E402
@@ -49,7 +53,6 @@ from coordinates import (  # noqa: E402
     DEPLOY_CONFIRM_BUTTON,
     ONE_KEY_DEPLOY,
     ONE_KEY_REWARD,
-    SETTINGS_BUTTON,
     BACK_BUTTON,
     MAP_BUTTON,
     ACCOUNT_AVATAR,
@@ -64,13 +67,31 @@ from coordinates import (  # noqa: E402
     QUICK_AFK_COLLECT_BUTTON,
 )
 
+SETTINGS_TEMPLATE = Template(
+    str(resolve_project_path("images", "settings_button.png")),
+    resolution=(720, 1280),
+    record_pos=(0.426, -0.738),
+)
 
-CLICK_INTERVAL = 1
-STOP_FILE = str(resolve_project_path(".stop_dungeon"))  # 停止标记文件路径
+GIFTS_TEMPLATE = Template(
+    str(resolve_project_path("images", "gifts_button.png")),
+    resolution=(720, 1280),
+    record_pos=(0.428, -0.424),
+)
+
+MAP_DUNGEON_TEMPLATE = Template(
+    str(resolve_project_path("images", "map_dungeon.png")),
+    resolution=(720, 1280),
+    record_pos=(0.35, 0.422),
+)
+
 ENTER_GAME_BUTTON_TEMPLATE = Template(
     str(resolve_project_path("images", "enter_game_button.png")),
     resolution=(720, 1280),
 )
+
+CLICK_INTERVAL = 1
+STOP_FILE = str(resolve_project_path(".stop_dungeon"))  # 停止标记文件路径
 
 # 配置彩色日志（从系统配置文件加载 Loki 配置）
 logger = setup_logger_from_config(use_color=True)
@@ -186,19 +207,6 @@ def check_stop_signal():
             logger.error(f"❌ 删除停止文件失败: {e}")
         return True
     return False
-
-
-SETTINGS_TEMPLATE = Template(
-    str(resolve_project_path("images", "settings_button.png")),
-    resolution=(720, 1280),
-    record_pos=(0.426, -0.738),
-)
-
-GIFTS_TEMPLATE = Template(
-    str(resolve_project_path("images", "gifts_button.png")),
-    resolution=(720, 1280),
-    record_pos=(0.428, -0.424),
-)
 
 
 def timer_decorator(func):
@@ -534,7 +542,11 @@ def open_map():
 
     touch(MAP_BUTTON)
     logger.info("🗺️ 打开地图")
-    sleep(CLICK_INTERVAL)
+    wait(MAP_DUNGEON_TEMPLATE, timeout=3, interval=0.1)
+
+
+def is_on_map():
+    return exists(MAP_DUNGEON_TEMPLATE)
 
 
 @timeout_decorator(300, timeout_exception=TimeoutError)
@@ -715,12 +727,7 @@ def switch_to_zone(zone_name):
     logger.info(f"🌍 切换区域: {zone_name}")
     logger.info(f"{'=' * 50}")
 
-    # 点击切换区域按钮
-    switch_words = ["切换区域"]
-
-    for word in switch_words:
-        if find_text_and_click_safe(word, timeout=10):
-            break
+    find_text_and_click_safe("切换区域", timeout=10)
 
     # 点击区域名称
     if find_text_and_click_safe(zone_name, timeout=10, occurrence=2):
@@ -1128,6 +1135,7 @@ class AutoDungeonStateMachine:
         self.config_loader = config_loader
         self.current_zone = None
         self.active_dungeon = None
+        self.state = None
         self.machine = Machine(
             model=self,
             states=self.STATES,
@@ -1221,9 +1229,7 @@ class AutoDungeonStateMachine:
         )
         return self.state == "dungeon_selection"
 
-    def start_battle_state(
-        self, dungeon_name, completed_dungeons=0, total_dungeons=0
-    ):
+    def start_battle_state(self, dungeon_name, completed_dungeons=0, total_dungeons=0):
         self._safe_trigger(
             "start_battle",
             dungeon_name=dungeon_name,
@@ -1329,6 +1335,8 @@ class AutoDungeonStateMachine:
     def _on_sell_loot(self, event):
         logger.info("🧹 状态机: 卖出垃圾道具")
         sell_trashes()
+
+
 # 创建全局实例，保持向后兼容
 daily_collect_manager = DailyCollectManager(config_loader)
 
@@ -1812,11 +1820,7 @@ def run_dungeon_traversal(db, total_dungeons, state_machine):
     """
     global config_loader, zone_dungeons
 
-    if (
-        config_loader is None
-        or zone_dungeons is None
-        or state_machine is None
-    ):
+    if config_loader is None or zone_dungeons is None or state_machine is None:
         logger.error("❌ 配置未初始化")
         sys.exit(1)
 
@@ -1913,7 +1917,7 @@ def main_wrapper():
         logger, \
         error_dialog_monitor
 
-    max_restarts = 3  # 最大重启次数
+    max_restarts = 10  # 最大重启次数
     restart_count = 0
 
     while restart_count < max_restarts:
