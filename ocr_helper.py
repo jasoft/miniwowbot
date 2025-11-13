@@ -17,7 +17,7 @@ from PIL import Image
 from datetime import datetime
 from airtest.core.api import snapshot, touch
 from airtest.aircv.cal_confidence import cal_ccoeff_confidence
-from typing import List, Tuple, Optional, Dict, Any
+from typing import List, Tuple, Optional, Dict, Any, Set
 from project_paths import ensure_project_path
 from logger_config import setup_logger_from_config
 
@@ -1207,17 +1207,25 @@ class OCRHelper:
         Returns:
             dict: 包含查找结果的字典，格式同find_text_in_image
         """
-        try:
-            # 如果没有指定截图路径，生成随机临时文件名
-            if screenshot_path is None:
-                # 使用已经创建的临时目录
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                unique_id = str(uuid.uuid4())[:8]
-                screenshot_path = os.path.join(
-                    self.temp_dir, f"screenshot_{timestamp}_{unique_id}.png"
-                )
+        temp_screenshot_paths: Set[str] = set()
 
-            # 截图
+        def _create_temp_screenshot_path() -> str:
+            """生成并记录临时截图路径"""
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            unique_id = str(uuid.uuid4())[:8]
+            temp_path = os.path.join(
+                self.temp_dir, f"screenshot_{timestamp}_{unique_id}.png"
+            )
+            temp_screenshot_paths.add(temp_path)
+            return temp_path
+
+        user_provided_path = screenshot_path is not None
+
+        try:
+            if not user_provided_path:
+                screenshot_path = _create_temp_screenshot_path()
+
+            # 首次截图
             snapshot(filename=screenshot_path)
             self.logger.debug(f"截图保存到: {screenshot_path}")
 
@@ -1231,27 +1239,40 @@ class OCRHelper:
                 regions,
             )
 
-            # 如果启用了删除临时截图且使用的是随机生成的临时文件
-            is_temp_file = (
-                screenshot_path
-                and "temp" in screenshot_path
-                and "screenshot_" in screenshot_path
-            )
-            if self.delete_temp_screenshots and is_temp_file:
-                try:
-                    # 检查是否已经缓存（如果启用了缓存）
-                    if use_cache and result:
-                        # OCR结果会被缓存，截图可以安全删除
-                        os.remove(screenshot_path)
-                        self.logger.debug(f"已删除临时截图: {screenshot_path}")
-                    elif not use_cache:
-                        # 没有使用缓存，但识别已完成，可以删除
-                        os.remove(screenshot_path)
-                        self.logger.debug(
-                            f"已删除临时截图（未使用缓存）: {screenshot_path}"
-                        )
-                except Exception as e:
-                    self.logger.warning(f"删除临时截图失败: {e}")
+            # 如果使用缓存但未找到，进行实时截图重试
+            if use_cache and (not result or not result.get("found")):
+                self.logger.info("缓存 OCR 未找到目标文字，尝试实时截图重试")
+                fallback_path = (
+                    screenshot_path
+                    if user_provided_path
+                    else _create_temp_screenshot_path()
+                )
+
+                snapshot(filename=fallback_path)
+                self.logger.debug(f"实时截图保存到: {fallback_path}")
+
+                fallback_result = self.find_text_in_image(
+                    fallback_path,
+                    target_text,
+                    confidence_threshold,
+                    occurrence,
+                    use_cache=False,
+                    regions=regions,
+                )
+
+                if fallback_result:
+                    result = fallback_result
+
+                # 如果实时识别成功，刷新缓存
+                if fallback_result and fallback_result.get("found") and regions is None:
+                    base_name, _ = os.path.splitext(os.path.basename(fallback_path))
+                    json_file = os.path.join(self.cache_dir, f"{base_name}_res.json")
+                    if os.path.exists(json_file):
+                        try:
+                            self._save_to_cache(fallback_path, json_file, regions)
+                            self.logger.debug("实时截图结果已刷新缓存")
+                        except Exception as cache_err:
+                            self.logger.warning(f"刷新缓存失败: {cache_err}")
 
             return result
 
@@ -1266,6 +1287,17 @@ class OCRHelper:
                 "total_matches": 0,
                 "selected_index": 0,
             }
+        finally:
+            if self.delete_temp_screenshots:
+                for temp_file in list(temp_screenshot_paths):
+                    if not temp_file:
+                        continue
+                    try:
+                        if os.path.exists(temp_file):
+                            os.remove(temp_file)
+                            self.logger.debug(f"已删除临时截图: {temp_file}")
+                    except Exception as cleanup_error:
+                        self.logger.warning(f"删除临时截图失败: {cleanup_error}")
 
     def find_and_click_text(
         self,

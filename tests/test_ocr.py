@@ -8,6 +8,7 @@ import sys
 import os
 import tempfile
 import shutil
+import json
 import pytest
 
 from project_paths import resolve_project_path
@@ -15,6 +16,7 @@ from project_paths import resolve_project_path
 # 添加父目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import ocr_helper
 from ocr_helper import OCRHelper
 
 
@@ -164,6 +166,74 @@ class TestOCRIntegration:
         ocr = OCRHelper(output_dir=temp_output_dir)
         expected_cache_dir = os.path.join(temp_output_dir, "cache")
         assert ocr.cache_dir == expected_cache_dir
+
+
+class TestCaptureAndFindTextCacheFallback:
+    """测试 capture_and_find_text 的缓存回退逻辑"""
+
+    def test_capture_and_find_text_retries_without_cache_when_cache_result_missing(
+        self, temp_output_dir, monkeypatch
+    ):
+        """缓存命中但找不到文字时应重新截图并刷新缓存"""
+
+        helper = OCRHelper(output_dir=temp_output_dir)
+
+        snapshot_calls = []
+
+        def fake_snapshot(filename):
+            snapshot_calls.append(filename)
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+            with open(filename, "wb") as f:
+                f.write(b"test")
+
+        call_history = []
+
+        def fake_find(
+            self,
+            image_path,
+            target_text,
+            confidence_threshold=0.5,
+            occurrence=1,
+            use_cache=True,
+            regions=None,
+            debug_save_path=None,
+        ):
+            call_history.append((use_cache, image_path))
+            if use_cache:
+                return self._empty_result()
+
+            base_name, _ = os.path.splitext(os.path.basename(image_path))
+            json_path = os.path.join(self.cache_dir, f"{base_name}_res.json")
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump({"rec_texts": [target_text]}, f)
+
+            return {
+                "found": True,
+                "center": (10, 10),
+                "text": target_text,
+                "confidence": 0.99,
+                "bbox": [[0, 0], [20, 0], [20, 20], [0, 20]],
+                "total_matches": 1,
+                "selected_index": 1,
+            }
+
+        cache_updates = []
+
+        def fake_save_to_cache(self, image_path, json_file, regions):
+            cache_updates.append((image_path, json_file, regions))
+
+        monkeypatch.setattr(ocr_helper, "snapshot", fake_snapshot)
+        monkeypatch.setattr(OCRHelper, "find_text_in_image", fake_find)
+        monkeypatch.setattr(OCRHelper, "_save_to_cache", fake_save_to_cache)
+
+        result = helper.capture_and_find_text("测试文字", use_cache=True)
+
+        assert result["found"] is True
+        assert [flag for flag, _ in call_history] == [True, False]
+        assert len(snapshot_calls) == 2
+        assert len(cache_updates) == 1
+        # 第二次截图结果应该写入缓存
+        assert cache_updates[0][0] == snapshot_calls[-1]
 
 
 if __name__ == "__main__":
