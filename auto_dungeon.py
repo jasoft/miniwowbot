@@ -897,6 +897,9 @@ class DailyCollectManager:
             # 7. 领取 taptap 奖励
             # self._checkin_taptap()
 
+            # 8. 领取邮件
+            self._receive_mails()
+
             self.logger.info("=" * 60)
             self.logger.info("✅ 每日收集操作全部完成")
             self.logger.info("=" * 60)
@@ -1109,6 +1112,26 @@ class DailyCollectManager:
             self.logger.info("✅ 打开宝箱成功")
         except Exception as e:
             self.logger.warning(f"⚠️ 未找到宝箱: {e}")
+            back_to_main()
+
+    def _receive_mails(self):
+        """
+        领取邮件
+        """
+        self.logger.info("✉️ 信件 开始领取邮件")
+        back_to_main()
+        try:
+            find_text_and_click("主城", regions=[9])
+            find_text_and_click("邮箱", regions=[5])
+            res = find_text("一键领取", regions=[8, 9], timeout=5)
+            if res:
+                for _ in range(3):
+                    touch(res["center"])
+                    sleep(1)
+            back_to_main()
+            self.logger.info("✅ 领取邮件成功")
+        except Exception as e:
+            self.logger.warning(f"⚠️ 未找到一键领取: {e}")
             back_to_main()
 
     # 保留原始函数名作为向后兼容
