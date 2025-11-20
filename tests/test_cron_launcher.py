@@ -2,7 +2,7 @@
 # -*- encoding=utf8 -*-
 """测试 cron_launcher 中的统计解析与通知构建逻辑"""
 
-import pytest
+from datetime import timedelta
 
 import cron_launcher
 
@@ -59,3 +59,28 @@ class TestNotificationContent:
         assert "运行失败" in title
         assert "统计数据: 无法解析" in message
         assert level == "timeSensitive"
+
+
+class TestFormatDuration:
+    """测试耗时格式化"""
+
+    def test_format_duration_seconds(self):
+        """只有秒数时的格式化"""
+        duration = timedelta(seconds=45)
+        result = cron_launcher.format_duration(duration)
+        assert "45秒" in result
+
+    def test_format_duration_minutes(self):
+        """有分钟和秒数时的格式化"""
+        duration = timedelta(minutes=5, seconds=30)
+        result = cron_launcher.format_duration(duration)
+        assert "5分钟" in result
+        assert "30秒" in result
+
+    def test_format_duration_hours(self):
+        """有小时、分钟和秒数时的格式化"""
+        duration = timedelta(hours=2, minutes=15, seconds=45)
+        result = cron_launcher.format_duration(duration)
+        assert "2小时" in result
+        assert "15分钟" in result
+        assert "45秒" in result
