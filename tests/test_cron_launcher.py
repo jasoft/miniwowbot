@@ -1,86 +1,46 @@
 #!/usr/bin/env python3
 # -*- encoding=utf8 -*-
-"""测试 cron_launcher 中的统计解析与通知构建逻辑"""
-
-from datetime import timedelta
+"""测试 cron_launcher 中的命令构建逻辑"""
 
 import cron_launcher
 
 
-class TestParseRunStatistics:
-    """测试从日志中解析统计信息"""
+class TestBuildRunCommand:
+    """测试运行命令构建"""
 
-    def test_parse_statistics_with_color_codes(self):
-        """日志包含 ANSI 颜色时也应正确解析"""
+    def test_build_run_command_default_config(self):
+        """默认配置的命令构建"""
+        cmd = cron_launcher.build_run_command("default", "127.0.0.1:5555")
+        assert cmd == "./run_all_dungeons.sh --emulator 127.0.0.1:5555"
 
-        sample_output = (
-            "\x1b[0;34m[INFO]\x1b[0m 总共运行: 5 个角色\n"
-            "\x1b[0;32m[SUCCESS]\x1b[0m 成功: 5 个\n"
-        )
-        stats = cron_launcher.parse_run_statistics(sample_output)
-        assert stats["total"] == 5
-        assert stats["success"] == 5
-        # 未出现失败行时应该推导为 0
-        assert stats["failed"] == 0
+    def test_build_run_command_custom_config(self):
+        """自定义配置的命令构建"""
+        cmd = cron_launcher.build_run_command("mage_alt", "127.0.0.1:5565")
+        assert "mage_alt" in cmd
+        assert "127.0.0.1:5565" in cmd
+        assert "./run_all_dungeons.sh" in cmd
 
-
-class TestNotificationContent:
-    """测试 Bark 通知内容构建"""
-
-    def test_build_notification_content_success(self):
-        """成功运行时的通知应包含统计信息"""
-
-        stats = {"total": 5, "success": 5, "failed": 0}
-        title, message, level = cron_launcher.build_notification_content(
-            config_name="default",
-            emulator_addr="127.0.0.1:5555",
-            stats=stats,
-            success=True,
-            duration=None,
-        )
-
-        assert "运行成功" in title
-        assert "总计: 5 个角色" in message
-        assert "✅ 成功: 5 个" in message
-        assert level == "active"
-
-    def test_build_notification_content_failure_without_stats(self):
-        """无法解析统计时也要给出提示"""
-
-        stats = {"total": None, "success": None, "failed": None}
-        title, message, level = cron_launcher.build_notification_content(
-            config_name="mage_alt",
-            emulator_addr="127.0.0.1:5565",
-            stats=stats,
-            success=False,
-            duration=None,
-        )
-
-        assert "运行失败" in title
-        assert "统计数据: 无法解析" in message
-        assert level == "timeSensitive"
+    def test_build_run_command_with_special_chars(self):
+        """包含特殊字符的配置名称"""
+        cmd = cron_launcher.build_run_command("test-config", "127.0.0.1:5555")
+        assert "test-config" in cmd
 
 
-class TestFormatDuration:
-    """测试耗时格式化"""
+class TestEscapeForOsascript:
+    """测试 osascript 转义"""
 
-    def test_format_duration_seconds(self):
-        """只有秒数时的格式化"""
-        duration = timedelta(seconds=45)
-        result = cron_launcher.format_duration(duration)
-        assert "45秒" in result
+    def test_escape_double_quotes(self):
+        """双引号转义"""
+        result = cron_launcher.escape_for_osascript('echo "hello"')
+        assert '\\"' in result
 
-    def test_format_duration_minutes(self):
-        """有分钟和秒数时的格式化"""
-        duration = timedelta(minutes=5, seconds=30)
-        result = cron_launcher.format_duration(duration)
-        assert "5分钟" in result
-        assert "30秒" in result
+    def test_escape_backslash(self):
+        """反斜杠转义"""
+        result = cron_launcher.escape_for_osascript("path\\to\\file")
+        assert "\\\\" in result
 
-    def test_format_duration_hours(self):
-        """有小时、分钟和秒数时的格式化"""
-        duration = timedelta(hours=2, minutes=15, seconds=45)
-        result = cron_launcher.format_duration(duration)
-        assert "2小时" in result
-        assert "15分钟" in result
-        assert "45秒" in result
+    def test_escape_combined(self):
+        """组合转义"""
+        result = cron_launcher.escape_for_osascript('echo "test\\path"')
+        assert '\\"' in result
+        assert "\\\\" in result
