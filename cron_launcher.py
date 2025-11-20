@@ -137,7 +137,9 @@ def launch_in_terminal(command: str, logger: logging.Logger) -> bool:
     ]
 
     try:
-        result = subprocess.run(osascript_cmd, capture_output=True, text=True, timeout=5)
+        result = subprocess.run(
+            osascript_cmd, capture_output=True, text=True, timeout=5
+        )
         if result.returncode == 0:
             logger.info("🖥️  Terminal 已启动脚本")
             return True
@@ -225,6 +227,66 @@ def run_dungeons_once(
     return success, stats, duration
 
 
+def run_dungeons_with_retry(
+    config_name: str,
+    emulator_addr: str,
+    script_dir: str,
+    logger: logging.Logger,
+    max_retries: int = 3,
+) -> tuple[bool, Dict[str, Optional[int]], timedelta]:
+    """
+    运行副本脚本，失败时自动重试
+
+    Args:
+        config_name: 配置名称
+        emulator_addr: 模拟器地址
+        script_dir: 脚本目录
+        logger: 日志记录器
+        max_retries: 最大重试次数（默认 3 次）
+
+    Returns:
+        (成功标志, 统计信息, 总耗时)
+    """
+    retry_count = 0
+    total_duration = timedelta(0)
+
+    while retry_count < max_retries:
+        logger.info("")
+        if retry_count > 0:
+            wait_time = (
+                retry_count * 10
+            )  # 第1次失败等待10秒，第2次等待20秒，第3次等待30秒
+            logger.warning(
+                f"⏳ 等待 {wait_time} 秒后重新运行... (第 {retry_count}/{max_retries} 次失败)"
+            )
+            time.sleep(wait_time)
+            logger.info(f"🔄 开始第 {retry_count + 1} 次重试...")
+
+        success, stats, duration = run_dungeons_once(
+            config_name=config_name,
+            emulator_addr=emulator_addr,
+            script_dir=script_dir,
+            logger=logger,
+        )
+
+        total_duration += duration
+
+        if success:
+            logger.info(f"✅ 配置 {config_name} 运行成功！")
+            return success, stats, total_duration
+
+        retry_count += 1
+        if retry_count < max_retries:
+            logger.error(
+                f"❌ 配置 {config_name} 运行失败！(第 {retry_count}/{max_retries} 次失败)"
+            )
+        else:
+            logger.error(f"❌ 配置 {config_name} 在 {max_retries} 次重试后仍然失败！")
+
+    # 所有重试都失败了
+    return False, {"total": None, "success": None, "failed": None}, total_duration
+
+
 def main():
     """主函数"""
     # 创建 Loki 日志记录器
@@ -236,7 +298,7 @@ def main():
     )
 
     logger.info("=" * 50)
-    logger.info("🚀 顺序运行两个模拟器的副本脚本")
+    logger.info("🚀 顺序运行两个模拟器的副本脚本（支持自动重试）")
     logger.info(f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info("=" * 50)
 
@@ -249,14 +311,13 @@ def main():
 
     for job in jobs:
         logger.info("")
-        logger.info(
-            f"📱 开始运行配置: {job['config']} (模拟器 {job['emulator']})"
-        )
-        success, stats, duration = run_dungeons_once(
+        logger.info(f"📱 开始运行配置: {job['config']} (模拟器 {job['emulator']})")
+        success, stats, duration = run_dungeons_with_retry(
             config_name=job["config"],
             emulator_addr=job["emulator"],
             script_dir=script_dir,
             logger=logger,
+            max_retries=3,
         )
 
         title, message, level = build_notification_content(
@@ -273,8 +334,7 @@ def main():
             logger.warning("⚠️ Bark 通知发送失败或未启用")
 
         if not success:
-            logger.error("❌ 本次运行失败，停止后续任务")
-            break
+            logger.error("❌ 本次运行失败（已重试 3 次），继续下一个配置...")
 
     logger.info("")
     logger.info("=" * 50)
