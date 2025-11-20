@@ -125,6 +125,32 @@ Terminal 1 和 Terminal 2 独立并行运行，互不影响
 - **效率提升 100%**
 
 ---
+## [功能] run_all_dungeons.sh 结束时发送 Bark 通知 - 2025-11-04
+
+### 功能描述
+
+在 `run_all_dungeons.sh` 运行完成后，根据成功/失败的角色数量，通过 `send_cron_notification.py` 发送一条 Bark 通知，便于在手机上即时了解整次副本运行的结果。
+
+### 主要改进
+
+1. **在脚本末尾统计结果并发送通知**
+   - 使用 `success`、`failed`、`total` 三个统计变量
+   - 调用 `uv run send_cron_notification.py "$success" "$failed" "$total"`
+   - 根据 Bark 启用状态和请求结果输出不同的提示日志
+
+2. **与新的并行 Cron 启动器兼容**
+   - 每个 Terminal 窗口中运行的 `run_all_dungeons.sh` 独立发送一条 Bark 通知
+   - 不需要 `cron_launcher.py` 等待脚本结束即可完成通知
+   - 保持“并行启动后立即退出”的设计不变
+
+### 修改的文件
+
+- `run_all_dungeons.sh`
+  - 在运行总结后调用 `send_cron_notification.py` 发送 Bark 通知
+
+---
+
+
 
 ## [功能] Cron 启动器支持自动重试机制 - 2025-11-04
 

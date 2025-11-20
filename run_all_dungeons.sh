@@ -340,6 +340,15 @@ main() {
     print_info "=================================================="
     echo ""
 
+    # 发送 Bark 通知
+    print_info "📱 发送 Bark 通知..."
+    uv run send_cron_notification.py "$success" "$failed" "$total"
+    if [ $? -eq 0 ]; then
+        print_success "Bark 通知发送成功"
+    else
+        print_warning "Bark 通知发送失败或未启用"
+    fi
+
     if [ $failed -gt 0 ]; then
         exit 1
     fi
