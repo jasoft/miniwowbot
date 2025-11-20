@@ -47,6 +47,85 @@ python auto_market_query.py --emulator 127.0.0.1:5555
 
 ---
 
+## [优化] Cron 启动器改为并行启动 Terminal 窗口 - 2025-11-04
+
+### 功能描述
+
+改进 `cron_launcher.py`，改为并行启动两个 Terminal 窗口分别执行脚本，然后立即退出。两个 Terminal 窗口中的脚本会独立地不断重试直到成功。这样可以大幅提高效率，避免顺序执行导致的时间浪费。
+
+### 主要改进
+
+1. **并行启动 Terminal 窗口**
+   - 启动第一个 Terminal 窗口（default 配置）
+   - 间隔 2 秒后启动第二个 Terminal 窗口（mage_alt 配置）
+   - 两个窗口独立并行运行
+
+2. **Terminal 窗口中的重试逻辑**
+   - 每个 Terminal 窗口中的脚本最多重试 3 次
+   - 第 1 次失败后等待 10 秒重试
+   - 第 2 次失败后等待 20 秒重试
+   - 第 3 次失败后等待 30 秒重试
+   - 所有重试都失败后 Terminal 窗口退出
+
+3. **简化的代码结构**
+   - 移除了 `run_dungeons_once()` 函数
+   - 移除了 `run_dungeons_with_retry()` 函数
+   - 移除了 `wait_for_status_file()` 函数
+   - 移除了 `parse_run_statistics()` 函数
+   - 移除了 `format_duration()` 函数
+   - 移除了 `build_notification_content()` 函数
+   - 移除了 `send_bark_notification` 导入
+   - 代码从 287 行简化到 148 行
+
+4. **Loki 日志集成**
+   - 启动器启动时记录日志到 Loki
+   - 每个 Terminal 窗口的脚本输出直接显示在 Terminal 中
+   - 支持环境变量配置 `LOKI_URL` 和 `LOKI_ENABLED`
+
+### 修改的文件
+
+**`cron_launcher.py`** (重构)
+- 改为并行启动两个 Terminal 窗口
+- 移除了所有不再使用的函数
+- 简化了代码结构，提高了可维护性
+- 代码行数从 287 行减少到 148 行
+
+### 使用方式
+
+```bash
+# 直接运行（并行启动两个 Terminal 窗口）
+python3 cron_launcher.py
+
+# 或通过 cron 任务自动运行
+LOKI_URL=http://docker.home:3100 python3 cron_launcher.py
+```
+
+### 执行流程
+
+```
+cron_launcher.py 启动
+  ├─ 记录启动日志到 Loki
+  ├─ 启动 Terminal 1（default 配置）
+  │   └─ Terminal 1 中的脚本最多重试 3 次
+  ├─ 等待 2 秒
+  ├─ 启动 Terminal 2（mage_alt 配置）
+  │   └─ Terminal 2 中的脚本最多重试 3 次
+  └─ cron_launcher.py 立即退出
+
+Terminal 1 和 Terminal 2 独立并行运行，互不影响
+```
+
+### 性能对比
+
+**顺序执行（旧方式）**：
+- 配置 1 运行 30 分钟 → 配置 2 运行 30 分钟 = 总耗时 60 分钟
+
+**并行执行（新方式）**：
+- 配置 1 和配置 2 同时运行 30 分钟 = 总耗时 30 分钟
+- **效率提升 100%**
+
+---
+
 ## [功能] Cron 启动器支持自动重试机制 - 2025-11-04
 
 ### 功能描述
