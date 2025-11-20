@@ -64,7 +64,7 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# 运行单个角色的副本
+# 运行单个角色的副本（带重试逻辑）
 run_character() {
     local character=$1
     local emulator=$2
@@ -72,6 +72,8 @@ run_character() {
     local env_overrides=("$@")  # 剩余的参数作为环境变量覆盖
     local config_file="configs/${character}.json"
     local character_name=${CHARACTER_NAMES[$character]:-$character}
+    local max_retries=3  # 最多重试 3 次
+    local retry_count=0
 
     if [ ! -f "$config_file" ]; then
         print_error "配置文件不存在: $config_file"
@@ -91,27 +93,41 @@ run_character() {
     print_info "开始时间: $start_time"
     print_info "=================================================="
 
-    local cmd="uv run auto_dungeon.py -c \"$config_file\""
-    if [ -n "$emulator" ]; then
-        cmd="$cmd --emulator \"$emulator\""
-    fi
+    # 重试循环
+    while [ $retry_count -lt $max_retries ]; do
+        local cmd="uv run auto_dungeon.py -c \"$config_file\""
+        if [ -n "$emulator" ]; then
+            cmd="$cmd --emulator \"$emulator\""
+        fi
 
-    # 添加环境变量覆盖参数
-    for override in "${env_overrides[@]}"; do
-        cmd="$cmd -e \"$override\""
+        # 添加环境变量覆盖参数
+        for override in "${env_overrides[@]}"; do
+            cmd="$cmd -e \"$override\""
+        done
+
+        if eval "$cmd"; then
+            local end_time=$(date '+%H:%M:%S')
+            print_success "${character_name} 副本运行完成！"
+            print_info "结束时间: $end_time"
+            return 0
+        else
+            ((retry_count++))
+            local end_time=$(date '+%H:%M:%S')
+            print_error "${character_name} 副本运行失败！(第 $retry_count/$max_retries 次失败)"
+            print_info "结束时间: $end_time"
+
+            if [ $retry_count -lt $max_retries ]; then
+                local wait_time=$((retry_count * 10))  # 第1次失败等待10秒，第2次等待20秒
+                print_warning "⏳ 等待 ${wait_time} 秒后重新运行..."
+                sleep $wait_time
+                print_info "🔄 开始第 $((retry_count + 1)) 次重试..."
+            fi
+        fi
     done
 
-    if eval "$cmd"; then
-        local end_time=$(date '+%H:%M:%S')
-        print_success "${character_name} 副本运行完成！"
-        print_info "结束时间: $end_time"
-        return 0
-    else
-        local end_time=$(date '+%H:%M:%S')
-        print_error "${character_name} 副本运行失败！"
-        print_info "结束时间: $end_time"
-        return 1
-    fi
+    # 所有重试都失败了
+    print_error "${character_name} 副本在 $max_retries 次重试后仍然失败！"
+    return 1
 }
 
 # 显示帮助信息
@@ -140,9 +156,16 @@ ${BLUE}自动化副本运行脚本${NC}
   warlock             术士
   druid               德鲁伊
 
+重试机制:
+  • 每个角色最多重试 3 次
+  • 第 1 次失败后等待 10 秒重试
+  • 第 2 次失败后等待 20 秒重试
+  • 第 3 次失败后等待 30 秒重试
+  • 所有重试都失败后才会继续下一个角色
+
 示例:
-  ./run_all_dungeons.sh                           # 运行所有角色
-  ./run_all_dungeons.sh -n                        # 运行所有角色（失败时自动继续）
+  ./run_all_dungeons.sh                           # 运行所有角色（失败自动重试）
+  ./run_all_dungeons.sh -n                        # 运行所有角色（失败自动重试，无提示）
   ./run_all_dungeons.sh warrior                   # 只运行战士
   ./run_all_dungeons.sh warrior mage              # 运行战士和法师
   ./run_all_dungeons.sh -i                        # 交互式选择
@@ -290,24 +313,8 @@ main() {
             print_success "成功完成！继续下一个角色..."
         else
             ((failed++))
-            print_error "运行失败！"
-
-            # 如果启用了 no_prompt，直接继续
-            if [ "$no_prompt" = true ]; then
-                print_info "自动继续运行下一个角色..."
-            else
-                print_warning "是否继续运行下一个角色? (y/n，默认 y，5秒后自动继续)"
-
-                # 设置5秒超时，默认继续
-                if read -t 5 -r response; then
-                    if [[ ! "$response" =~ ^[Yy]$ ]] && [[ -n "$response" ]]; then
-                        print_warning "用户选择停止运行"
-                        break
-                    fi
-                else
-                    print_info "超时，自动继续..."
-                fi
-            fi
+            print_error "运行失败（已重试 3 次）！"
+            print_warning "继续运行下一个角色..."
         fi
         echo ""
     done
