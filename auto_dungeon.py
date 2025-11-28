@@ -347,6 +347,70 @@ def find_text(
     return None
 
 
+@timer_decorator
+def text_exists(
+    texts,
+    similarity_threshold: float = 0.7,
+    use_cache: bool = True,
+    regions=None,
+):
+    """检查当前界面上给定文本列表中的任意一个是否存在。
+
+    Args:
+        texts: 文本列表（数组），按优先级从高到低排列；
+               如果传入的是单个字符串，则会自动转换为只包含该字符串的列表。
+        similarity_threshold: 相似度阈值 (0-1)。
+        use_cache: 是否使用 OCR 缓存。
+        regions: 要搜索的区域列表 (1-9)，None 表示全屏搜索。
+
+    Returns:
+        dict | None: 如果找到任意一个文本，返回 OCR 结果字典（包含 center/text 等字段）；
+                      如果都未找到，返回 None。
+    """
+
+    # 检查 ocr_helper 是否已初始化
+    if ocr_helper is None:
+        logger.error("❌ OCR助手未初始化，无法判断文本是否存在")
+        return None
+
+    # 规范化输入为列表
+    if isinstance(texts, str):
+        texts_to_check = [texts]
+    else:
+        try:
+            texts_to_check = list(texts) if texts is not None else []
+        except TypeError:
+            # 不可迭代的输入，直接当作单个字符串处理
+            texts_to_check = [str(texts)]
+
+    if not texts_to_check:
+        logger.warning("⚠️ text_exists 收到空的文本列表，直接返回 None")
+        return None
+
+    region_desc = f" [区域{regions}]" if regions else ""
+    logger.debug(f"🔍 text_exists 检查文本列表: {texts_to_check}{region_desc}")
+
+    # 依次按给定顺序检查每一个文本，找到第一个立即返回
+    for candidate in texts_to_check:
+        result = ocr_helper.capture_and_find_text(
+            candidate,
+            confidence_threshold=similarity_threshold,
+            occurrence=1,
+            use_cache=use_cache,
+            regions=regions,
+        )
+
+        if result and result.get("found"):
+            center = result.get("center")
+            logger.info(
+                f"✅ text_exists 找到文本: {candidate}{region_desc} at {center}"
+            )
+            return result
+
+    logger.info(f"🔍 text_exists 未找到任何目标文本: {texts_to_check}{region_desc}")
+    return None
+
+
 def find_text_and_click(
     text,
     timeout=10,
@@ -907,6 +971,12 @@ class DailyCollectManager:
         except Exception as e:
             self.logger.error(f"❌ 每日收集操作失败: {e}")
             raise
+
+    def _small_cookie(self):
+        """领取各种主题奖励"""
+        logger.info("领取各种主题奖励[海盗船,冰封王座]")
+        back_to_main()
+        find_text_and_click("活动", regions=[3])
 
     def _checkin_taptap(self):
         """签到 taptap,领一些礼品"""
