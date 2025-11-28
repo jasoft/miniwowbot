@@ -458,6 +458,13 @@ class TestDailyCollectIntegration:
         manager = DailyCollectManager()
         manager._checkin_taptap()
 
+    def test_small_cookie(self, setup_device):
+        """
+        测试领取各种主题奖励功能 - 真机测试
+        """
+        manager = DailyCollectManager()
+        manager._small_cookie()
+
     def test_collect_free_diamonds(self, setup_device):
         """
         测试领取免费钻石功能 - 真机测试

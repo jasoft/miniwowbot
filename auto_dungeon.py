@@ -1076,6 +1076,9 @@ class DailyCollectManager:
             # 8. 领取邮件
             self._receive_mails()
 
+            # 9. 领取各种主题奖励
+            self._small_cookie()
+
             self.logger.info("=" * 60)
             self.logger.info("✅ 每日收集操作全部完成")
             self.logger.info("=" * 60)
@@ -1089,6 +1092,19 @@ class DailyCollectManager:
         logger.info("领取各种主题奖励[海盗船,冰封王座]")
         back_to_main()
         find_text_and_click("活动", regions=[3])
+        res = text_exists(["海盗船"], regions=[5, 6])
+        if res:
+            touch(res["center"])
+            sleep(CLICK_INTERVAL)
+            find_text_and_click("领取", regions=[9])
+            res = find_text("上缴", regions=[5])
+            if res:
+                for _ in range(5):
+                    touch(res["center"])
+                    sleep(CLICK_INTERVAL)
+
+            find_text_and_click("领取", regions=[9])
+        back_to_main()
 
     def _checkin_taptap(self):
         """签到 taptap,领一些礼品"""
