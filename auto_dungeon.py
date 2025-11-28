@@ -6,6 +6,8 @@ import argparse
 import requests
 import urllib.parse
 import time
+import uuid
+from datetime import datetime
 from typing import Optional
 from wrapt_timeout_decorator import timeout as timeout_decorator
 
@@ -25,6 +27,7 @@ from airtest.core.api import (
     shell,
     log,
     exists,
+    snapshot,
 )
 from airtest.core.settings import Settings as ST
 from airtest.core.error import TargetNotFoundError
@@ -356,6 +359,12 @@ def text_exists(
 ):
     """检查当前界面上给定文本列表中的任意一个是否存在。
 
+    为了避免对同一帧画面进行多次截图和重复 OCR，这里优先尝试：
+    - 截图一次；
+    - 通过 OCRHelper 的缓存/JSON 接口一次性拿到所有文字；
+    - 在内存中对多个候选文本进行匹配；
+    - 只在无法使用该能力时，才回退到逐个调用 ``capture_and_find_text`` 的旧逻辑。
+
     Args:
         texts: 文本列表（数组），按优先级从高到低排列；
                如果传入的是单个字符串，则会自动转换为只包含该字符串的列表。
@@ -390,7 +399,110 @@ def text_exists(
     region_desc = f" [区域{regions}]" if regions else ""
     logger.debug(f"🔍 text_exists 检查文本列表: {texts_to_check}{region_desc}")
 
-    # 依次按给定顺序检查每一个文本，找到第一个立即返回
+    # 优先使用 OCRHelper 的批量 OCR 能力（单次截图 + 复用 JSON 结果）
+    has_bulk_ocr = hasattr(ocr_helper, "_get_or_create_ocr_result") and hasattr(
+        ocr_helper, "_get_all_texts_from_json"
+    )
+
+    screenshot_path: Optional[str] = None
+    if has_bulk_ocr:
+        try:
+            # 1) 截图一次
+            base_dir = getattr(ocr_helper, "temp_dir", os.getcwd())
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            unique_id = str(uuid.uuid4())[:8]
+            screenshot_path = os.path.join(
+                base_dir, f"text_exists_{timestamp}_{unique_id}.png"
+            )
+
+            snapshot(filename=screenshot_path)
+            logger.debug(f"📸 text_exists 截图保存到: {screenshot_path}")
+
+            # 2) 基于缓存系统获取/创建 OCR JSON 结果
+            json_file = ocr_helper._get_or_create_ocr_result(  # type: ignore[attr-defined]
+                screenshot_path,
+                use_cache=use_cache,
+                regions=regions,
+            )
+
+            if not json_file:
+                logger.info(
+                    f"🔍 text_exists 未获取到 OCR JSON 结果, 文本: {texts_to_check}{region_desc}"
+                )
+            else:
+                # 3) 从 JSON 中加载所有识别到的文字信息
+                all_texts = ocr_helper._get_all_texts_from_json(  # type: ignore[attr-defined]
+                    json_file
+                )
+                if not all_texts:
+                    logger.info(
+                        f"🔍 text_exists OCR 结果为空: {texts_to_check}{region_desc}"
+                    )
+                else:
+                    # 根据 regions 做一次坐标过滤（如果可用）
+                    def _in_region(center):
+                        return True
+
+                    if regions:
+                        try:
+                            import cv2  # type: ignore[import]
+
+                            img = cv2.imread(screenshot_path)
+                            if img is not None and hasattr(
+                                ocr_helper, "_get_region_bounds"
+                            ):
+                                height, width = img.shape[:2]
+                                x, y, w, h = ocr_helper._get_region_bounds(  # type: ignore[attr-defined]
+                                    (height, width), regions
+                                )
+
+                                def _in_region(center):
+                                    if not center:
+                                        return False
+                                    cx, cy = center
+                                    return x <= cx <= x + w and y <= cy <= y + h
+                        except Exception as region_err:  # pragma: no cover - 容错日志
+                            logger.warning(
+                                f"text_exists 区域过滤出错, 将退回全屏匹配: {region_err}"
+                            )
+
+                    # 4) 在内存中的 OCR 结果里，按 texts_to_check 的顺序查找第一个命中的文本
+                    for candidate in texts_to_check:
+                        for info in all_texts:
+                            text_val = info.get("text") or ""
+                            conf = float(info.get("confidence") or 0.0)
+                            center = info.get("center")
+
+                            if (
+                                conf >= similarity_threshold
+                                and candidate in text_val
+                                and _in_region(center)
+                            ):
+                                logger.info(
+                                    f"✅ text_exists 找到文本: {candidate}{region_desc} at {center}"
+                                )
+                                return {
+                                    "found": True,
+                                    "center": center,
+                                    "text": text_val,
+                                    "confidence": conf,
+                                    "bbox": info.get("bbox"),
+                                    "total_matches": 1,
+                                    "selected_index": 1,
+                                }
+
+        except Exception as e:  # pragma: no cover - 容错日志
+            logger.error(
+                f"text_exists 使用单次 OCR 批量匹配时出错, 将回退到逐个查询模式: {e}"
+            )
+        finally:
+            if screenshot_path and os.path.exists(screenshot_path):
+                try:
+                    os.remove(screenshot_path)
+                except Exception as cleanup_error:  # pragma: no cover - 容错日志
+                    logger.warning(f"text_exists 删除临时截图失败: {cleanup_error}")
+
+    # 回退方案：逐个调用 capture_and_find_text（主要用于测试或旧版本 OCRHelper）
     for candidate in texts_to_check:
         result = ocr_helper.capture_and_find_text(
             candidate,

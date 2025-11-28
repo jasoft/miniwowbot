@@ -1,5 +1,18 @@
 # 更新日志
 
+## [优化] text_exists 基于单次 OCR 结果复用提升性能 - 2025-11-28
+
+### 优化内容
+
+- 重构 `auto_dungeon.text_exists` 实现逻辑，优先使用 OCRHelper 的批量 OCR 能力：
+  - 对当前界面 **只截图一次**；
+  - 通过 `_get_or_create_ocr_result` 生成/复用 OCR JSON 结果；
+  - 通过 `_get_all_texts_from_json` 一次性加载所有文本，再在内存中按候选数组顺序匹配；
+  - 仅在旧版 OCRHelper 或异常场景下，才回退到逐个 `capture_and_find_text` 的慢路径。
+- 在 `tests/test_text_exists.py` 中新增单元测试，验证在支持批量 OCR 的场景下只会进行一次截图和一次 OCR 结果加载，确保性能优化生效且行为稳定。
+
+---
+
 ## [优化] 自动化市场查询脚本 - 移除按钮坐标命令行参数 - 2025-11-03
 
 ### 优化内容
