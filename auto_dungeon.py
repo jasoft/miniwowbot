@@ -1096,7 +1096,7 @@ class DailyCollectManager:
         if res:
             touch(res["center"])
             sleep(CLICK_INTERVAL)
-            find_text_and_click("领取", regions=[9])
+            find_text_and_click("领取", regions=[6])
             res = find_text("上缴", regions=[5])
             if res:
                 for _ in range(5):
