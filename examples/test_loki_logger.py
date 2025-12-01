@@ -1,9 +1,14 @@
-# -*- encoding=utf8 -*-
+# -*- coding: utf-8 -*-
 """
 测试 Loki 日志模块
 """
 
 import time
+import sys
+from pathlib import Path
+import os
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from loki_logger import create_loki_logger
 
 print("=" * 70)
@@ -15,7 +20,7 @@ print("\n1. 创建日志记录器...")
 logger = create_loki_logger(
     name="miniwow",
     level="INFO",
-    loki_url="http://localhost:3100",
+    loki_url=os.getenv("LOKI_URL", "http://docker.home:3100"),
     enable_loki=True,
 )
 
@@ -26,7 +31,7 @@ print("\n2. 记录日志...")
 logger.info("这是一条信息日志")
 logger.warning("这是一条警告日志")
 logger.error("这是一条错误日志")
-print("✅ 日志已记录")
+print("✅ 日志已尝试上传到 Loki")
 
 # 等待上传
 print("\n3. 等待日志上传（5 秒）...")
@@ -39,7 +44,7 @@ print("✅ 等待完成")
 print("\n4. 记录更多日志...")
 for i in range(10):
     logger.info(f"测试日志 {i + 1}")
-print("✅ 更多日志已记录")
+print("✅ 更多日志已尝试上传到 Loki")
 
 # 等待上传
 print("\n5. 等待日志上传（5 秒）...")

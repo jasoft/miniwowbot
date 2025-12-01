@@ -113,6 +113,25 @@ target_emulator = None  # 目标模拟器名称
 config_name = None  # 配置文件名称（用于 Loki 标签）
 error_dialog_monitor = None  # 全局错误对话框监控器
 
+def _normalize_emulator_name(name: Optional[str]) -> Optional[str]:
+    """
+    规范化模拟器名称输入：
+    - 支持传入完整的 Airtest 连接字符串，如 'Android://127.0.0.1:5037/192.168.1.150:5555'
+      将自动提取设备序列 '192.168.1.150:5555'
+    - 去除首尾空白
+    """
+    if not name:
+        return name
+    name = str(name).strip()
+    if name.lower().startswith("android://"):
+        try:
+            parts = name.split("/")
+            if parts:
+                return parts[-1].strip()
+        except Exception:
+            return name
+    return name
+
 
 def check_and_start_emulator(emulator_name: Optional[str] = None):
     """
@@ -139,49 +158,36 @@ def check_and_start_emulator(emulator_name: Optional[str] = None):
     if emulator_manager is None:
         emulator_manager = EmulatorManager()
 
-    # 如果指定了模拟器名称，使用管理器启动
+    # 如果指定了模拟器名称，仅检查是否已运行/连接
     if emulator_name:
-        # 获取设备列表，检查 emulator_name 是否存在
+        emulator_name = _normalize_emulator_name(emulator_name)
         devices = emulator_manager.get_adb_devices()
         if emulator_name not in devices:
-            logger.warning(f"⚠️ 模拟器 {emulator_name} 不在设备列表中")
+            logger.warning(f"⚠️ 模拟器 {emulator_name} 未运行或未连接")
             logger.info(f"   可用设备: {list(devices.keys()) if devices else '无'}")
-            logger.info("🚀 尝试启动对应的 BlueStacks 实例...")
-
-            # 尝试启动对应的 BlueStacks 实例
-            if not emulator_manager.start_bluestacks_instance(emulator_name):
-                error_msg = f"❌ 无法启动模拟器 {emulator_name} 对应的 BlueStacks 实例"
-                logger.error(error_msg)
-                # 发送 Bark 通知
+            # 尝试一次adb连接（不做任何自动启动）
+            if emulator_manager.ensure_device_connected(emulator_name):
+                logger.info(f"✅ 已通过 adb connect 确认连接: {emulator_name}")
+            else:
                 send_bark_notification(
                     "副本助手 - 错误",
-                    f"无法启动模拟器 {emulator_name} 对应的 BlueStacks 实例",
+                    f"模拟器 {emulator_name} 未运行或未连接，请手动启动后重试",
                     level="timeSensitive",
                 )
                 return False
-            logger.info(f"✅ 模拟器 {emulator_name} 已启动, 等待60秒...")
-            sleep(60)  # 等待模拟器启动完毕
-        else:
-            logger.info(f"✅ 模拟器 {emulator_name} 已在设备列表中")
-
-        if not emulator_manager.start_bluestacks_instance(emulator_name):
-            logger.error(f"❌ 无法启动模拟器: {emulator_name}")
-            # 发送 Bark 通知
-            send_bark_notification(
-                "副本助手 - 错误",
-                f"无法启动模拟器: {emulator_name}",
-                level="timeSensitive",
-            )
-            return False
+        logger.info(f"✅ 模拟器 {emulator_name} 已在设备列表中")
     else:
-        # 原有逻辑：检查并启动默认模拟器
+        # 默认模拟器：不再自动启动
         if emulator_manager.check_bluestacks_running():
             logger.info("✅ BlueStacks模拟器已在运行")
         else:
             logger.info("⚠️ BlueStacks模拟器未运行")
-            if not emulator_manager.start_bluestacks():
-                logger.error("❌ 无法启动BlueStacks模拟器")
-                return False
+            send_bark_notification(
+                "副本助手 - 错误",
+                "BlueStacks 未运行，请手动启动后重试",
+                level="timeSensitive",
+            )
+            return False
 
     # 无论模拟器是否刚启动，都执行adb devices
     if not emulator_manager.ensure_adb_connection():
@@ -870,7 +876,7 @@ def select_character(char_class):
         logger.error(f"❌ 未找到职业: {char_class}")
         raise RuntimeError(f"无法找到职业: {char_class}")
 
-    find_text_and_click("进入游戏")
+    find_text_and_click("进入游戏",regions=[5])
     wait_for_main()
 
 
@@ -1714,6 +1720,16 @@ def parse_arguments():
         help="指定模拟器网络地址（如：127.0.0.1:5555），用于多模拟器场景",
     )
     parser.add_argument(
+        "--memlog",
+        action="store_true",
+        help="启用内存监控日志",
+    )
+    parser.add_argument(
+        "--low-mem",
+        action="store_true",
+        help="启用低内存模式",
+    )
+    parser.add_argument(
         "-e",
         "--env",
         type=str,
@@ -1724,7 +1740,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def handle_load_account_mode(account_name, emulator_name: Optional[str] = None):
+def handle_load_account_mode(account_name, emulator_name: Optional[str] = None, low_mem: bool = False):
     """
     处理账号加载模式
 
@@ -1746,25 +1762,21 @@ def handle_load_account_mode(account_name, emulator_name: Optional[str] = None):
 
     # 确定连接字符串
     if emulator_name:
+        emulator_name = _normalize_emulator_name(emulator_name)
         target_emulator = emulator_name
         if emulator_manager is None:
             emulator_manager = EmulatorManager()
 
-        # 获取设备列表，检查 emulator_name 是否存在
         devices = emulator_manager.get_adb_devices()
         if emulator_name not in devices:
-            logger.warning(f"⚠️ 模拟器 {emulator_name} 不在设备列表中")
+            logger.warning(f"⚠️ 模拟器 {emulator_name} 未运行或未连接")
             logger.info(f"   可用设备: {list(devices.keys()) if devices else '无'}")
-            logger.info("🚀 尝试启动对应的 BlueStacks 实例...")
-
-            # 尝试启动对应的 BlueStacks 实例
-            if not emulator_manager.start_bluestacks_instance(emulator_name):
-                error_msg = f"❌ 无法启动模拟器 {emulator_name} 对应的 BlueStacks 实例"
-                logger.error(error_msg)
-                # 发送 Bark 通知
+            if emulator_manager.ensure_device_connected(emulator_name):
+                logger.info(f"✅ 已通过 adb connect 确认连接: {emulator_name}")
+            else:
                 send_bark_notification(
                     "副本助手 - 错误",
-                    f"无法启动模拟器 {emulator_name} 对应的 BlueStacks 实例",
+                    f"模拟器 {emulator_name} 未运行或未连接，请手动启动后重试",
                     level="timeSensitive",
                 )
                 sys.exit(1)
@@ -1785,9 +1797,12 @@ def handle_load_account_mode(account_name, emulator_name: Optional[str] = None):
     connect_device(connection_string)
 
     ocr_helper = OCRHelper(
-        max_cache_size=200,  # 最大缓存条目数
-        hash_type="dhash",  # 哈希算法
-        hash_threshold=10,  # 汉明距离阈值
+        max_cache_size=(50 if low_mem else 200),
+        hash_type="dhash",
+        hash_threshold=10,
+        cpu_threads=(2 if low_mem else None),
+        max_width=(640 if low_mem else 960),
+        delete_temp_screenshots=True,
     )
 
     # 切换账号
@@ -1949,7 +1964,7 @@ def show_progress_statistics(db):
     return completed_count, total_selected_dungeons, total_dungeons
 
 
-def initialize_device_and_ocr(emulator_name: Optional[str] = None):
+def initialize_device_and_ocr(emulator_name: Optional[str] = None, low_mem: bool = False):
     """
     初始化设备连接和OCR助手
     支持多个模拟器同时连接，不会断开其他模拟器
@@ -1963,28 +1978,24 @@ def initialize_device_and_ocr(emulator_name: Optional[str] = None):
 
     # 确定连接字符串
     if emulator_name:
+        emulator_name = _normalize_emulator_name(emulator_name)
         target_emulator = emulator_name
         if emulator_manager is None:
             emulator_manager = EmulatorManager()
 
-        # 获取设备列表，检查 emulator_name 是否存在
         devices = emulator_manager.get_adb_devices()
         if emulator_name not in devices:
-            logger.warning(f"⚠️ 模拟器 {emulator_name} 不在设备列表中")
+            logger.warning(f"⚠️ 模拟器 {emulator_name} 未运行或未连接")
             logger.info(f"   可用设备: {list(devices.keys()) if devices else '无'}")
-            logger.info("🚀 尝试启动对应的 BlueStacks 实例...")
-
-            # 尝试启动对应的 BlueStacks 实例
-            if not emulator_manager.start_bluestacks_instance(emulator_name):
-                error_msg = f"❌ 无法启动模拟器 {emulator_name} 对应的 BlueStacks 实例"
-                logger.error(error_msg)
-                # 发送 Bark 通知
+            if emulator_manager.ensure_device_connected(emulator_name):
+                logger.info(f"✅ 已通过 adb connect 确认连接: {emulator_name}")
+            else:
                 send_bark_notification(
                     "副本助手 - 错误",
-                    f"无法启动模拟器 {emulator_name} 对应的 BlueStacks 实例",
+                    f"模拟器 {emulator_name} 未运行或未连接，请手动启动后重试",
                     level="timeSensitive",
                 )
-                raise RuntimeError(f"无法启动模拟器 {emulator_name}")
+                raise RuntimeError(f"模拟器 {emulator_name} 未运行或未连接")
         else:
             logger.info(f"✅ 模拟器 {emulator_name} 已在设备列表中")
 
@@ -2011,7 +2022,13 @@ def initialize_device_and_ocr(emulator_name: Optional[str] = None):
         raise
 
     if ocr_helper is None:
-        ocr_helper = OCRHelper(output_dir="output")
+        ocr_helper = OCRHelper(
+            output_dir="output",
+            cpu_threads=(2 if low_mem else None),
+            max_cache_size=(50 if low_mem else 200),
+            max_width=(640 if low_mem else 960),
+            delete_temp_screenshots=True,
+        )
 
 
 def count_remaining_selected_dungeons(db):
@@ -2229,6 +2246,14 @@ def main():
         logger.info("🎮 副本自动遍历脚本")
         logger.info("=" * 60 + "\n")
 
+    if args.memlog:
+        try:
+            from memory_monitor import start_memory_monitor
+            start_memory_monitor(logger, interval_sec=10.0, enable_tracemalloc=True)
+            logger.info("已启用内存监控")
+        except Exception as e:
+            logger.warning(f"启用内存监控失败: {e}")
+
     # 3. 处理加载账号模式（如果指定）
     if args.load_account:
         # 加载账号模式需要先启动模拟器
@@ -2236,7 +2261,7 @@ def main():
             if not check_and_start_emulator(args.emulator):
                 logger.error("❌ 模拟器准备失败，脚本退出")
                 sys.exit(1)
-        handle_load_account_mode(args.load_account, args.emulator)
+        handle_load_account_mode(args.load_account, args.emulator, low_mem=args.low_mem)
         return
 
     # 4. 初始化配置
@@ -2267,7 +2292,7 @@ def main():
         logger.info("⚠️ 跳过模拟器检查（--skip-emulator-check）")
 
     # 7. 初始化设备和OCR
-    initialize_device_and_ocr(args.emulator)
+    initialize_device_and_ocr(args.emulator, low_mem=args.low_mem)
 
     state_machine = AutoDungeonStateMachine(config_loader)
 

@@ -87,9 +87,10 @@ def main():
     script_dir = str(SCRIPT_DIR)
 
     jobs = [
-        {"config": "default", "emulator": "127.0.0.1:5555"},
-        {"config": "mage_alt", "emulator": "127.0.0.1:5565"},
+        {"config": "default", "emulator": "192.168.1.150:5555"},
+        {"config": "mage_alt", "emulator": "192.168.1.150:5565"},
     ]
+    
 
     # 并行启动两个 Terminal 窗口
     for job in jobs:

@@ -37,6 +37,7 @@ class OCRHelper:
         max_cache_size=200,
         hash_type="dhash",  # 可选: "phash", "dhash", "ahash", "whash"
         hash_threshold=10,  # hash 汉明距离阈值
+        cpu_threads: Optional[int] = None,
     ):
         """
         初始化OCR Helper
@@ -68,7 +69,7 @@ class OCRHelper:
             use_textline_orientation=use_textline_orientation,
             text_detection_model_name="PP-OCRv5_mobile_det",
             text_recognition_model_name="PP-OCRv5_mobile_rec",
-            cpu_threads=4,  # M4 效率核心，减少线程竞争
+            cpu_threads=(cpu_threads if cpu_threads is not None else 4),
         )
 
         # 创建输出目录

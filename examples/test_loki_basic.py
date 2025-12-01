@@ -1,9 +1,13 @@
-# -*- encoding=utf8 -*-
+# -*- coding: utf-8 -*-
 """
 测试 Loki 日志模块基本功能（不需要 Loki 服务运行）
 """
 
 import time
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from loki_logger import create_loki_logger
 
 print("=" * 70)
@@ -17,7 +21,7 @@ logger = create_loki_logger(
     level="INFO",
     enable_loki=False,  # 禁用 Loki，只测试控制台输出
 )
-print("✅ 日志记录器创建成功")
+print("日志记录器创建成功")
 
 # 记录日志
 print("\n2. 记录日志...")

@@ -60,6 +60,10 @@ class LokiHandler(logging.Handler):
         self._sentinel = object()
         self.stop_event = threading.Event()
 
+        # 创建 HTTP Session，禁用代理以避免代理导致的连接问题
+        self._session = requests.Session()
+        self._session.trust_env = False  # 禁用从环境变量读取代理设置
+
         # 启动后台上传线程
         self.upload_thread = threading.Thread(
             target=self._upload_worker,
@@ -94,7 +98,9 @@ class LokiHandler(logging.Handler):
 
         try:
             while True:
-                timeout = max(0.0, self.upload_interval - (time.monotonic() - last_flush_at))
+                timeout = max(
+                    0.0, self.upload_interval - (time.monotonic() - last_flush_at)
+                )
 
                 try:
                     log_entry = self.queue.get(timeout=timeout)
@@ -113,7 +119,10 @@ class LokiHandler(logging.Handler):
 
                 batch.append(log_entry)
                 now = time.monotonic()
-                if len(batch) >= self.buffer_size or (now - last_flush_at) >= self.upload_interval:
+                if (
+                    len(batch) >= self.buffer_size
+                    or (now - last_flush_at) >= self.upload_interval
+                ):
                     self._flush_batch(batch)
                     last_flush_at = now
 
@@ -153,10 +162,10 @@ class LokiHandler(logging.Handler):
                 }
                 streams.append(stream)
 
-            # 发送到 Loki
+            # 发送到 Loki（使用 Session 以禁用代理）
             payload = {"streams": streams}
             headers = {"Content-Type": "application/json; charset=utf-8"}
-            response = requests.post(
+            response = self._session.post(
                 f"{self.loki_url}/loki/api/v1/push",
                 json=payload,
                 headers=headers,
