@@ -95,17 +95,13 @@ run_character() {
 
     # 重试循环
     while [ $retry_count -lt $max_retries ]; do
-        local cmd="uv run auto_dungeon.py -c \"$config_file\""
         if [ -n "$emulator" ]; then
-            cmd="$cmd --emulator \"$emulator\""
+            run_cmd_router auto_dungeon.py -c "$config_file" --emulator "$emulator" ${env_overrides:+-e "${env_overrides[@]}"}
+        else
+            run_cmd_router auto_dungeon.py -c "$config_file" ${env_overrides:+-e "${env_overrides[@]}"}
         fi
 
-        # 添加环境变量覆盖参数
-        for override in "${env_overrides[@]}"; do
-            cmd="$cmd -e \"$override\""
-        done
-
-        if eval "$cmd"; then
+        if [ $? -eq 0 ]; then
             local end_time=$(date '+%H:%M:%S')
             print_success "${character_name} 副本运行完成！"
             print_info "结束时间: $end_time"
@@ -342,7 +338,7 @@ main() {
 
     # 发送 Bark 通知
     print_info "📱 发送 Bark 通知..."
-    uv run send_cron_notification.py "$success" "$failed" "$total"
+    run_cmd_router send_cron_notification.py "$success" "$failed" "$total"
     if [ $? -eq 0 ]; then
         print_success "Bark 通知发送成功"
     else
@@ -356,3 +352,11 @@ main() {
 
 # 运行主函数
 main "$@"
+run_cmd_router() {
+    local script="$1"; shift
+    if command -v uv >/dev/null 2>&1; then
+        uv run "$SCRIPT_DIR/$script" "$@" || PYTHONPATH="$SCRIPT_DIR" python3 "$SCRIPT_DIR/$script" "$@"
+    else
+        PYTHONPATH="$SCRIPT_DIR" python3 "$SCRIPT_DIR/$script" "$@"
+    fi
+}
