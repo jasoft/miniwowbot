@@ -14,7 +14,11 @@ scrape_configs:
       - targets: [localhost]
         labels:
           app: miniwow
-          __path__: log/*.log
+          __path__: log/[0-9]*.log
+      - targets: [localhost]
+        labels:
+          app: miniwow
+          __path__: log/unknown.log
     pipeline_stages:
       - regex:
           expression: '^[0-9]{4}-[0-9]{2}-[0-9]{2}[^ ]*\s+\w+\s+(?P<config>\S+)\s+(?P<emulator>\S+)'
