@@ -350,8 +350,7 @@ main() {
     fi
 }
 
-# 运行主函数
-main "$@"
+# 辅助函数：运行 Python 脚本
 run_cmd_router() {
     local script="$1"; shift
     if command -v uv >/dev/null 2>&1; then
@@ -360,3 +359,6 @@ run_cmd_router() {
         PYTHONPATH="$SCRIPT_DIR" python3 "$SCRIPT_DIR/$script" "$@"
     fi
 }
+
+# 运行主函数
+main "$@"

@@ -242,19 +242,13 @@ def timer_decorator(func):
 
         # 根据执行时间使用不同的日志级别和表情符号
         if elapsed_time < 0.01:
-            func_logger.debug(
-                f"⚡ {func.__name__} 执行时间: {elapsed_time:.4f}秒 (< 10ms)"
-            )
+            func_logger.debug(f"⚡ {func.__name__} 执行时间: {elapsed_time:.4f}秒 (< 10ms)")
         elif elapsed_time < 0.5:
             func_logger.debug(f"⏱️ {func.__name__} 执行时间: {elapsed_time:.4f}秒")
         elif elapsed_time < 1.0:
-            func_logger.warning(
-                f"🐌 {func.__name__} 执行时间: {elapsed_time:.4f}秒 (> 500ms)"
-            )
+            func_logger.warning(f"🐌 {func.__name__} 执行时间: {elapsed_time:.4f}秒 (> 500ms)")
         else:
-            func_logger.warning(
-                f"🐢 {func.__name__} 执行时间: {elapsed_time:.4f}秒 (> 1s)"
-            )
+            func_logger.warning(f"🐢 {func.__name__} 执行时间: {elapsed_time:.4f}秒 (> 1s)")
 
         return result
 
@@ -334,9 +328,7 @@ def find_text(
                     )
                 else:
                     if occurrence > 1:
-                        logger.info(
-                            f"✅ 找到文本: {text} (第{occurrence}个){region_desc}"
-                        )
+                        logger.info(f"✅ 找到文本: {text} (第{occurrence}个){region_desc}")
                     else:
                         logger.info(f"✅ 找到文本: {text}{region_desc}")
                 return result
@@ -418,9 +410,7 @@ def text_exists(
             base_dir = getattr(ocr_helper, "temp_dir", os.getcwd())
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             unique_id = str(uuid.uuid4())[:8]
-            screenshot_path = os.path.join(
-                base_dir, f"text_exists_{timestamp}_{unique_id}.png"
-            )
+            screenshot_path = os.path.join(base_dir, f"text_exists_{timestamp}_{unique_id}.png")
 
             snapshot(filename=screenshot_path)
             logger.debug(f"📸 text_exists 截图保存到: {screenshot_path}")
@@ -442,9 +432,7 @@ def text_exists(
                     json_file
                 )
                 if not all_texts:
-                    logger.info(
-                        f"🔍 text_exists OCR 结果为空: {texts_to_check}{region_desc}"
-                    )
+                    logger.info(f"🔍 text_exists OCR 结果为空: {texts_to_check}{region_desc}")
                 else:
                     # 根据 regions 做一次坐标过滤（如果可用）
                     def _in_region(center):
@@ -455,9 +443,7 @@ def text_exists(
                             import cv2  # type: ignore[import]
 
                             img = cv2.imread(screenshot_path)
-                            if img is not None and hasattr(
-                                ocr_helper, "_get_region_bounds"
-                            ):
+                            if img is not None and hasattr(ocr_helper, "_get_region_bounds"):
                                 height, width = img.shape[:2]
                                 x, y, w, h = ocr_helper._get_region_bounds(  # type: ignore[attr-defined]
                                     (height, width), regions
@@ -499,9 +485,7 @@ def text_exists(
                                 }
 
         except Exception as e:  # pragma: no cover - 容错日志
-            logger.error(
-                f"text_exists 使用单次 OCR 批量匹配时出错, 将回退到逐个查询模式: {e}"
-            )
+            logger.error(f"text_exists 使用单次 OCR 批量匹配时出错, 将回退到逐个查询模式: {e}")
         finally:
             if screenshot_path and os.path.exists(screenshot_path):
                 try:
@@ -521,9 +505,7 @@ def text_exists(
 
         if result and result.get("found"):
             center = result.get("center")
-            logger.info(
-                f"✅ text_exists 找到文本: {candidate}{region_desc} at {center}"
-            )
+            logger.info(f"✅ text_exists 找到文本: {candidate}{region_desc} at {center}")
             return result
 
     logger.info(f"🔍 text_exists 未找到任何目标文本: {texts_to_check}{region_desc}")
@@ -753,9 +735,7 @@ def auto_combat(completed_dungeons=0, total_dungeons=0):
         resolution=(720, 1280),
     )
     try:
-        builtin_auto_combat_activated = bool(
-            wait(autocombat_template, timeout=2, interval=0.1)
-        )
+        builtin_auto_combat_activated = bool(wait(autocombat_template, timeout=2, interval=0.1))
     except Exception:
         builtin_auto_combat_activated = False
 
@@ -880,7 +860,7 @@ def select_character(char_class):
         logger.error(f"❌ 未找到职业: {char_class}")
         raise RuntimeError(f"无法找到职业: {char_class}")
 
-    find_text_and_click("进入游戏",regions=[5])
+    find_text_and_click("进入游戏", regions=[5])
     wait_for_main()
 
 
@@ -966,9 +946,7 @@ def switch_account(account_name):
         swipe(ACCOUNT_LIST_SWIPE_START, ACCOUNT_LIST_SWIPE_END)
 
     if not success:
-        raise Exception(
-            f"Failed to find and click account '{account_name}' after 10 tries"
-        )
+        raise Exception(f"Failed to find and click account '{account_name}' after 10 tries")
     touch(LOGIN_BUTTON)  # 登录按钮
 
 
@@ -1088,7 +1066,7 @@ class DailyCollectManager:
 
             # 9. 领取各种主题奖励
             self._small_cookie()
-            
+
             # 10. 领取礼包
             self._collect_gifts()
 
@@ -1099,7 +1077,7 @@ class DailyCollectManager:
         except Exception as e:
             self.logger.error(f"❌ 每日收集操作失败: {e}")
             raise
-    
+
     def _collect_gifts(self):
         """领取礼包"""
         logger.info("领取礼包")
@@ -1528,9 +1506,7 @@ class AutoDungeonStateMachine:
                 return False
             self.current_zone = zone_name
 
-        success = focus_and_click_dungeon(
-            dungeon_name, zone_name, max_attempts=max_attempts
-        )
+        success = focus_and_click_dungeon(dungeon_name, zone_name, max_attempts=max_attempts)
 
         if success:
             self.active_dungeon = dungeon_name
@@ -1636,9 +1612,7 @@ def focus_and_click_dungeon(dungeon_name, zone_name, max_attempts=2):
         if result:
             return True
 
-        logger.warning(
-            f"⚠️ 未能找到副本: {dungeon_name} (第 {attempt + 1}/{max_attempts} 次尝试)"
-        )
+        logger.warning(f"⚠️ 未能找到副本: {dungeon_name} (第 {attempt + 1}/{max_attempts} 次尝试)")
 
         if attempt < max_attempts - 1:
             logger.info("🔄 重新打开地图并刷新区域后再试")
@@ -1757,7 +1731,9 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def handle_load_account_mode(account_name, emulator_name: Optional[str] = None, low_mem: bool = False):
+def handle_load_account_mode(
+    account_name, emulator_name: Optional[str] = None, low_mem: bool = False
+):
     """
     处理账号加载模式
 
@@ -1800,9 +1776,7 @@ def handle_load_account_mode(account_name, emulator_name: Optional[str] = None, 
         else:
             logger.info(f"✅ 模拟器 {emulator_name} 已在设备列表中")
 
-        connection_string = emulator_manager.get_emulator_connection_string(
-            emulator_name
-        )
+        connection_string = emulator_manager.get_emulator_connection_string(emulator_name)
         logger.info(f"   连接字符串: {connection_string}")
 
         # 在加载账号模式下，尽早为该 emulator 附加文件日志处理器
@@ -1914,9 +1888,7 @@ def initialize_configs(config_path, env_overrides=None):
         config_name = config_loader.get_config_name()
 
         # 重新初始化日志，添加配置文件名称标签
-        logger = setup_logger_from_config(
-            use_color=True, loki_labels={"config": config_name}
-        )
+        logger = setup_logger_from_config(use_color=True, loki_labels={"config": config_name})
 
         # 更新全局日志上下文（非 Loki），使所有模块日志包含 config 标签
         update_all_loki_labels({"config": config_name})
@@ -1963,8 +1935,7 @@ def show_progress_statistics(db):
         sys.exit(1)
 
     total_selected_dungeons = sum(
-        sum(1 for d in dungeons if d.get("selected", True))
-        for dungeons in zone_dungeons.values()
+        sum(1 for d in dungeons if d.get("selected", True)) for dungeons in zone_dungeons.values()
     )
     total_dungeons = sum(len(dungeons) for dungeons in zone_dungeons.values())
 
@@ -2035,9 +2006,7 @@ def initialize_device_and_ocr(emulator_name: Optional[str] = None, low_mem: bool
         else:
             logger.info(f"✅ 模拟器 {emulator_name} 已在设备列表中")
 
-        connection_string = emulator_manager.get_emulator_connection_string(
-            emulator_name
-        )
+        connection_string = emulator_manager.get_emulator_connection_string(emulator_name)
         logger.info(f"📱 连接到模拟器: {emulator_name}")
         logger.info(f"   连接字符串: {connection_string}")
 
@@ -2157,16 +2126,12 @@ def run_dungeon_traversal(db, total_dungeons, state_machine):
 
             # 检查是否选定该副本
             if not is_selected:
-                logger.info(
-                    f"⏭️ [{dungeon_index}/{total_dungeons}] 未选定，跳过: {dungeon_name}"
-                )
+                logger.info(f"⏭️ [{dungeon_index}/{total_dungeons}] 未选定，跳过: {dungeon_name}")
                 continue
 
             # 先检查是否已通关，如果已通关则跳过，不需要切换区域
             if db.is_dungeon_completed(zone_name, dungeon_name):
-                logger.info(
-                    f"⏭️ [{dungeon_index}/{total_dungeons}] 已通关，跳过: {dungeon_name}"
-                )
+                logger.info(f"⏭️ [{dungeon_index}/{total_dungeons}] 已通关，跳过: {dungeon_name}")
                 continue
 
             # 正式开始挂机 - 只在配置启用时执行
@@ -2203,13 +2168,7 @@ def run_dungeon_traversal(db, total_dungeons, state_machine):
 
 def main_wrapper():
     """主函数包装器 - 处理超时和重启逻辑"""
-    global \
-        config_loader, \
-        system_config, \
-        zone_dungeons, \
-        ocr_helper, \
-        logger, \
-        error_dialog_monitor
+    global config_loader, system_config, zone_dungeons, ocr_helper, logger, error_dialog_monitor
 
     max_restarts = 10  # 最大重启次数
     restart_count = 0
@@ -2231,9 +2190,7 @@ def main_wrapper():
             log("超时错误" + str(e), snapshot=True)
 
             if restart_count < max_restarts:
-                logger.warning(
-                    f"\n🔄 正在重启程序... (第 {restart_count}/{max_restarts} 次重启)"
-                )
+                logger.warning(f"\n🔄 正在重启程序... (第 {restart_count}/{max_restarts} 次重启)")
                 logger.warning("💡 建议检查网络连接和游戏状态")
 
                 # 发送通知
@@ -2275,9 +2232,7 @@ def main_wrapper():
             logger.error(error_traceback)
 
             # 发送 critical 日志，触发 Grafana 告警
-            logger.critical(
-                f"脚本异常退出: {type(e).__name__}: {str(e)}\n{error_traceback}"
-            )
+            logger.critical(f"脚本异常退出: {type(e).__name__}: {str(e)}\n{error_traceback}")
 
             send_bark_notification(
                 "副本助手 - 错误", f"程序发生错误: {str(e)}", level="timeSensitive"
@@ -2305,6 +2260,7 @@ def main():
     if args.memlog:
         try:
             from memory_monitor import start_memory_monitor
+
             start_memory_monitor(logger, interval_sec=10.0, enable_tracemalloc=True)
             logger.info("已启用内存监控")
         except Exception as e:
@@ -2323,15 +2279,25 @@ def main():
     # 4. 初始化配置
     initialize_configs(args.config, args.env_overrides)
 
+    # 4.1 尽早附加文件日志处理器（此时已知 config_name，emulator 稍后补充）
+    try:
+        emulator_for_log = _normalize_emulator_name(args.emulator) or "unknown"
+        attach_emulator_file_handler(
+            emulator_name=emulator_for_log,
+            config_name=config_name,
+            log_dir="log",
+            level="INFO",
+        )
+    except Exception as _e:
+        logger.warning(f"⚠️ 初始化文件日志处理器失败: {_e}")
+
     # 5. 检查进度统计 - 决定是否需要启动模拟器
     if config_loader is None:
         logger.error("❌ 配置加载器未初始化")
         sys.exit(1)
 
     with DungeonProgressDB(config_name=config_loader.get_config_name()) as db:
-        completed_count, total_selected_dungeons, total_dungeons = (
-            show_progress_statistics(db)
-        )
+        completed_count, total_selected_dungeons, total_dungeons = show_progress_statistics(db)
 
         # 如果所有副本都已完成，直接退出（无需启动模拟器）
         if completed_count >= total_selected_dungeons:
