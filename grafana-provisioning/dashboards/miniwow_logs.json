@@ -1,0 +1,131 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "type": "logs",
+      "title": "程序日志",
+      "gridPos": {"h": 12, "w": 12, "x": 0, "y": 0},
+      "datasource": {"type": "loki", "uid": "P8E80F9AEF21F6940"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{app=\"miniwow\",config=~\"$config\",emulator=~\"$emulator\"} |= \"$search\"",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showLabels": true,
+        "showTime": true,
+        "wrapLogMessage": true
+      }
+    },
+    {
+      "type": "logs",
+      "title": "Shell 输出",
+      "gridPos": {"h": 12, "w": 12, "x": 12, "y": 0},
+      "datasource": {"type": "loki", "uid": "P8E80F9AEF21F6940"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{origin=\"shell\",session=~\"$session\"} |= \"$search\"",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showLabels": true,
+        "showTime": true,
+        "wrapLogMessage": true
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "程序日志条数（5m）",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "datasource": {"type": "loki", "uid": "P8E80F9AEF21F6940"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({app=\"miniwow\",config=~\"$config\",emulator=~\"$emulator\"} |= \"$search\" [5m]))",
+          "queryType": "range"
+        }
+      ],
+      "options": {"legend": {"showLegend": true}}
+    },
+    {
+      "type": "timeseries",
+      "title": "Shell 日志条数（5m）",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "datasource": {"type": "loki", "uid": "P8E80F9AEF21F6940"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({origin=\"shell\",session=~\"$session\"} |= \"$search\" [5m]))",
+          "queryType": "range"
+        }
+      ],
+      "options": {"legend": {"showLegend": true}}
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["miniwow"],
+  "templating": {
+    "list": [
+      {
+        "type": "query",
+        "name": "config",
+        "label": "配置",
+        "datasource": {"type": "loki", "uid": "P8E80F9AEF21F6940"},
+        "query": "label_values({app=\"miniwow\"}, config)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": false,
+        "current": {"text": "All", "value": "$__all"}
+      },
+      {
+        "type": "query",
+        "name": "emulator",
+        "label": "模拟器",
+        "datasource": {"type": "loki", "uid": "P8E80F9AEF21F6940"},
+        "query": "label_values({app=\"miniwow\"}, emulator)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": false,
+        "current": {"text": "All", "value": "$__all"}
+      },
+      {
+        "type": "query",
+        "name": "session",
+        "label": "会话",
+        "datasource": {"type": "loki", "uid": "P8E80F9AEF21F6940"},
+        "query": "label_values({origin=\"shell\"}, session)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": false,
+        "current": {"text": "All", "value": "$__all"}
+      },
+      {
+        "type": "textbox",
+        "name": "search",
+        "label": "包含文本",
+        "query": "",
+        "current": {"text": "", "value": ""}
+      }
+    ]
+  },
+  "time": {"from": "now-6h", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Miniwow Logs",
+  "uid": "miniwow-logs",
+  "version": 1
+}

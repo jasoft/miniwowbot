@@ -1,0 +1,13 @@
+apiVersion: 1
+
+providers:
+  - name: miniwow-dashboards
+    orgId: 1
+    folder: Miniwow
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: true
