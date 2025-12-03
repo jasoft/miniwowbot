@@ -80,8 +80,11 @@ class LoggerConfig:
         # 设置日志级别
         logger.setLevel(getattr(logging, level.upper()))
 
-        # 清除已有的处理器，避免重复
-        logger.handlers.clear()
+        # 保留已存在的文件处理器，避免因二次配置导致文件日志丢失
+        existing_file_handlers = [h for h in logger.handlers if isinstance(h, logging.FileHandler)]
+        logger.handlers = []
+        for h in existing_file_handlers:
+            logger.addHandler(h)
         logger.propagate = False
 
         # 默认格式

@@ -6,6 +6,7 @@ Cron 任务启动器
 """
 
 import logging
+import os
 import shlex
 import subprocess
 import time
@@ -15,6 +16,9 @@ from logger_config import setup_logger
 
 # 添加项目目录到 Python 路径
 SCRIPT_DIR = Path(__file__).parent
+
+# 确保可找到 Homebrew 安装的 tmux 等可执行文件
+os.environ["PATH"] = f"/opt/homebrew/bin:{os.environ.get('PATH', '')}"
 
 def build_run_command(config_name: str, emulator_addr: str) -> str:
     """构造运行 run_all_dungeons.sh 的命令"""
@@ -153,8 +157,37 @@ def launch_in_tmux(session: str, command: str, logger: logging.Logger) -> bool:
         logger.error(
             f"❌ 启动 tmux 失败: {result.stderr.decode() if isinstance(result.stderr, bytes) else result.stderr}"
         )
+        # 回退：直接执行脚本并将输出写入 log/shell_<session>.log
+        log_dir = SCRIPT_DIR / "log"
+        try:
+            log_dir.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+        shell_logfile_path = log_dir / f"shell_{session}.log"
+        with shell_logfile_path.open("ab") as f:
+            try:
+                subprocess.Popen([str(script_path)], stdout=f, stderr=f)
+                logger.info(f"🔄 已回退为直接执行脚本，输出: {shell_logfile_path}")
+                return True
+            except Exception as exc2:
+                logger.error(f"❌ 回退执行脚本失败: {exc2}")
     except Exception as exc:
         logger.error(f"❌ tmux 异常: {exc}")
+        # 回退：直接执行脚本并将输出写入 log/shell_<session>.log
+        log_dir = SCRIPT_DIR / "log"
+        try:
+            log_dir.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+        shell_logfile_path = log_dir / f"shell_{session}.log"
+        with shell_logfile_path.open("ab") as f:
+            try:
+                script_path = _write_tmux_script(session, command)
+                subprocess.Popen([str(script_path)], stdout=f, stderr=f)
+                logger.info(f"🔄 已回退为直接执行脚本，输出: {shell_logfile_path}")
+                return True
+            except Exception as exc2:
+                logger.error(f"❌ 回退执行脚本失败: {exc2}")
     return False
 
 

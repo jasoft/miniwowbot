@@ -10,11 +10,11 @@ cd "$SCRIPT_DIR" || {
 }
 
 # 设置环境变量
+export PATH="/opt/homebrew/bin:$PATH"
 export LOKI_URL="${LOKI_URL:-http://docker.home:3100}"
 export LOKI_ENABLED="${LOKI_ENABLED:-true}"
 
 # 调用 Python 启动器
 python3 "$SCRIPT_DIR/cron_launcher.py"
 exit $?
-
 
