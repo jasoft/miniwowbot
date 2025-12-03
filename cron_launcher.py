@@ -62,27 +62,61 @@ def launch_in_terminal(command: str, logger: logging.Logger) -> bool:
     return False
 
 
-def tmux_session_name(config_name: str, emulator_addr: str) -> str:
-    port = ""
-    if emulator_addr:
-        parts = emulator_addr.split(":")
-        port = parts[-1] if len(parts) > 1 else emulator_addr
-        port = "".join(ch for ch in port if ch.isdigit())
-    base = config_name if not port else f"{config_name}_{port}"
+def tmux_session_name(emulator_addr: str) -> str:
+    base = emulator_addr.replace(":", "_")
     return f"dungeon_{base}"
 
 
+def _write_tmux_script(session: str, command: str) -> Path:
+    """将要执行的多行命令写入可执行脚本文件并返回路径。
+
+    为避免在 tmux 中通过 shell -lc 传递多行命令的转义问题，这里使用临时脚本。
+
+    Args:
+        session: tmux 会话名称，用于生成脚本文件名
+        command: 多行 shell 命令文本
+
+    Returns:
+        Path: 生成的脚本文件路径
+    """
+
+    scripts_dir = SCRIPT_DIR / "log" / "tmux_commands"
+    scripts_dir.mkdir(parents=True, exist_ok=True)
+    script_path = scripts_dir / f"{session}.sh"
+    script_content = "#!/bin/zsh\nset -o pipefail\n" + command + "\n"
+    script_path.write_text(script_content, encoding="utf-8")
+    try:
+        script_path.chmod(0o755)
+    except Exception:
+        pass
+    return script_path
+
+
 def launch_in_tmux(session: str, command: str, logger: logging.Logger) -> bool:
+    """在 tmux 中执行命令，程序自身写入 log，不使用 pipe。
+
+    - 清理已存在的同名会话
+    - 将命令写入脚本文件以避免转义问题
+    - 使用 tmux new-session 后直接运行脚本
+
+    Args:
+        session: tmux 会话名称
+        command: 多行 shell 命令文本
+        logger: 日志记录器
+
+    Returns:
+        bool: 启动成功返回 True，否则返回 False
+    """
+
     try:
         has = subprocess.run(["tmux", "has-session", "-t", session], capture_output=True)
         if has.returncode == 0:
             subprocess.run(["tmux", "kill-session", "-t", session], capture_output=True)
-        log_dir = SCRIPT_DIR / "cron_logs"
-        try:
-            log_dir.mkdir(parents=True, exist_ok=True)
-        except Exception:
-            pass
-        shell_cmd = f"bash -lc {shlex.quote(command)}"
+
+        script_path = _write_tmux_script(session, command)
+        logger.info(f"📝 tmux 会话脚本: {script_path}")
+        logger.info("📜 执行内容如下:\n" + command)
+
         result = subprocess.run(
             [
                 "tmux",
@@ -90,17 +124,31 @@ def launch_in_tmux(session: str, command: str, logger: logging.Logger) -> bool:
                 "-d",
                 "-s",
                 session,
-                shell_cmd,
+                str(script_path),
             ],
             capture_output=True,
         )
         if result.returncode == 0:
-            logfile = str((log_dir / f"{session}.log").resolve())
+            # 使用 pipe-pane 捕获 shell 输出到 log 目录下的独立文件
+            log_dir = SCRIPT_DIR / "log"
+            try:
+                log_dir.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pass
+            shell_logfile = str((log_dir / f"shell_{session}.log").resolve())
             subprocess.run(
-                ["tmux", "pipe-pane", "-o", "-t", session, f"cat >> {logfile}"],
+                [
+                    "tmux",
+                    "pipe-pane",
+                    "-o",
+                    "-t",
+                    session,
+                    f"cat >> {shell_logfile}",
+                ],
                 capture_output=True,
             )
-            logger.info(f"🧰 tmux 会话已启动: {session}，日志: {logfile}")
+            logger.info(f"🧰 tmux 会话已启动: {session}")
+            logger.info(f"🧾 Shell 输出已记录: {shell_logfile}")
             return True
         logger.error(
             f"❌ 启动 tmux 失败: {result.stderr.decode() if isinstance(result.stderr, bytes) else result.stderr}"
@@ -123,13 +171,13 @@ def main():
     script_dir = str(SCRIPT_DIR)
 
     jobs = [
-        {"config": "main", "emulator": "192.168.1.150:5555"},
+        {"config": "-a", "emulator": "192.168.1.150:5555"},
         {"config": "mage_alt", "emulator": "192.168.1.150:5565"},
     ]
 
     logger.info("🛑 先终止已有相关 tmux 会话以避免脚本重复")
     for job in jobs:
-        session = tmux_session_name(job["config"], job["emulator"])
+        session = tmux_session_name(job["emulator"])
         try:
             has = subprocess.run(["tmux", "has-session", "-t", session], capture_output=True)
             if has.returncode == 0:
@@ -146,11 +194,10 @@ def main():
         # 构建脚本命令（带重试逻辑）
         run_command = build_run_command(job["config"], job["emulator"])
 
-        # 构建会话命令（包含重试逻辑）
+        # 构建会话命令（包含重试逻辑），程序自身按 emulator 写入 log/*.log
         terminal_command = "\n".join(
             [
                 f"cd {shlex.quote(script_dir)}",
-                "set -o pipefail",
                 # 重试逻辑：最多重试 3 次
                 "max_retries=3",
                 "retry_count=0",
@@ -173,7 +220,7 @@ def main():
             ]
         )
 
-        session = tmux_session_name(job["config"], job["emulator"])
+        session = tmux_session_name(job["emulator"])
         if not launch_in_tmux(session, terminal_command, logger):
             logger.error(f"❌ 无法启动 tmux 会话: {job['config']}")
         else:

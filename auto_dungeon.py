@@ -36,6 +36,7 @@ from logger_config import (
     attach_emulator_file_handler,
     setup_logger_from_config,
     update_all_loki_labels,
+    GlobalLogContext,
 )
 from project_paths import resolve_project_path
 from config_loader import load_config
@@ -661,10 +662,13 @@ def send_bark_notification(title, message, level="active"):
         return False
 
     try:
-        # 构造 Bark URL
-        # 格式: https://api.day.app/{device_key}/{title}/{body}?group={group}&level={level}
-        encoded_title = urllib.parse.quote(title, safe="")
-        encoded_message = urllib.parse.quote(message, safe="")
+        cfg = GlobalLogContext.context.get("config") or (config_name or "unknown")
+        emu = GlobalLogContext.context.get("emulator") or (target_emulator or "unknown")
+        enriched_title = f"[{cfg} | {emu}] {title}"
+        enriched_message = f"{message}\n配置: {cfg}\n模拟器: {emu}"
+
+        encoded_title = urllib.parse.quote(enriched_title, safe="")
+        encoded_message = urllib.parse.quote(enriched_message, safe="")
 
         # 如果 server 已经包含完整路径，直接使用
         if "?" in server or server.endswith("/"):
@@ -680,7 +684,7 @@ def send_bark_notification(title, message, level="active"):
             params["level"] = level
 
         # 发送请求
-        logger.info(f"📱 发送 Bark 通知: {title}")
+        logger.info(f"📱 发送 Bark 通知: {enriched_title}")
         response = requests.get(url, params=params, timeout=10)
 
         if response.status_code == 200:
@@ -1813,6 +1817,15 @@ def handle_load_account_mode(account_name, emulator_name: Optional[str] = None, 
             logger.warning(f"⚠️ 初始化文件日志处理器失败: {_e}")
     else:
         connection_string = "Android:///"
+        try:
+            attach_emulator_file_handler(
+                emulator_name="unknown",
+                config_name=(config_loader.get_config_name() if config_loader else None),
+                log_dir="log",
+                level="INFO",
+            )
+        except Exception as _e:
+            logger.warning(f"⚠️ 初始化文件日志处理器失败: {_e}")
 
     # 关键：先连接设备，再调用 auto_setup
     # 这样可以避免 auto_setup 重新初始化导致其他设备断开
@@ -2040,6 +2053,15 @@ def initialize_device_and_ocr(emulator_name: Optional[str] = None, low_mem: bool
             logger.warning(f"⚠️ 初始化文件日志处理器失败: {_e}")
     else:
         connection_string = "Android:///"
+        try:
+            attach_emulator_file_handler(
+                emulator_name="unknown",
+                config_name=(config_loader.get_config_name() if config_loader else None),
+                log_dir="log",
+                level="INFO",
+            )
+        except Exception as _e:
+            logger.warning(f"⚠️ 初始化文件日志处理器失败: {_e}")
         logger.info("📱 使用默认连接字符串")
 
     # 连接设备（Airtest 支持多设备连接，不会断开其他设备）
