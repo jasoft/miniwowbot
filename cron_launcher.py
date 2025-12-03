@@ -20,6 +20,7 @@ SCRIPT_DIR = Path(__file__).parent
 # 确保可找到 Homebrew 安装的 tmux 等可执行文件
 os.environ["PATH"] = f"/opt/homebrew/bin:{os.environ.get('PATH', '')}"
 
+
 def build_run_command(config_name: str, emulator_addr: str) -> str:
     """构造运行 run_all_dungeons.sh 的命令"""
 
@@ -71,14 +72,16 @@ def tmux_session_name(emulator_addr: str) -> str:
     return f"dungeon_{base}"
 
 
-def _write_tmux_script(session: str, command: str) -> Path:
+def _write_tmux_script(session: str, command: str, log_file: Path | None = None) -> Path:
     """将要执行的多行命令写入可执行脚本文件并返回路径。
 
     为避免在 tmux 中通过 shell -lc 传递多行命令的转义问题，这里使用临时脚本。
+    如果指定 log_file，脚本会使用 tee 将输出同时写到控制台和日志文件。
 
     Args:
         session: tmux 会话名称，用于生成脚本文件名
         command: 多行 shell 命令文本
+        log_file: 可选的日志文件路径
 
     Returns:
         Path: 生成的脚本文件路径
@@ -87,7 +90,17 @@ def _write_tmux_script(session: str, command: str) -> Path:
     scripts_dir = SCRIPT_DIR / "log" / "tmux_commands"
     scripts_dir.mkdir(parents=True, exist_ok=True)
     script_path = scripts_dir / f"{session}.sh"
-    script_content = "#!/bin/zsh\nset -o pipefail\n" + command + "\n"
+
+    # 构建脚本内容
+    script_lines = ["#!/bin/zsh", "set -o pipefail"]
+
+    if log_file:
+        # 使用 exec 和 tee 将所有输出同时发送到控制台和日志文件
+        script_lines.append(f'exec > >(tee -a "{log_file}") 2>&1')
+
+    script_lines.append(command)
+    script_content = "\n".join(script_lines) + "\n"
+
     script_path.write_text(script_content, encoding="utf-8")
     try:
         script_path.chmod(0o755)
@@ -97,11 +110,11 @@ def _write_tmux_script(session: str, command: str) -> Path:
 
 
 def launch_in_tmux(session: str, command: str, logger: logging.Logger) -> bool:
-    """在 tmux 中执行命令，程序自身写入 log，不使用 pipe。
+    """在 tmux 中执行命令，脚本自身使用 tee 将输出写入日志文件。
 
     - 清理已存在的同名会话
-    - 将命令写入脚本文件以避免转义问题
-    - 使用 tmux new-session 后直接运行脚本
+    - 将命令写入脚本文件，脚本内使用 tee 同时输出到控制台和日志
+    - 使用 tmux new-session 运行脚本
 
     Args:
         session: tmux 会话名称
@@ -117,7 +130,16 @@ def launch_in_tmux(session: str, command: str, logger: logging.Logger) -> bool:
         if has.returncode == 0:
             subprocess.run(["tmux", "kill-session", "-t", session], capture_output=True)
 
-        script_path = _write_tmux_script(session, command)
+        # 创建日志文件目录
+        log_dir = SCRIPT_DIR / "log"
+        try:
+            log_dir.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+        shell_logfile = log_dir / f"shell_{session}.log"
+
+        # 生成脚本，内嵌 tee 重定向
+        script_path = _write_tmux_script(session, command, log_file=shell_logfile)
         logger.info(f"📝 tmux 会话脚本: {script_path}")
         logger.info("📜 执行内容如下:\n" + command)
 
@@ -133,61 +155,35 @@ def launch_in_tmux(session: str, command: str, logger: logging.Logger) -> bool:
             capture_output=True,
         )
         if result.returncode == 0:
-            # 使用 pipe-pane 捕获 shell 输出到 log 目录下的独立文件
-            log_dir = SCRIPT_DIR / "log"
-            try:
-                log_dir.mkdir(parents=True, exist_ok=True)
-            except Exception:
-                pass
-            shell_logfile = str((log_dir / f"shell_{session}.log").resolve())
-            subprocess.run(
-                [
-                    "tmux",
-                    "pipe-pane",
-                    "-o",
-                    "-t",
-                    session,
-                    f"cat >> {shell_logfile}",
-                ],
-                capture_output=True,
-            )
             logger.info(f"🧰 tmux 会话已启动: {session}")
             logger.info(f"🧾 Shell 输出已记录: {shell_logfile}")
             return True
         logger.error(
             f"❌ 启动 tmux 失败: {result.stderr.decode() if isinstance(result.stderr, bytes) else result.stderr}"
         )
-        # 回退：直接执行脚本并将输出写入 log/shell_<session>.log
-        log_dir = SCRIPT_DIR / "log"
+        # 回退：直接执行脚本（脚本已内嵌 tee 写入日志）
         try:
-            log_dir.mkdir(parents=True, exist_ok=True)
-        except Exception:
-            pass
-        shell_logfile_path = log_dir / f"shell_{session}.log"
-        with shell_logfile_path.open("ab") as f:
-            try:
-                subprocess.Popen([str(script_path)], stdout=f, stderr=f)
-                logger.info(f"🔄 已回退为直接执行脚本，输出: {shell_logfile_path}")
-                return True
-            except Exception as exc2:
-                logger.error(f"❌ 回退执行脚本失败: {exc2}")
+            subprocess.Popen([str(script_path)])
+            logger.info(f"🔄 已回退为直接执行脚本，输出: {shell_logfile}")
+            return True
+        except Exception as exc2:
+            logger.error(f"❌ 回退执行脚本失败: {exc2}")
     except Exception as exc:
         logger.error(f"❌ tmux 异常: {exc}")
-        # 回退：直接执行脚本并将输出写入 log/shell_<session>.log
+        # 回退：直接执行脚本
         log_dir = SCRIPT_DIR / "log"
         try:
             log_dir.mkdir(parents=True, exist_ok=True)
         except Exception:
             pass
         shell_logfile_path = log_dir / f"shell_{session}.log"
-        with shell_logfile_path.open("ab") as f:
-            try:
-                script_path = _write_tmux_script(session, command)
-                subprocess.Popen([str(script_path)], stdout=f, stderr=f)
-                logger.info(f"🔄 已回退为直接执行脚本，输出: {shell_logfile_path}")
-                return True
-            except Exception as exc2:
-                logger.error(f"❌ 回退执行脚本失败: {exc2}")
+        try:
+            script_path = _write_tmux_script(session, command, log_file=shell_logfile_path)
+            subprocess.Popen([str(script_path)])
+            logger.info(f"🔄 已回退为直接执行脚本，输出: {shell_logfile_path}")
+            return True
+        except Exception as exc2:
+            logger.error(f"❌ 回退执行脚本失败: {exc2}")
     return False
 
 
