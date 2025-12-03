@@ -7,7 +7,6 @@
 
 import sys
 import os
-import logging
 
 # 添加当前目录到path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -45,7 +44,7 @@ def test_cls_logger_import():
     print("\n🔧 CLS Logger导入测试")
 
     try:
-        from cls_logger import get_cls_logger, close_cls_logger
+        from cls_logger import get_cls_logger
 
         print("✅ cls_logger 模块导入成功")
 

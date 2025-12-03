@@ -6,7 +6,6 @@ Loki 标签详细 Demo
 """
 
 import json
-import logging
 from typing import Dict, List
 
 
@@ -33,7 +32,6 @@ class LokiSimulator:
         """模拟 Loki 的查询操作"""
         results = []
         for stream_key, logs in self.streams.items():
-            stream_labels = json.loads(stream_key)
             # 简单的标签匹配
             if label_filter in stream_key:
                 results.extend(logs)
@@ -64,7 +62,7 @@ def demo_basic_labels():
         "host": "docker-host",
         "config": "account1"
     }
-    print(f"\n✅ 标签（用于索引和快速查询）:")
+    print("\n✅ 标签（用于索引和快速查询）:")
     print(f"   {labels}")
 
     # 日志内容（第二层）- 详细信息
@@ -76,14 +74,14 @@ def demo_basic_labels():
         "function": "main",
         "line": 1725
     }
-    print(f"\n✅ 日志内容（详细信息）:")
+    print("\n✅ 日志内容（详细信息）:")
     print(f"   {json.dumps(log_content, ensure_ascii=False, indent=2)}")
 
-    print(f"\n💡 关键区别:")
-    print(f"   • 标签用于快速查询（数据库索引）")
-    print(f"   • 日志内容用于存储详细信息")
-    print(f"   • 标签应该有限（5-10 个）")
-    print(f"   • 日志内容可以无限大")
+    print("\n💡 关键区别:")
+    print("   • 标签用于快速查询（数据库索引）")
+    print("   • 日志内容用于存储详细信息")
+    print("   • 标签应该有限（5-10 个）")
+    print("   • 日志内容可以无限大")
 
 
 def demo_loki_request_format():
@@ -118,7 +116,7 @@ def demo_loki_request_format():
         ]
     }
 
-    print(f"\n✅ 发送到 Loki 的 JSON 格式:")
+    print("\n✅ 发送到 Loki 的 JSON 格式:")
     print(json.dumps(loki_request, ensure_ascii=False, indent=2))
 
 
@@ -143,7 +141,7 @@ def demo_multiple_logs_same_stream():
     ]
 
     print(f"\n✅ 标签: {labels}")
-    print(f"\n✅ 三条日志（相同标签）:")
+    print("\n✅ 三条日志（相同标签）:")
     for i, (ts, content) in enumerate(logs, 1):
         print(f"   [{i}] {ts} → {content}")
 
@@ -164,7 +162,7 @@ def demo_different_streams():
     # 不同的标签会创建不同的 Stream
     configs = ["account1", "account2", "warrior"]
 
-    print(f"\n✅ 三个不同的配置:")
+    print("\n✅ 三个不同的配置:")
     for config in configs:
         labels = {
             "app": "miniwow",
@@ -183,20 +181,20 @@ def demo_query_performance():
     print("Demo 5: 查询性能对比")
     print("=" * 80)
 
-    print(f"\n✅ 查询方式 1: 使用标签（⚡ 快速）")
-    print(f"   查询语句: {{config=\"account1\"}}")
-    print(f"   性能: ⚡⚡⚡ 毫秒级")
-    print(f"   原因: 使用数据库索引，直接定位 Stream")
+    print("\n✅ 查询方式 1: 使用标签（⚡ 快速）")
+    print("   查询语句: {config=\"account1\"}")
+    print("   性能: ⚡⚡⚡ 毫秒级")
+    print("   原因: 使用数据库索引，直接定位 Stream")
 
-    print(f"\n✅ 查询方式 2: 标签 + JSON 过滤（⚡ 较快）")
-    print(f"   查询语句: {{config=\"account1\"}} | json | level=\"ERROR\"")
-    print(f"   性能: ⚡⚡ 秒级")
-    print(f"   原因: 先用索引定位 Stream，再过滤内容")
+    print("\n✅ 查询方式 2: 标签 + JSON 过滤（⚡ 较快）")
+    print("   查询语句: {config=\"account1\"} | json | level=\"ERROR\"")
+    print("   性能: ⚡⚡ 秒级")
+    print("   原因: 先用索引定位 Stream，再过滤内容")
 
-    print(f"\n✅ 查询方式 3: 全文搜索（🐢 较慢）")
-    print(f"   查询语句: {{app=\"miniwow\"}} | \"副本\"")
-    print(f"   性能: ⚡ 秒-分钟级")
-    print(f"   原因: 需要扫描所有日志内容")
+    print("\n✅ 查询方式 3: 全文搜索（🐢 较慢）")
+    print("   查询语句: {app=\"miniwow\"} | \"副本\"")
+    print("   性能: ⚡ 秒-分钟级")
+    print("   原因: 需要扫描所有日志内容")
 
 
 def demo_label_design():
@@ -205,7 +203,7 @@ def demo_label_design():
     print("Demo 6: 标签设计最佳实践")
     print("=" * 80)
 
-    print(f"\n✅ 好的标签设计:")
+    print("\n✅ 好的标签设计:")
     good_labels = {
         "app": "miniwow",
         "config": "account1",
@@ -214,11 +212,11 @@ def demo_label_design():
         "region": "asia"
     }
     print(f"   {good_labels}")
-    print(f"   • 标签数量适中（5 个）")
-    print(f"   • 标签值有限且离散")
-    print(f"   • 易于索引和查询")
+    print("   • 标签数量适中（5 个）")
+    print("   • 标签值有限且离散")
+    print("   • 易于索引和查询")
 
-    print(f"\n❌ 不好的标签设计:")
+    print("\n❌ 不好的标签设计:")
     bad_labels = {
         "app": "miniwow",
         "message": "应用启动",  # ❌ 不应该作为标签
@@ -226,9 +224,9 @@ def demo_label_design():
         "timestamp": "2025-11-02"  # ❌ 不应该作为标签
     }
     print(f"   {bad_labels}")
-    print(f"   • 包含日志消息（应该在内容中）")
-    print(f"   • 包含高基数字段（user_id）")
-    print(f"   • 包含时间戳（Loki 已有）")
+    print("   • 包含日志消息（应该在内容中）")
+    print("   • 包含高基数字段（user_id）")
+    print("   • 包含时间戳（Loki 已有）")
 
 
 def demo_grafana_queries():
@@ -279,4 +277,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

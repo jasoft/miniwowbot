@@ -1,7 +1,7 @@
 # -*- encoding=utf8 -*-
 __author__ = "soj"
 
-from airtest.core.api import *
+from airtest.core.api import auto_setup, exists, touch, sleep, Template
 from airtest.core.settings import Settings as ST
 import time
 import requests
@@ -163,6 +163,5 @@ while True:
                     sell_trash()
                     touch((357, 1209))
                     break
-        except:
+        except Exception:
             pass
-

@@ -1,7 +1,7 @@
 # -*- encoding=utf8 -*-
 __author__ = "weiwang"
 
-from airtest.core.api import *
+from airtest.core.api import auto_setup, log, set_logdir, wait, Template
 from airtest.core.settings import Settings as ST
 
 ST.LOG_FILE = "log123.txt"

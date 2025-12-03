@@ -284,20 +284,20 @@ def put_chinese_text(img, text, position, font_size, color=(0, 255, 0)):
     try:
         # macOS 系统字体
         font = ImageFont.truetype("/System/Library/Fonts/PingFang.ttc", font_size)
-    except:
+    except Exception:
         try:
             # 备选字体
             font = ImageFont.truetype(
                 "/System/Library/Fonts/STHeiti Light.ttc", font_size
             )
-        except:
+        except Exception:
             try:
                 # Linux 字体
                 font = ImageFont.truetype(
                     "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
                     font_size,
                 )
-            except:
+            except Exception:
                 # 使用默认字体
                 font = ImageFont.load_default()
 

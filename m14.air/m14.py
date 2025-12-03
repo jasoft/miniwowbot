@@ -1,7 +1,7 @@
 # -*- encoding=utf8 -*-
 __author__ = "weiwang"
 
-from airtest.core.api import *
+from airtest.core.api import auto_setup, exists, touch, sleep, Template
 from airtest.core.settings import Settings as ST
 auto_setup(__file__)
 
@@ -39,9 +39,8 @@ while True:
             sleep(0.5)
             touch(Template(r"tpl1761909274176.png", record_pos=(0.0, 0.319), resolution=(720, 1280)))
             touch(Template(r"tpl1761909291415.png", record_pos=(-0.001, 0.394), resolution=(720, 1280)))
-        except:
+        except Exception:
             pass
 
     if is_combat():
         print("战斗中...")
-

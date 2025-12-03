@@ -1,7 +1,7 @@
 # -*- encoding=utf8 -*-
 __author__ = "weiwang"
 
-from airtest.core.api import *
+from airtest.core.api import auto_setup, touch, sleep, keyevent, text
 
 auto_setup(__file__)
 touch((210,293))

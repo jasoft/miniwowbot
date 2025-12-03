@@ -1,74 +1,71 @@
 __author__ = "Airtest"
-import sys
-import os
-import logging
 import argparse
-import requests
-import urllib.parse
+import logging
+import os
+import sys
 import time
+import urllib.parse
 import uuid
 from datetime import datetime
 from typing import Optional
-from wrapt_timeout_decorator import timeout as timeout_decorator
 
-
+import requests
 from airtest.core.api import (
-    wait,
-    sleep,
-    touch,
-    swipe,
     Template,
-    stop_app,
-    start_app,
-    connect_device,
     auto_setup,
-    keyevent,
-    text,
-    shell,
-    log,
+    connect_device,
     exists,
+    keyevent,
+    log,
+    shell,
+    sleep,
     snapshot,
+    start_app,
+    stop_app,
+    swipe,
+    text,
+    touch,
+    wait,
 )
-from airtest.core.settings import Settings as ST
 from airtest.core.error import TargetNotFoundError
+from airtest.core.settings import Settings as ST
 from tqdm import tqdm
 from transitions import Machine, MachineError
+from wrapt_timeout_decorator import timeout as timeout_decorator
+from logger_config import (
+    attach_emulator_file_handler,
+    setup_logger_from_config,
+    update_all_loki_labels,
+)
+from project_paths import resolve_project_path
+from config_loader import load_config
+from coordinates import (
+    ACCOUNT_AVATAR,
+    ACCOUNT_DROPDOWN_ARROW,
+    ACCOUNT_LIST_SWIPE_END,
+    ACCOUNT_LIST_SWIPE_START,
+    BACK_BUTTON,
+    CLOSE_ZONE_MENU,
+    DAILY_REWARD_BOX_OFFSET_Y,
+    DAILY_REWARD_CONFIRM,
+    DEPLOY_CONFIRM_BUTTON,
+    LOGIN_BUTTON,
+    MAP_BUTTON,
+    ONE_KEY_DEPLOY,
+    ONE_KEY_REWARD,
+    QUICK_AFK_COLLECT_BUTTON,
+    SKILL_POSITIONS,
+)
+from database import DungeonProgressDB
+from emulator_manager import EmulatorManager
+from error_dialog_monitor import ErrorDialogMonitor
+from system_config_loader import load_system_config
 
-# 设置 Airtest 日志级别
 airtest_logger = logging.getLogger("airtest")
 airtest_logger.setLevel(logging.ERROR)
 
 ST.FIND_TIMEOUT = 10  # type: ignore[assignment]
 ST.FIND_TIMEOUT_TMP = 0.1  # type: ignore[assignment]
-
-# 导入通用日志配置模块
-from logger_config import setup_logger_from_config, update_all_loki_labels  # noqa: E402
-from project_paths import resolve_project_path  # noqa: E402
-
-# 导入自定义的数据库模块和配置
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from database import DungeonProgressDB  # noqa: E402
-from config_loader import load_config  # noqa: E402
-from system_config_loader import load_system_config  # noqa: E402
-from emulator_manager import EmulatorManager  # noqa: E402
-from error_dialog_monitor import ErrorDialogMonitor  # noqa: E402
-from coordinates import (  # noqa: E402
-    DEPLOY_CONFIRM_BUTTON,
-    ONE_KEY_DEPLOY,
-    ONE_KEY_REWARD,
-    BACK_BUTTON,
-    MAP_BUTTON,
-    ACCOUNT_AVATAR,
-    SKILL_POSITIONS,
-    DAILY_REWARD_BOX_OFFSET_Y,
-    DAILY_REWARD_CONFIRM,
-    CLOSE_ZONE_MENU,
-    ACCOUNT_DROPDOWN_ARROW,
-    ACCOUNT_LIST_SWIPE_START,
-    ACCOUNT_LIST_SWIPE_END,
-    LOGIN_BUTTON,
-    QUICK_AFK_COLLECT_BUTTON,
-)
 
 SETTINGS_TEMPLATE = Template(
     str(resolve_project_path("images", "settings_button.png")),
@@ -113,6 +110,7 @@ target_emulator = None  # 目标模拟器名称
 config_name = None  # 配置文件名称（用于 Loki 标签）
 error_dialog_monitor = None  # 全局错误对话框监控器
 
+
 def _normalize_emulator_name(name: Optional[str]) -> Optional[str]:
     """
     规范化模拟器名称输入：
@@ -150,6 +148,8 @@ def check_and_start_emulator(emulator_name: Optional[str] = None):
     if emulator_name:
         logger.info(f"🔍 检查模拟器状态: {emulator_name}")
         target_emulator = emulator_name
+        # 更新日志上下文中的 emulator 标签，便于后续写入文件与采集
+        update_all_loki_labels({"emulator": _normalize_emulator_name(emulator_name)})
     else:
         logger.info("🔍 检查BlueStacks模拟器状态")
     logger.info("=" * 60)
@@ -227,8 +227,8 @@ def timer_decorator(func):
     :param func: 要装饰的函数
     :return: 包装后的函数
     """
-    from functools import wraps
     import logging
+    from functools import wraps
 
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -1084,6 +1084,9 @@ class DailyCollectManager:
 
             # 9. 领取各种主题奖励
             self._small_cookie()
+            
+            # 10. 领取礼包
+            self._collect_gifts()
 
             self.logger.info("=" * 60)
             self.logger.info("✅ 每日收集操作全部完成")
@@ -1092,6 +1095,15 @@ class DailyCollectManager:
         except Exception as e:
             self.logger.error(f"❌ 每日收集操作失败: {e}")
             raise
+    
+    def _collect_gifts(self):
+        """领取礼包"""
+        logger.info("领取礼包")
+        back_to_main()
+        find_text_and_click("礼包", regions=[3])
+        find_text_and_click("旅行日志", regions=[3])
+        find_text_and_click("领取奖励", regions=[8])
+        back_to_main()
 
     def _small_cookie(self):
         """领取各种主题奖励"""
@@ -1214,7 +1226,8 @@ class DailyCollectManager:
 
         # 符文
         find_text_and_click("符文", regions=[9])
-        find_text_and_click("抽取十次", regions=[8, 9], use_cache=False)
+        # 这里可能会没有这个按钮, 不应该抛出exception
+        find_text_and_click_safe("抽取十次", regions=[8, 9], use_cache=False)
         back_to_main()
 
     def _collect_free_dungeons(self):
@@ -1787,12 +1800,23 @@ def handle_load_account_mode(account_name, emulator_name: Optional[str] = None, 
             emulator_name
         )
         logger.info(f"   连接字符串: {connection_string}")
+
+        # 在加载账号模式下，尽早为该 emulator 附加文件日志处理器
+        try:
+            attach_emulator_file_handler(
+                emulator_name=emulator_name,
+                config_name=(config_loader.get_config_name() if config_loader else None),
+                log_dir="log",
+                level="INFO",
+            )
+        except Exception as _e:
+            logger.warning(f"⚠️ 初始化文件日志处理器失败: {_e}")
     else:
         connection_string = "Android:///"
 
     # 关键：先连接设备，再调用 auto_setup
     # 这样可以避免 auto_setup 重新初始化导致其他设备断开
-    auto_setup(__file__, logdir=True)
+    auto_setup(__file__)
 
     connect_device(connection_string)
 
@@ -1873,7 +1897,7 @@ def initialize_configs(config_path, env_overrides=None):
     try:
         config_loader = load_config(config_path)
 
-        # 获取配置文件名称，用于 Loki 标签
+        # 获取配置文件名称，用于日志上下文
         config_name = config_loader.get_config_name()
 
         # 重新初始化日志，添加配置文件名称标签
@@ -1881,8 +1905,7 @@ def initialize_configs(config_path, env_overrides=None):
             use_color=True, loki_labels={"config": config_name}
         )
 
-        # 更新所有已创建的日志记录器的 Loki 标签
-        # 这样 emulator_manager, ocr_helper 等模块的日志也会包含 config 标签
+        # 更新全局日志上下文（非 Loki），使所有模块日志包含 config 标签
         update_all_loki_labels({"config": config_name})
 
         # 应用环境变量覆盖
@@ -2004,6 +2027,17 @@ def initialize_device_and_ocr(emulator_name: Optional[str] = None, low_mem: bool
         )
         logger.info(f"📱 连接到模拟器: {emulator_name}")
         logger.info(f"   连接字符串: {connection_string}")
+
+        # 已知 emulator 与 config，上下文齐备，附加按 emulator 分文件的日志处理器
+        try:
+            attach_emulator_file_handler(
+                emulator_name=emulator_name,
+                config_name=(config_loader.get_config_name() if config_loader else None),
+                log_dir="log",
+                level="INFO",
+            )
+        except Exception as _e:
+            logger.warning(f"⚠️ 初始化文件日志处理器失败: {_e}")
     else:
         connection_string = "Android:///"
         logger.info("📱 使用默认连接字符串")
