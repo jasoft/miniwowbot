@@ -4,8 +4,6 @@
 如果金币数 < 100k，自动点击一口价按钮并确定
 """
 
-import time
-import sys
 import os
 import logging
 import re
@@ -16,9 +14,6 @@ from airtest.core.api import (
     connect_device,
     touch,
     sleep,
-    start_app,
-    text,
-    keyevent,
 )
 
 # 导入通用日志配置模块
@@ -219,7 +214,7 @@ def find_all_matching_prices(price_threshold: int) -> list:
                         # 构造拍卖品描述
                         item_description = " | ".join([t["text"] for t in item_texts])
 
-                        logger.info(f"   📦 拍卖品信息:")
+                        logger.info("   📦 拍卖品信息:")
                         logger.info(f"      Y 坐标: {price_y}")
                         logger.info(f"      同行文字数: {len(item_texts)}")
                         for idx, item_text in enumerate(item_texts):

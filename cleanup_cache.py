@@ -6,7 +6,6 @@
 import os
 import shutil
 import sqlite3
-from pathlib import Path
 
 
 def cleanup_output_directory():
@@ -56,7 +55,7 @@ def cleanup_output_directory():
         print(f"  数据库中有 {len(files_to_keep)} 个文件需要保留")
 
     # 删除不在数据库中的缓存文件
-    print(f"  扫描 cache 目录中的所有文件...")
+    print("  扫描 cache 目录中的所有文件...")
     all_files = os.listdir(cache_dir)
     print(f"  总文件数: {len(all_files)}")
 
@@ -97,15 +96,15 @@ def cleanup_output_directory():
 
     # 4. 显示目录结构
     print("\n📊 新的目录结构:")
-    print(f"output/")
-    print(f"├── cache/        # 缓存目录（包含图片、JSON、数据库）")
-    print(f"├── temp/         # 临时文件（可随时删除）")
+    print("output/")
+    print("├── cache/        # 缓存目录（包含图片、JSON、数据库）")
+    print("├── temp/         # 临时文件（可随时删除）")
 
     # 统计文件数量
     cache_files = len(os.listdir(cache_dir)) if os.path.exists(cache_dir) else 0
     temp_files = len(os.listdir(temp_dir)) if os.path.exists(temp_dir) else 0
 
-    print(f"\n📈 文件统计:")
+    print("\n📈 文件统计:")
     print(f"  - cache 目录: {cache_files} 个文件")
     print(f"  - temp 目录: {temp_files} 个文件")
     print(

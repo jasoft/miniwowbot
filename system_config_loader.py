@@ -7,7 +7,6 @@
 
 import json
 import os
-import logging
 from typing import Dict
 from project_paths import ensure_project_path
 from logger_config import setup_logger

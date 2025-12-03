@@ -9,7 +9,6 @@
 
 import pytest
 import time
-from unittest.mock import patch, MagicMock
 from wrapt_timeout_decorator import timeout as timeout_decorator
 
 

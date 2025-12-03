@@ -169,7 +169,7 @@ def visualize_all_regions(image_path, output_path):
         )
 
     # 对每个区域进行 OCR 识别
-    print(f"\n🔍 开始识别各个区域的文字...\n")
+    print("\n🔍 开始识别各个区域的文字...\n")
 
     total_texts = 0
     for region_id in range(1, 10):
@@ -183,14 +183,14 @@ def visualize_all_regions(image_path, output_path):
         )
 
         if region_img is None:
-            print(f"   ❌ 区域提取失败")
+            print("   ❌ 区域提取失败")
             continue
 
         # 进行 OCR 识别
         result = ocr.ocr.predict(region_img)
 
         if not result or len(result) == 0:
-            print(f"   ⚠️ 未识别到文字")
+            print("   ⚠️ 未识别到文字")
             continue
 
         # 统计识别到的文字数量

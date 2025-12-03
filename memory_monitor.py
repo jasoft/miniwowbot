@@ -1,5 +1,4 @@
 import sys
-import time
 import threading
 import tracemalloc
 import resource

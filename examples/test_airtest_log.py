@@ -6,7 +6,6 @@ from airtest.core.api import (
     log,
 )
 from airtest.core.settings import Settings as ST
-from airtest.core.helper import set_logdir
 from airtest.report.report import simple_report
 
 auto_setup(__file__, logdir=True)

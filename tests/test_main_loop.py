@@ -4,7 +4,6 @@
 
 from collections import deque
 import types
-import pytest
 
 import auto_dungeon
 

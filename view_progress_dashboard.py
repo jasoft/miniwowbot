@@ -9,7 +9,7 @@ import os
 from collections import defaultdict
 import hashlib
 from datetime import date, datetime, timedelta
-from typing import Any, Dict, Iterable, List, Sequence, Tuple
+from typing import Any, Dict, List, Sequence, Tuple
 
 from database import DungeonProgressDB
 from database.dungeon_db import DungeonProgress, SPECIAL_ZONE_NAMES

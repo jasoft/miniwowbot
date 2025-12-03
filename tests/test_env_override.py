@@ -14,7 +14,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config_loader import load_config
-from auto_dungeon import apply_env_overrides, initialize_configs
+from auto_dungeon import apply_env_overrides
 
 
 class TestEnvOverride:

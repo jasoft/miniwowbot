@@ -9,7 +9,7 @@ import os
 # 添加父目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from auto_dungeon import find_text, find_text_and_click, find_text_and_click_safe
+from auto_dungeon import find_text, find_text_and_click
 
 
 class TestFindText:

@@ -9,7 +9,7 @@ import json
 import tempfile
 import os
 from project_paths import resolve_project_path
-from config_loader import ConfigLoader, load_config
+from config_loader import load_config
 
 
 class TestConfigLoader:

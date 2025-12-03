@@ -6,7 +6,6 @@
 """
 
 import sys
-import json
 import requests
 import urllib.parse
 from system_config_loader import load_system_config

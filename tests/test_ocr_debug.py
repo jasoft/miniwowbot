@@ -49,10 +49,10 @@ class TestOCRDebug:
         assert region_img is not None, "区域提取失败"
         assert offset is not None, "偏移量为空"
 
-        print(f"\n✅ 区域 [7,8,9] 提取成功")
+        print("\n✅ 区域 [7,8,9] 提取成功")
         print(f"   偏移量: {offset}")
         print(f"   区域尺寸: {region_img.shape}")
-        print(f"   调试截图已保存到: /tmp/region_789_debug.png")
+        print("   调试截图已保存到: /tmp/region_789_debug.png")
 
     def test_find_text_in_region_789(self, ocr_helper):
         """测试在区域 [7,8,9] 中查找文字"""
@@ -64,7 +64,7 @@ class TestOCRDebug:
         # 要查找的文字列表
         target_texts = ["随从", "装备", "战斗", "专业", "主城"]
 
-        print(f"\n🔍 开始在区域 [7,8,9] 中查找文字...")
+        print("\n🔍 开始在区域 [7,8,9] 中查找文字...")
 
         results = {}
         for text in target_texts:
@@ -94,7 +94,7 @@ class TestOCRDebug:
         print(f"\n📊 总结: 找到 {found_count}/{len(target_texts)} 个文字")
 
         # 至少应该找到一个文字
-        assert found_count > 0, f"在区域 [7,8,9] 中一个文字都没找到，请检查 OCR 配置"
+        assert found_count > 0, "在区域 [7,8,9] 中一个文字都没找到，请检查 OCR 配置"
 
     def test_find_all_texts_in_region_789(self, ocr_helper):
         """测试查找区域 [7,8,9] 中的所有文字"""
@@ -113,14 +113,14 @@ class TestOCRDebug:
             debug_save_path="/tmp/region_789_all_text_debug.png",
         )
 
-        print(f"\n🔍 对区域 [7,8,9] 进行完整 OCR 识别...")
+        print("\n🔍 对区域 [7,8,9] 进行完整 OCR 识别...")
         print(f"   区域偏移: {offset}")
 
         # 进行 OCR 识别
         result = ocr_helper.ocr.predict(region_img)
 
         if result and len(result) > 0:
-            print(f"\n📝 识别到的所有文字:")
+            print("\n📝 识别到的所有文字:")
             for idx, res in enumerate(result, 1):
                 # 支持字典访问（OCRResult 对象）
                 try:
@@ -173,7 +173,7 @@ class TestOCRDebug:
         )
 
         if result["found"]:
-            print(f"\n✅ 找到 '战斗':")
+            print("\n✅ 找到 '战斗':")
             print(f"   中心坐标: {result['center']}")
             print(f"   边界框: {result['bbox']}")
 
@@ -198,7 +198,7 @@ class TestOCRDebug:
                 f"Y坐标不在底部区域: {center_y} (应该 > {height * 0.6})"
             )
 
-            print(f"   ✅ 坐标验证通过")
+            print("   ✅ 坐标验证通过")
             print(f"   图像尺寸: {width}x{height}")
             print(f"   Y坐标占比: {center_y / height * 100:.1f}%")
         else:

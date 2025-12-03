@@ -1,0 +1,1538 @@
+bash: -c: line 0: syntax error near unexpected token `;'
+bash: -c: line 0: `cd /Users/weiwang/Projects/miniwow ; set -o pipefail ; max_retries=3 ; retry_count=0 ; while [ $retry_count -lt $max_retries ]; do ;   ./run_all_dungeons.sh mage_alt --emulator 192.168.1.150:5565 ;   if [ $? -eq 0 ]; then ;     echo '✅ 脚本运行成功' ;     exit 0 ;   fi ;   ((retry_count++)) ;   if [ $retry_count -lt $max_retries ]; then ;     wait_time=$((retry_count * 10)) ;     echo "⏳ 等待 ${wait_time} 秒后重新运行... (第 $retry_count/$max_retries 次失败)" ;     sleep $wait_time ;     echo "🔄 开始第 $((retry_count + 1)) 次重试..." ;   fi ; done ; echo '❌ 脚本在 $max_retries 次重试后仍然失败' ; exit 1'
+[0;34m[INFO][0m 将运行选定的 1 个角色
+
+[0;34m[INFO][0m 准备运行 1 个角色: mage_alt
+
+[0;34m[INFO][0m 正在运行第 1/1 个角色...
+[0;34m[INFO][0m ==================================================
+[0;34m[INFO][0m 开始运行: mage_alt (mage_alt)
+[0;34m[INFO][0m 配置文件: configs/mage_alt.json
+[0;34m[INFO][0m 模拟器: 192.168.1.150:5565
+[0;34m[INFO][0m 开始时间: 08:32:18
+[0;34m[INFO][0m ==================================================
+[32m08:32:18.503[0m [1;30mINFO[0m unknown unknown system_config_loader.py:64 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m08:32:18.503[0m [1;30mINFO[0m unknown unknown system_config_loader.py:66 [32m📱 Bark 通知已启用[0m
+[32m08:32:18.503[0m [1;30mINFO[0m unknown unknown system_config_loader.py:68 [32m📊 Loki 日志已启用[0m
+[32m08:32:18.503[0m [1;30mINFO[0m unknown unknown system_config_loader.py:70 [32m📈 Grafana 可视化已启用[0m
+[32m08:32:18.504[0m [1;30mINFO[0m unknown unknown system_config_loader.py:64 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m08:32:18.504[0m [1;30mINFO[0m unknown unknown system_config_loader.py:66 [32m📱 Bark 通知已启用[0m
+[32m08:32:18.504[0m [1;30mINFO[0m unknown unknown system_config_loader.py:68 [32m📊 Loki 日志已启用[0m
+[32m08:32:18.504[0m [1;30mINFO[0m unknown unknown system_config_loader.py:70 [32m📈 Grafana 可视化已启用[0m
+[32m08:32:18.504[0m [1;30mINFO[0m unknown unknown system_config_loader.py:64 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m08:32:18.504[0m [1;30mINFO[0m unknown unknown system_config_loader.py:66 [32m📱 Bark 通知已启用[0m
+[32m08:32:18.504[0m [1;30mINFO[0m unknown unknown system_config_loader.py:68 [32m📊 Loki 日志已启用[0m
+[32m08:32:18.504[0m [1;30mINFO[0m unknown unknown system_config_loader.py:70 [32m📈 Grafana 可视化已启用[0m
+[32m08:32:18.504[0m [1;30mINFO[0m unknown unknown system_config_loader.py:64 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m08:32:18.504[0m [1;30mINFO[0m unknown unknown system_config_loader.py:66 [32m📱 Bark 通知已启用[0m
+[32m08:32:18.504[0m [1;30mINFO[0m unknown unknown system_config_loader.py:68 [32m📊 Loki 日志已启用[0m
+[32m08:32:18.504[0m [1;30mINFO[0m unknown unknown system_config_loader.py:70 [32m📈 Grafana 可视化已启用[0m
+[32m08:32:18.507[0m [1;30mINFO[0m unknown unknown auto_dungeon.py:2274 [32m
+============================================================[0m
+[32m08:32:18.508[0m [1;30mINFO[0m unknown unknown auto_dungeon.py:2275 [32m🎮 副本自动遍历脚本[0m
+[32m08:32:18.508[0m [1;30mINFO[0m unknown unknown auto_dungeon.py:2276 [32m============================================================
+[0m
+[32m08:32:18.508[0m [1;30mINFO[0m unknown unknown system_config_loader.py:64 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m08:32:18.508[0m [1;30mINFO[0m unknown unknown system_config_loader.py:66 [32m📱 Bark 通知已启用[0m
+[32m08:32:18.508[0m [1;30mINFO[0m unknown unknown system_config_loader.py:68 [32m📊 Loki 日志已启用[0m
+[32m08:32:18.508[0m [1;30mINFO[0m unknown unknown system_config_loader.py:70 [32m📈 Grafana 可视化已启用[0m
+[32m08:32:18.509[0m [1;30mINFO[0m unknown unknown config_loader.py:82 [32m✅ 配置加载成功: /Users/weiwang/Projects/miniwow/configs/mage_alt.json[0m
+[32m08:32:18.509[0m [1;30mINFO[0m unknown unknown config_loader.py:83 [32m📝 配置名称: mage_alt[0m
+[32m08:32:18.509[0m [1;30mINFO[0m unknown unknown config_loader.py:85 [32m⚔️ 角色职业: 法师[0m
+[32m08:32:18.509[0m [1;30mINFO[0m unknown unknown config_loader.py:87 [32m🎁 每日领取: 启用[0m
+[32m08:32:18.509[0m [1;30mINFO[0m unknown unknown config_loader.py:91 [32m🎁 指定宝箱: 风暴宝箱[0m
+[32m08:32:18.509[0m [1;30mINFO[0m unknown unknown config_loader.py:92 [32m🌍 区域数量: 8[0m
+[32m08:32:18.509[0m [1;30mINFO[0m unknown unknown config_loader.py:93 [32m🎯 副本总数: 98[0m
+[32m08:32:18.509[0m [1;30mINFO[0m unknown unknown config_loader.py:100 [32m✅ 选定副本: 46[0m
+[32m08:32:18.509[0m [1;30mINFO[0m unknown unknown system_config_loader.py:64 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m08:32:18.509[0m [1;30mINFO[0m unknown unknown system_config_loader.py:66 [32m📱 Bark 通知已启用[0m
+[32m08:32:18.509[0m [1;30mINFO[0m unknown unknown system_config_loader.py:68 [32m📊 Loki 日志已启用[0m
+[32m08:32:18.509[0m [1;30mINFO[0m unknown unknown system_config_loader.py:70 [32m📈 Grafana 可视化已启用[0m
+[32m08:32:18.513[0m [1;30mINFO[0m mage_alt unknown dungeon_db.py:75 [32m📊 数据库初始化完成: database/dungeon_progress.db[0m
+[32m08:32:18.513[0m [1;30mINFO[0m mage_alt unknown dungeon_db.py:76 [32m🎮 当前配置: mage_alt[0m
+[32m08:32:18.514[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1934 [32m📊 今天已通关 27 个副本[0m
+[32m08:32:18.516[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1937 [32m  ✅ 风暴群岛 - 真理之地[0m
+[32m08:32:18.516[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1937 [32m  ✅ 风暴群岛 - 预言神殿[0m
+[32m08:32:18.516[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1937 [32m  ✅ 风暴群岛 - 海底王宫[0m
+[32m08:32:18.516[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1937 [32m  ✅ 风暴群岛 - 泰坦密室[0m
+[32m08:32:18.516[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1937 [32m  ✅ 风暴群岛 - 黑暗庄园[0m
+[32m08:32:18.516[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1939 [32m  ... 还有 22 个[0m
+[32m08:32:18.516[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1940 [32m[0m
+[32m08:32:18.525[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1962 [32m📊 总计: 8 个区域, 98 个副本[0m
+[32m08:32:18.525[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1963 [32m📊 选定: 46 个副本[0m
+[32m08:32:18.525[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1964 [32m📊 已完成: 27 个副本[0m
+[32m08:32:18.525[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1975 [32m📊 剩余: 19 个副本待通关[0m
+[32m08:32:18.525[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1977 [32m📋 待通关副本清单:[0m
+[32m08:32:18.525[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 暗影大陆 - 黑暗熔炉[0m
+[32m08:32:18.525[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 暗影大陆 - 熔渣车间[0m
+[32m08:32:18.525[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 暗影大陆 - 鲜血庭院[0m
+[32m08:32:18.525[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 暗影大陆 - 毁灭高台[0m
+[32m08:32:18.525[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 迷雾大陆 - 兽人圣殿[0m
+[32m08:32:18.525[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 迷雾大陆 - 恐魔之心[0m
+[32m08:32:18.525[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 迷雾大陆 - 古魔宝库[0m
+[32m08:32:18.525[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 迷雾大陆 - 兽人都城[0m
+[32m08:32:18.525[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 迷雾大陆 - 风暴之巅[0m
+[32m08:32:18.525[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 迷雾大陆 - 风暴王座[0m
+[32m08:32:18.525[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 元素之地 - 火焰宫殿[0m
+[32m08:32:18.525[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 元素之地 - 守护者神殿[0m
+[32m08:32:18.525[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 元素之地 - 天空之城[0m
+[32m08:32:18.525[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 冰封大陆 - 寒冰王座[0m
+[32m08:32:18.525[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 冰封大陆 - 峡湾城堡[0m
+[32m08:32:18.525[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 冰封大陆 - 蓝龙巢穴[0m
+[32m08:32:18.526[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 虚空领域 - 虚空要塞[0m
+[32m08:32:18.526[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 虚空领域 - 守护者之塔下层[0m
+[32m08:32:18.526[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 虚空领域 - 亡者之城[0m
+[32m08:32:18.526[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1980 [32m[0m
+[32m08:32:18.526[0m [1;30mINFO[0m mage_alt unknown dungeon_db.py:239 [32m📊 数据库连接已关闭[0m
+[32m08:32:18.526[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:2315 [32m
+🔍 检测到有未完成的副本，准备启动模拟器...[0m
+[32m08:32:18.526[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:154 [32m
+============================================================[0m
+[32m08:32:18.526[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:156 [32m🔍 检查模拟器状态: 192.168.1.150:5565[0m
+[32m08:32:18.526[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:162 [32m============================================================[0m
+[32m08:32:18.530[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 emulator_manager.py:61 [32m✅ 使用系统 ADB: /opt/homebrew/bin/adb[0m
+[32m08:32:18.719[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:185 [32m✅ 模拟器 192.168.1.150:5565 已在设备列表中[0m
+[32m08:32:18.719[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 emulator_manager.py:461 [32m🔌 执行 adb devices 建立连接...[0m
+[32m08:32:18.730[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 emulator_manager.py:472 [32m✅ 发现 2 个设备:[0m
+[32m08:32:18.730[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 emulator_manager.py:474 [32m  📱 192.168.1.150:5555	device[0m
+[32m08:32:18.730[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 emulator_manager.py:474 [32m  📱 192.168.1.150:5565	device[0m
+[32m08:32:18.730[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:204 [32m============================================================
+[0m
+[32m08:32:20.085[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2018 [32m✅ 模拟器 192.168.1.150:5565 已在设备列表中[0m
+[32m08:32:20.085[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2023 [32m📱 连接到模拟器: 192.168.1.150:5565[0m
+[32m08:32:20.085[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2024 [32m   连接字符串: Android://127.0.0.1:5037/192.168.1.150:5565[0m
+[32m08:32:20.087[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2045 [32m自动配置设备中...[0m
+[32m08:32:20.155[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2047 [32m   ✅ 成功连接到设备[0m
+/Users/weiwang/Projects/miniwow/.venv/lib/python3.10/site-packages/paddle/utils/cpp_extension/extension_utils.py:718: UserWarning: No ccache found. Please be aware that recompiling all source files may be required. You can download and install ccache from: https://github.com/ccache/ccache/blob/master/doc/INSTALL.md
+  warnings.warn(warning_message)
+[32mCreating model: ('PP-OCRv5_mobile_det', None)[0m
+[32mModel files already exist. Using cached files. To redownload, please delete the directory manually: `/Users/weiwang/.paddlex/official_models/PP-OCRv5_mobile_det`.[0m
+[32mCreating model: ('PP-OCRv5_mobile_rec', None)[0m
+[32mModel files already exist. Using cached files. To redownload, please delete the directory manually: `/Users/weiwang/.paddlex/official_models/PP-OCRv5_mobile_rec`.[0m
+[32m08:32:21.458[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 system_config_loader.py:64 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m08:32:21.458[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 system_config_loader.py:66 [32m📱 Bark 通知已启用[0m
+[32m08:32:21.458[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 system_config_loader.py:68 [32m📊 Loki 日志已启用[0m
+[32m08:32:21.458[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 system_config_loader.py:70 [32m📈 Grafana 可视化已启用[0m
+[32m08:32:21.466[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2329 [32m启动游戏...[0m
+[32m08:32:38.015[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2336 [32m已在角色选择界面[0m
+[32m08:32:38.016[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2343 [32m开始选择角色: 法师[0m
+[32m08:32:38.016[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1502 [32m🎭 状态机: 选择职业 法师[0m
+[32m08:32:38.016[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:854 [32m⚔️ 选择角色: 法师[0m
+[32m08:32:38.442[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:867 [32m🔍 查找职业: 法师[0m
+[32m08:32:38.443[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 法师[0m
+[32m08:32:38.840[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '法师' 置信度:1.000 位置:(107, 787) 缓存:是[0m
+[32m08:32:38.841[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 法师[0m
+[32m08:32:38.841[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:876 [32m👆 点击角色位置: (107, 727)[0m
+[32m08:32:41.121[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:881 [32m✅ 成功选择角色: 法师[0m
+[32m08:32:41.122[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 进入游戏 [区域[5]][0m
+[32m08:32:41.264[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '进入游戏' 置信度:0.999 位置:(359, 570) 缓存:是 耗时:0.000s[0m
+[32m08:32:41.264[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 进入游戏 [区域[5]][0m
+[32m08:32:41.481[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 进入游戏 [区域[5]] at (359, 570)[0m
+[32m08:32:42.487[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:901 [32m⏳ 等待战斗结束...[0m
+[32m08:32:43.993[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:907 [32m✅ 战斗结束，用时 1.5 秒[0m
+[32m08:32:43.994[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 dungeon_db.py:75 [32m📊 数据库初始化完成: database/dungeon_progress.db[0m
+[32m08:32:43.994[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 dungeon_db.py:76 [32m🎮 当前配置: mage_alt[0m
+[32m08:32:43.994[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2357 [32m
+🔁 开始第 1 轮副本遍历…[0m
+[32m08:32:43.995[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2096 [32m⏭️ 今日每日收集任务已完成，跳过 daily_collect 步骤[0m
+[32m08:32:44.005[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2103 [32m📊 需要完成的副本总数: 19[0m
+[32m08:32:44.005[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2107 [32m📊 今天已完成的副本数: 27[0m
+[32m08:32:44.005[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:32:44.005[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:32:44.093[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:32:44.093[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2113 [32m
+############################################################[0m
+[32m08:32:44.093[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2114 [32m# 🌍 [1/8] 区域: 风暴群岛[0m
+[32m08:32:44.093[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2115 [32m# 🎯 副本数: 13[0m
+[32m08:32:44.093[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2116 [32m############################################################[0m
+[32m08:32:44.093[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [1/98] 已通关，跳过: 真理之地[0m
+[32m08:32:44.094[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [2/98] 已通关，跳过: 预言神殿[0m
+[32m08:32:44.094[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [3/98] 已通关，跳过: 海底王宫[0m
+[32m08:32:44.094[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [4/98] 已通关，跳过: 泰坦密室[0m
+[32m08:32:44.094[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [5/98] 已通关，跳过: 黑暗庄园[0m
+[32m08:32:44.094[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [6/98] 已通关，跳过: 海底囚牢[0m
+[32m08:32:44.095[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [7/98] 已通关，跳过: 地精岛[0m
+[32m08:32:44.095[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [8/98] 已通关，跳过: 泰坦遗迹[0m
+[32m08:32:44.095[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [9/98] 已通关，跳过: 海盗监狱[0m
+[32m08:32:44.095[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [10/98] 已通关，跳过: 巨魔陵墓[0m
+[32m08:32:44.095[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [11/98] 已通关，跳过: 毒蛇神庙[0m
+[32m08:32:44.096[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [12/98] 已通关，跳过: 腐化沼泽[0m
+[32m08:32:44.096[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [13/98] 已通关，跳过: 海港城[0m
+[32m08:32:44.096[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2172 [32m
+✅ 完成区域: 风暴群岛[0m
+[32m08:32:44.096[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2113 [32m
+############################################################[0m
+[32m08:32:44.096[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2114 [32m# 🌍 [2/8] 区域: 军团领域[0m
+[32m08:32:44.096[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2115 [32m# 🎯 副本数: 13[0m
+[32m08:32:44.096[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2116 [32m############################################################[0m
+[32m08:32:44.096[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [14/98] 已通关，跳过: 大墓地密室[0m
+[32m08:32:44.096[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [15/98] 已通关，跳过: 守护者大殿[0m
+[32m08:32:44.096[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [16/98] 已通关，跳过: 流放王座[0m
+[32m08:32:44.097[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [17/98] 已通关，跳过: 毁灭之地[0m
+[32m08:32:44.097[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [18/98] 已通关，跳过: 大墓地圣殿[0m
+[32m08:32:44.097[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [19/98] 已通关，跳过: 封印地窟[0m
+[32m08:32:44.097[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [20/98] 已通关，跳过: 魔能宫殿[0m
+[32m08:32:44.097[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [21/98] 已通关，跳过: 魔能要塞[0m
+[32m08:32:44.098[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [22/98] 已通关，跳过: 魔法高台[0m
+[32m08:32:44.098[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [23/98] 已通关，跳过: 地底巢穴[0m
+[32m08:32:44.098[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [24/98] 已通关，跳过: 风暴绿洲[0m
+[32m08:32:44.098[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [25/98] 已通关，跳过: 渡鸦堡垒[0m
+[32m08:32:44.098[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [26/98] 已通关，跳过: 梦魇丛林[0m
+[32m08:32:44.098[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2172 [32m
+✅ 完成区域: 军团领域[0m
+[32m08:32:44.098[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2113 [32m
+############################################################[0m
+[32m08:32:44.098[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2114 [32m# 🌍 [3/8] 区域: 暗影大陆[0m
+[32m08:32:44.098[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2115 [32m# 🎯 副本数: 12[0m
+[32m08:32:44.098[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2116 [32m############################################################[0m
+[32m08:32:44.099[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [27/98] 未选定，跳过: 钢铁码头[0m
+[32m08:32:44.099[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [28/98] 已通关，跳过: 食人魔王国[0m
+[32m08:32:44.099[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1669 [32m
+🎯 [29/98] 处理副本: 黑暗熔炉[0m
+[32m08:32:44.099[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1514 [32m🗺️ 状态机: 前往区域 暗影大陆，寻找副本 黑暗熔炉[0m
+[32m08:32:44.099[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:32:44.192[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:32:44.460[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:733 [32m🗺️ 打开地图[0m
+[32m08:32:45.464[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:915 [32m
+==================================================[0m
+[32m08:32:45.464[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:916 [32m🌍 切换区域: 暗影大陆[0m
+[32m08:32:45.464[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:917 [32m==================================================[0m
+[32m08:32:45.465[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 切换区域[0m
+[32m08:32:45.732[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '切换区域' 置信度:0.993 位置:(359, 1064) 缓存:是[0m
+[32m08:32:45.733[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 切换区域[0m
+[32m08:32:45.955[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 切换区域 at (359, 1064)[0m
+[32m08:32:46.957[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 暗影大陆 (第2个)[0m
+[32m08:32:47.148[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第2个匹配，但只找到1个，使用最后一个[0m
+[32m08:32:47.148[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '暗影大陆LV.250-LV.300' 置信度:0.944 位置:(359, 892) 缓存:是[0m
+[32m08:32:47.148[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 暗影大陆 (第2个)[0m
+[32m08:32:47.415[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 暗影大陆 at (359, 892)[0m
+[32m08:32:48.417[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:923 [32m✅ 成功切换到: 暗影大陆[0m
+[32m08:32:48.673[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 黑暗熔炉 (第9个)[0m
+[32m08:32:49.410[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第9个匹配，但只找到1个，使用最后一个[0m
+[32m08:32:49.411[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '黑暗熔炉' 置信度:0.996 位置:(478, 391) 缓存:是[0m
+[32m08:32:49.411[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 黑暗熔炉 (第9个)[0m
+[32m08:32:49.660[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 黑暗熔炉 at (478, 391)[0m
+[32m08:32:50.664[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 免费 [区域[8]][0m
+[32m08:32:51.123[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '免费(1/1)' 置信度:0.893 位置:(306, 920) 缓存:否 耗时:0.340s[0m
+[32m08:32:51.123[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 免费 [区域[8]][0m
+[32m08:32:51.399[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 免费 [区域[8]] at (306, 920)[0m
+[0;34m[INFO][0m 将运行选定的 1 个角色
+
+[0;34m[INFO][0m 准备运行 1 个角色: mage_alt
+
+[0;34m[INFO][0m 正在运行第 1/1 个角色...
+[0;34m[INFO][0m ==================================================
+[0;34m[INFO][0m 开始运行: mage_alt (mage_alt)
+[0;34m[INFO][0m 配置文件: configs/mage_alt.json
+[0;34m[INFO][0m 模拟器: 192.168.1.150:5565
+[0;34m[INFO][0m 开始时间: 08:32:53
+[0;34m[INFO][0m ==================================================
+[32m08:32:54.154[0m [1;30mINFO[0m unknown unknown system_config_loader.py:64 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m08:32:54.154[0m [1;30mINFO[0m unknown unknown system_config_loader.py:66 [32m📱 Bark 通知已启用[0m
+[32m08:32:54.154[0m [1;30mINFO[0m unknown unknown system_config_loader.py:68 [32m📊 Loki 日志已启用[0m
+[32m08:32:54.155[0m [1;30mINFO[0m unknown unknown system_config_loader.py:70 [32m📈 Grafana 可视化已启用[0m
+[32m08:32:54.155[0m [1;30mINFO[0m unknown unknown system_config_loader.py:64 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m08:32:54.155[0m [1;30mINFO[0m unknown unknown system_config_loader.py:66 [32m📱 Bark 通知已启用[0m
+[32m08:32:54.155[0m [1;30mINFO[0m unknown unknown system_config_loader.py:68 [32m📊 Loki 日志已启用[0m
+[32m08:32:54.155[0m [1;30mINFO[0m unknown unknown system_config_loader.py:70 [32m📈 Grafana 可视化已启用[0m
+[32m08:32:54.155[0m [1;30mINFO[0m unknown unknown system_config_loader.py:64 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m08:32:54.155[0m [1;30mINFO[0m unknown unknown system_config_loader.py:66 [32m📱 Bark 通知已启用[0m
+[32m08:32:54.155[0m [1;30mINFO[0m unknown unknown system_config_loader.py:68 [32m📊 Loki 日志已启用[0m
+[32m08:32:54.155[0m [1;30mINFO[0m unknown unknown system_config_loader.py:70 [32m📈 Grafana 可视化已启用[0m
+[32m08:32:54.155[0m [1;30mINFO[0m unknown unknown system_config_loader.py:64 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m08:32:54.155[0m [1;30mINFO[0m unknown unknown system_config_loader.py:66 [32m📱 Bark 通知已启用[0m
+[32m08:32:54.156[0m [1;30mINFO[0m unknown unknown system_config_loader.py:68 [32m📊 Loki 日志已启用[0m
+[32m08:32:54.156[0m [1;30mINFO[0m unknown unknown system_config_loader.py:70 [32m📈 Grafana 可视化已启用[0m
+[32m08:32:54.162[0m [1;30mINFO[0m unknown unknown auto_dungeon.py:2274 [32m
+============================================================[0m
+[32m08:32:54.162[0m [1;30mINFO[0m unknown unknown auto_dungeon.py:2275 [32m🎮 副本自动遍历脚本[0m
+[32m08:32:54.162[0m [1;30mINFO[0m unknown unknown auto_dungeon.py:2276 [32m============================================================
+[0m
+[32m08:32:54.163[0m [1;30mINFO[0m unknown unknown system_config_loader.py:64 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m08:32:54.163[0m [1;30mINFO[0m unknown unknown system_config_loader.py:66 [32m📱 Bark 通知已启用[0m
+[32m08:32:54.163[0m [1;30mINFO[0m unknown unknown system_config_loader.py:68 [32m📊 Loki 日志已启用[0m
+[32m08:32:54.163[0m [1;30mINFO[0m unknown unknown system_config_loader.py:70 [32m📈 Grafana 可视化已启用[0m
+[32m08:32:54.164[0m [1;30mINFO[0m unknown unknown config_loader.py:82 [32m✅ 配置加载成功: /Users/weiwang/Projects/miniwow/configs/mage_alt.json[0m
+[32m08:32:54.164[0m [1;30mINFO[0m unknown unknown config_loader.py:83 [32m📝 配置名称: mage_alt[0m
+[32m08:32:54.164[0m [1;30mINFO[0m unknown unknown config_loader.py:85 [32m⚔️ 角色职业: 法师[0m
+[32m08:32:54.164[0m [1;30mINFO[0m unknown unknown config_loader.py:87 [32m🎁 每日领取: 启用[0m
+[32m08:32:54.164[0m [1;30mINFO[0m unknown unknown config_loader.py:91 [32m🎁 指定宝箱: 风暴宝箱[0m
+[32m08:32:54.164[0m [1;30mINFO[0m unknown unknown config_loader.py:92 [32m🌍 区域数量: 8[0m
+[32m08:32:54.164[0m [1;30mINFO[0m unknown unknown config_loader.py:93 [32m🎯 副本总数: 98[0m
+[32m08:32:54.164[0m [1;30mINFO[0m unknown unknown config_loader.py:100 [32m✅ 选定副本: 46[0m
+[32m08:32:54.164[0m [1;30mINFO[0m unknown unknown system_config_loader.py:64 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m08:32:54.164[0m [1;30mINFO[0m unknown unknown system_config_loader.py:66 [32m📱 Bark 通知已启用[0m
+[32m08:32:54.164[0m [1;30mINFO[0m unknown unknown system_config_loader.py:68 [32m📊 Loki 日志已启用[0m
+[32m08:32:54.164[0m [1;30mINFO[0m unknown unknown system_config_loader.py:70 [32m📈 Grafana 可视化已启用[0m
+[32m08:32:54.165[0m [1;30mINFO[0m mage_alt unknown dungeon_db.py:75 [32m📊 数据库初始化完成: database/dungeon_progress.db[0m
+[32m08:32:54.165[0m [1;30mINFO[0m mage_alt unknown dungeon_db.py:76 [32m🎮 当前配置: mage_alt[0m
+[32m08:32:54.165[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1934 [32m📊 今天已通关 27 个副本[0m
+[32m08:32:54.167[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1937 [32m  ✅ 风暴群岛 - 真理之地[0m
+[32m08:32:54.167[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1937 [32m  ✅ 风暴群岛 - 预言神殿[0m
+[32m08:32:54.167[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1937 [32m  ✅ 风暴群岛 - 海底王宫[0m
+[32m08:32:54.167[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1937 [32m  ✅ 风暴群岛 - 泰坦密室[0m
+[32m08:32:54.167[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1937 [32m  ✅ 风暴群岛 - 黑暗庄园[0m
+[32m08:32:54.167[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1939 [32m  ... 还有 22 个[0m
+[32m08:32:54.167[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1940 [32m[0m
+[32m08:32:54.176[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1962 [32m📊 总计: 8 个区域, 98 个副本[0m
+[32m08:32:54.176[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1963 [32m📊 选定: 46 个副本[0m
+[32m08:32:54.176[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1964 [32m📊 已完成: 27 个副本[0m
+[32m08:32:54.176[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1975 [32m📊 剩余: 19 个副本待通关[0m
+[32m08:32:54.176[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1977 [32m📋 待通关副本清单:[0m
+[32m08:32:54.177[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 暗影大陆 - 黑暗熔炉[0m
+[32m08:32:54.177[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 暗影大陆 - 熔渣车间[0m
+[32m08:32:54.177[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 暗影大陆 - 鲜血庭院[0m
+[32m08:32:54.177[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 暗影大陆 - 毁灭高台[0m
+[32m08:32:54.177[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 迷雾大陆 - 兽人圣殿[0m
+[32m08:32:54.177[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 迷雾大陆 - 恐魔之心[0m
+[32m08:32:54.177[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 迷雾大陆 - 古魔宝库[0m
+[32m08:32:54.177[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 迷雾大陆 - 兽人都城[0m
+[32m08:32:54.177[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 迷雾大陆 - 风暴之巅[0m
+[32m08:32:54.177[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 迷雾大陆 - 风暴王座[0m
+[32m08:32:54.177[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 元素之地 - 火焰宫殿[0m
+[32m08:32:54.177[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 元素之地 - 守护者神殿[0m
+[32m08:32:54.177[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 元素之地 - 天空之城[0m
+[32m08:32:54.177[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 冰封大陆 - 寒冰王座[0m
+[32m08:32:54.177[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 冰封大陆 - 峡湾城堡[0m
+[32m08:32:54.177[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 冰封大陆 - 蓝龙巢穴[0m
+[32m08:32:54.177[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 虚空领域 - 虚空要塞[0m
+[32m08:32:54.177[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 虚空领域 - 守护者之塔下层[0m
+[32m08:32:54.177[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1979 [32m  • 虚空领域 - 亡者之城[0m
+[32m08:32:54.177[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1980 [32m[0m
+[32m08:32:54.177[0m [1;30mINFO[0m mage_alt unknown dungeon_db.py:239 [32m📊 数据库连接已关闭[0m
+[32m08:32:54.177[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:2315 [32m
+🔍 检测到有未完成的副本，准备启动模拟器...[0m
+[32m08:32:54.177[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:154 [32m
+============================================================[0m
+[32m08:32:54.178[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:156 [32m🔍 检查模拟器状态: 192.168.1.150:5565[0m
+[32m08:32:54.178[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:162 [32m============================================================[0m
+[32m08:32:54.183[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 emulator_manager.py:61 [32m✅ 使用系统 ADB: /opt/homebrew/bin/adb[0m
+[32m08:32:54.196[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:185 [32m✅ 模拟器 192.168.1.150:5565 已在设备列表中[0m
+[32m08:32:54.196[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 emulator_manager.py:461 [32m🔌 执行 adb devices 建立连接...[0m
+[32m08:32:54.209[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 emulator_manager.py:472 [32m✅ 发现 2 个设备:[0m
+[32m08:32:54.209[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 emulator_manager.py:474 [32m  📱 192.168.1.150:5555	device[0m
+[32m08:32:54.209[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 emulator_manager.py:474 [32m  📱 192.168.1.150:5565	device[0m
+[32m08:32:54.209[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:204 [32m============================================================
+[0m
+[32m08:32:55.657[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2018 [32m✅ 模拟器 192.168.1.150:5565 已在设备列表中[0m
+[32m08:32:55.657[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2023 [32m📱 连接到模拟器: 192.168.1.150:5565[0m
+[32m08:32:55.657[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2024 [32m   连接字符串: Android://127.0.0.1:5037/192.168.1.150:5565[0m
+[32m08:32:55.658[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2045 [32m自动配置设备中...[0m
+[32m08:32:55.802[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2047 [32m   ✅ 成功连接到设备[0m
+/Users/weiwang/Projects/miniwow/.venv/lib/python3.10/site-packages/paddle/utils/cpp_extension/extension_utils.py:718: UserWarning: No ccache found. Please be aware that recompiling all source files may be required. You can download and install ccache from: https://github.com/ccache/ccache/blob/master/doc/INSTALL.md
+  warnings.warn(warning_message)
+[32mCreating model: ('PP-OCRv5_mobile_det', None)[0m
+[32mModel files already exist. Using cached files. To redownload, please delete the directory manually: `/Users/weiwang/.paddlex/official_models/PP-OCRv5_mobile_det`.[0m
+[32mCreating model: ('PP-OCRv5_mobile_rec', None)[0m
+[32mModel files already exist. Using cached files. To redownload, please delete the directory manually: `/Users/weiwang/.paddlex/official_models/PP-OCRv5_mobile_rec`.[0m
+[32m08:32:57.036[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 system_config_loader.py:64 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m08:32:57.036[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 system_config_loader.py:66 [32m📱 Bark 通知已启用[0m
+[32m08:32:57.036[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 system_config_loader.py:68 [32m📊 Loki 日志已启用[0m
+[32m08:32:57.036[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 system_config_loader.py:70 [32m📈 Grafana 可视化已启用[0m
+[32m08:32:57.037[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2329 [32m启动游戏...[0m
+[32m08:33:11.530[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2336 [32m已在角色选择界面[0m
+[32m08:33:11.531[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2343 [32m开始选择角色: 法师[0m
+[32m08:33:11.531[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1502 [32m🎭 状态机: 选择职业 法师[0m
+[32m08:33:11.531[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:854 [32m⚔️ 选择角色: 法师[0m
+[32m08:33:11.999[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:867 [32m🔍 查找职业: 法师[0m
+[32m08:33:11.999[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 法师[0m
+[32m08:33:12.356[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '法师' 置信度:1.000 位置:(107, 787) 缓存:是[0m
+[32m08:33:12.356[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 法师[0m
+[32m08:33:12.357[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:876 [32m👆 点击角色位置: (107, 727)[0m
+[32m08:33:14.800[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:881 [32m✅ 成功选择角色: 法师[0m
+[32m08:33:14.800[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 进入游戏 [区域[5]][0m
+[32m08:33:14.918[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '进入游戏' 置信度:0.999 位置:(359, 570) 缓存:是 耗时:0.000s[0m
+[32m08:33:14.918[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 进入游戏 [区域[5]][0m
+[32m08:33:15.162[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 进入游戏 [区域[5]] at (359, 570)[0m
+[32m08:33:16.166[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:901 [32m⏳ 等待战斗结束...[0m
+[32m08:33:17.668[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:907 [32m✅ 战斗结束，用时 1.5 秒[0m
+[32m08:33:17.670[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 dungeon_db.py:75 [32m📊 数据库初始化完成: database/dungeon_progress.db[0m
+[32m08:33:17.670[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 dungeon_db.py:76 [32m🎮 当前配置: mage_alt[0m
+[32m08:33:17.670[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2357 [32m
+🔁 开始第 1 轮副本遍历…[0m
+[32m08:33:17.671[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2096 [32m⏭️ 今日每日收集任务已完成，跳过 daily_collect 步骤[0m
+[32m08:33:17.681[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2103 [32m📊 需要完成的副本总数: 19[0m
+[32m08:33:17.681[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2107 [32m📊 今天已完成的副本数: 27[0m
+[32m08:33:17.681[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:33:17.681[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:33:17.773[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:33:17.773[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2113 [32m
+############################################################[0m
+[32m08:33:17.773[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2114 [32m# 🌍 [1/8] 区域: 风暴群岛[0m
+[32m08:33:17.773[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2115 [32m# 🎯 副本数: 13[0m
+[32m08:33:17.773[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2116 [32m############################################################[0m
+[32m08:33:17.774[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [1/98] 已通关，跳过: 真理之地[0m
+[32m08:33:17.774[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [2/98] 已通关，跳过: 预言神殿[0m
+[32m08:33:17.774[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [3/98] 已通关，跳过: 海底王宫[0m
+[32m08:33:17.774[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [4/98] 已通关，跳过: 泰坦密室[0m
+[32m08:33:17.774[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [5/98] 已通关，跳过: 黑暗庄园[0m
+[32m08:33:17.775[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [6/98] 已通关，跳过: 海底囚牢[0m
+[32m08:33:17.775[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [7/98] 已通关，跳过: 地精岛[0m
+[32m08:33:17.775[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [8/98] 已通关，跳过: 泰坦遗迹[0m
+[32m08:33:17.776[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [9/98] 已通关，跳过: 海盗监狱[0m
+[32m08:33:17.776[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [10/98] 已通关，跳过: 巨魔陵墓[0m
+[32m08:33:17.776[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [11/98] 已通关，跳过: 毒蛇神庙[0m
+[32m08:33:17.777[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [12/98] 已通关，跳过: 腐化沼泽[0m
+[32m08:33:17.777[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [13/98] 已通关，跳过: 海港城[0m
+[32m08:33:17.777[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2172 [32m
+✅ 完成区域: 风暴群岛[0m
+[32m08:33:17.777[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2113 [32m
+############################################################[0m
+[32m08:33:17.777[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2114 [32m# 🌍 [2/8] 区域: 军团领域[0m
+[32m08:33:17.777[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2115 [32m# 🎯 副本数: 13[0m
+[32m08:33:17.778[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2116 [32m############################################################[0m
+[32m08:33:17.778[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [14/98] 已通关，跳过: 大墓地密室[0m
+[32m08:33:17.778[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [15/98] 已通关，跳过: 守护者大殿[0m
+[32m08:33:17.778[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [16/98] 已通关，跳过: 流放王座[0m
+[32m08:33:17.779[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [17/98] 已通关，跳过: 毁灭之地[0m
+[32m08:33:17.779[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [18/98] 已通关，跳过: 大墓地圣殿[0m
+[32m08:33:17.779[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [19/98] 已通关，跳过: 封印地窟[0m
+[32m08:33:17.779[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [20/98] 已通关，跳过: 魔能宫殿[0m
+[32m08:33:17.779[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [21/98] 已通关，跳过: 魔能要塞[0m
+[32m08:33:17.780[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [22/98] 已通关，跳过: 魔法高台[0m
+[32m08:33:17.780[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [23/98] 已通关，跳过: 地底巢穴[0m
+[32m08:33:17.780[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [24/98] 已通关，跳过: 风暴绿洲[0m
+[32m08:33:17.780[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [25/98] 已通关，跳过: 渡鸦堡垒[0m
+[32m08:33:17.780[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [26/98] 已通关，跳过: 梦魇丛林[0m
+[32m08:33:17.780[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2172 [32m
+✅ 完成区域: 军团领域[0m
+[32m08:33:17.780[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2113 [32m
+############################################################[0m
+[32m08:33:17.780[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2114 [32m# 🌍 [3/8] 区域: 暗影大陆[0m
+[32m08:33:17.781[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2115 [32m# 🎯 副本数: 12[0m
+[32m08:33:17.781[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2116 [32m############################################################[0m
+[32m08:33:17.781[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [27/98] 未选定，跳过: 钢铁码头[0m
+[32m08:33:17.781[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2140 [32m⏭️ [28/98] 已通关，跳过: 食人魔王国[0m
+[32m08:33:17.781[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1669 [32m
+🎯 [29/98] 处理副本: 黑暗熔炉[0m
+[32m08:33:17.781[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1514 [32m🗺️ 状态机: 前往区域 暗影大陆，寻找副本 黑暗熔炉[0m
+[32m08:33:17.781[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:33:17.862[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:33:18.135[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:733 [32m🗺️ 打开地图[0m
+[32m08:33:19.137[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:915 [32m
+==================================================[0m
+[32m08:33:19.137[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:916 [32m🌍 切换区域: 暗影大陆[0m
+[32m08:33:19.138[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:917 [32m==================================================[0m
+[32m08:33:19.138[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 切换区域[0m
+[32m08:33:19.385[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '切换区域' 置信度:0.993 位置:(359, 1064) 缓存:是[0m
+[32m08:33:19.386[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 切换区域[0m
+[32m08:33:19.628[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 切换区域 at (359, 1064)[0m
+[32m08:33:20.630[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 暗影大陆 (第2个)[0m
+[32m08:33:20.817[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第2个匹配，但只找到1个，使用最后一个[0m
+[32m08:33:20.817[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '暗影大陆LV.250-LV.300' 置信度:0.944 位置:(359, 892) 缓存:是[0m
+[32m08:33:20.817[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 暗影大陆 (第2个)[0m
+[32m08:33:21.068[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 暗影大陆 at (359, 892)[0m
+[32m08:33:22.069[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:923 [32m✅ 成功切换到: 暗影大陆[0m
+[32m08:33:22.302[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 黑暗熔炉 (第9个)[0m
+[32m08:33:22.966[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第9个匹配，但只找到1个，使用最后一个[0m
+[32m08:33:22.966[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '黑暗熔炉' 置信度:0.996 位置:(478, 391) 缓存:是[0m
+[32m08:33:22.966[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 黑暗熔炉 (第9个)[0m
+[32m08:33:23.190[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 黑暗熔炉 at (478, 391)[0m
+[32m08:33:24.194[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 免费 [区域[8]][0m
+[32m08:33:27.376[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:358 [33m❌ 超时未找到文本: 免费[0m
+[32m08:33:27.376[0m [1;30mERROR[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:584 [31m❌ 查找并点击文本失败: 免费 - ❌ 超时未找到文本: 免费[0m
+[32m08:33:27.376[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:646 [33m⚠️ 未找到免费按钮[0m
+[32m08:33:27.376[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1543 [32mℹ️ 副本 黑暗熔炉 今日已完成或无免费次数[0m
+[32m08:33:27.376[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1688 [33m⚠️ 无免费按钮，标记为已完成[0m
+[32m08:33:27.378[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 dungeon_db.py:122 [32m💾 记录通关: 暗影大陆 - 黑暗熔炉[0m
+[32m08:33:28.634[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:629 [32m🔙 点击返回按钮[0m
+[32m08:33:28.634[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:33:28.634[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:33:30.686[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:33:30.686[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [30/98] 未选定，跳过: 通天峰[0m
+[32m08:33:30.689[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1669 [32m
+🎯 [31/98] 处理副本: 熔渣车间[0m
+[32m08:33:30.690[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1514 [32m🗺️ 状态机: 前往区域 暗影大陆，寻找副本 熔渣车间[0m
+[32m08:33:30.690[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:33:30.786[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:33:31.027[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:733 [32m🗺️ 打开地图[0m
+[32m08:33:32.032[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:915 [32m
+==================================================[0m
+[32m08:33:32.032[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:916 [32m🌍 切换区域: 暗影大陆[0m
+[32m08:33:32.032[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:917 [32m==================================================[0m
+[32m08:33:32.032[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 切换区域[0m
+[32m08:33:32.305[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '切换区域' 置信度:0.993 位置:(359, 1064) 缓存:是[0m
+[32m08:33:32.305[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 切换区域[0m
+[32m08:33:32.564[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 切换区域 at (359, 1064)[0m
+[32m08:33:33.569[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 暗影大陆 (第2个)[0m
+[32m08:33:33.757[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第2个匹配，但只找到1个，使用最后一个[0m
+[32m08:33:33.757[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '暗影大陆LV.250-LV.300' 置信度:0.944 位置:(359, 892) 缓存:是[0m
+[32m08:33:33.757[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 暗影大陆 (第2个)[0m
+[32m08:33:33.993[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 暗影大陆 at (359, 892)[0m
+[32m08:33:34.999[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:923 [32m✅ 成功切换到: 暗影大陆[0m
+[32m08:33:35.234[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 熔渣车间 (第9个)[0m
+[32m08:33:35.898[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第9个匹配，但只找到1个，使用最后一个[0m
+[32m08:33:35.898[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '熔渣车间' 置信度:0.997 位置:(378, 469) 缓存:是[0m
+[32m08:33:35.898[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 熔渣车间 (第9个)[0m
+[32m08:33:36.128[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 熔渣车间 at (378, 469)[0m
+[32m08:33:37.134[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 免费 [区域[8]][0m
+[32m08:33:37.581[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '免费(1/1)' 置信度:0.893 位置:(306, 920) 缓存:否 耗时:0.282s[0m
+[32m08:33:37.582[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 免费 [区域[8]][0m
+[32m08:33:37.834[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 免费 [区域[8]] at (306, 920)[0m
+[32m08:33:38.839[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:642 [32m💰 点击了免费按钮: 免费[0m
+[32m08:33:38.839[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1546 [32m⚔️ 状态机: 进入副本战斗 - 熔渣车间[0m
+[32m08:33:38.839[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:33:39.163[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:33:39.163[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:33:39.397[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:33:40.402[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:749 [32m⚔️ 开始自动战斗[0m
+[32m08:33:40.402[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:33:40.617[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:33:40.617[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:33:40.863[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:33:41.905[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:765 [32m内置自动战斗: True[0m
+⚔️ 战斗进度 [28/19] |                                           | 28/? [00:00<?]⚔️ 战斗进度 [28/19] |                                       | 29/? [01:05<00:00]⚔️ 战斗进度 [28/19] |                                       | 29/? [01:05<00:00]
+[32m08:34:47.863[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:828 [32m✅ 战斗完成[0m
+[32m08:34:47.864[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1694 [32m✅ 完成: 熔渣车间[0m
+[32m08:34:47.864[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1562 [32m🎁 状态机: 处理副本奖励[0m
+[32m08:34:47.867[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 dungeon_db.py:122 [32m💾 记录通关: 暗影大陆 - 熔渣车间[0m
+[32m08:34:48.872[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:34:48.872[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:34:48.939[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:34:48.939[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [32/98] 未选定，跳过: 食人魔矿井[0m
+[32m08:34:48.939[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [33/98] 未选定，跳过: 木精圣地[0m
+[32m08:34:48.940[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1669 [32m
+🎯 [34/98] 处理副本: 鲜血庭院[0m
+[32m08:34:48.940[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1514 [32m🗺️ 状态机: 前往区域 暗影大陆，寻找副本 鲜血庭院[0m
+[32m08:34:48.940[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:34:49.013[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:34:49.268[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:733 [32m🗺️ 打开地图[0m
+[32m08:34:50.273[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:915 [32m
+==================================================[0m
+[32m08:34:50.274[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:916 [32m🌍 切换区域: 暗影大陆[0m
+[32m08:34:50.274[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:917 [32m==================================================[0m
+[32m08:34:50.274[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 切换区域[0m
+[32m08:34:50.527[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '切换区域' 置信度:0.993 位置:(359, 1064) 缓存:是[0m
+[32m08:34:50.528[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 切换区域[0m
+[32m08:34:50.764[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 切换区域 at (359, 1064)[0m
+[32m08:34:51.768[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 暗影大陆 (第2个)[0m
+[32m08:34:51.964[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第2个匹配，但只找到1个，使用最后一个[0m
+[32m08:34:51.964[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '暗影大陆LV.250-LV.300' 置信度:0.944 位置:(359, 892) 缓存:是[0m
+[32m08:34:51.964[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 暗影大陆 (第2个)[0m
+[32m08:34:52.198[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 暗影大陆 at (359, 892)[0m
+[32m08:34:53.202[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:923 [32m✅ 成功切换到: 暗影大陆[0m
+[32m08:34:53.433[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 鲜血庭院 (第9个)[0m
+[32m08:34:54.182[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第9个匹配，但只找到1个，使用最后一个[0m
+[32m08:34:54.182[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '鲜血庭院' 置信度:1.000 位置:(552, 596) 缓存:是[0m
+[32m08:34:54.182[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 鲜血庭院 (第9个)[0m
+[32m08:34:54.426[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 鲜血庭院 at (552, 596)[0m
+[32m08:34:55.426[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 免费 [区域[8]][0m
+[32m08:34:55.934[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '免费(1/1)' 置信度:0.893 位置:(306, 920) 缓存:否 耗时:0.358s[0m
+[32m08:34:55.935[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 免费 [区域[8]][0m
+[32m08:34:56.160[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 免费 [区域[8]] at (306, 920)[0m
+[32m08:34:57.165[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:642 [32m💰 点击了免费按钮: 免费[0m
+[32m08:34:57.166[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1546 [32m⚔️ 状态机: 进入副本战斗 - 鲜血庭院[0m
+[32m08:34:57.166[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:34:57.444[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:34:57.444[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:34:57.698[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:34:58.702[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:749 [32m⚔️ 开始自动战斗[0m
+[32m08:34:58.702[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:34:58.942[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:34:58.942[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:34:59.200[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:35:00.244[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:765 [32m内置自动战斗: True[0m
+⚔️ 战斗进度 [29/19] |                                           | 29/? [00:00<?]⚔️ 战斗进度 [29/19] |                                       | 30/? [01:12<00:00]⚔️ 战斗进度 [29/19] |                                       | 30/? [01:12<00:00]
+[32m08:36:12.655[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:828 [32m✅ 战斗完成[0m
+[32m08:36:12.658[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1694 [32m✅ 完成: 鲜血庭院[0m
+[32m08:36:12.658[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1562 [32m🎁 状态机: 处理副本奖励[0m
+[32m08:36:12.660[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 dungeon_db.py:122 [32m💾 记录通关: 暗影大陆 - 鲜血庭院[0m
+[32m08:36:13.666[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:36:13.666[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:36:13.732[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:36:13.733[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1571 [32m🧹 状态机: 卖出垃圾道具[0m
+[32m08:36:13.733[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:932 [32m💰 卖垃圾[0m
+[32m08:36:14.985[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:629 [32m🔙 点击返回按钮[0m
+[32m08:36:14.985[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 装备 [区域[7, 8, 9]][0m
+[32m08:36:15.246[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '装备' 置信度:1.000 位置:(196, 1213) 缓存:是 耗时:0.000s[0m
+[32m08:36:15.246[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 装备 [区域[7, 8, 9]][0m
+[32m08:36:15.502[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 装备 [区域[7, 8, 9]] at (196, 1213)[0m
+[32m08:36:16.502[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 整理售卖 [区域[7, 8, 9]][0m
+[32m08:36:16.713[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '整理售卖' 置信度:0.999 位置:(442, 1110) 缓存:是 耗时:0.000s[0m
+[32m08:36:16.713[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 整理售卖 [区域[7, 8, 9]][0m
+[32m08:36:16.969[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 整理售卖 [区域[7, 8, 9]] at (442, 1110)[0m
+[32m08:36:20.445[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:629 [32m🔙 点击返回按钮[0m
+[32m08:36:21.709[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:629 [32m🔙 点击返回按钮[0m
+[32m08:36:21.709[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:36:21.709[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:36:21.767[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:36:21.767[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [35/98] 未选定，跳过: 钢铁车站[0m
+[32m08:36:21.767[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [36/98] 未选定，跳过: 神圣陵墓[0m
+[32m08:36:21.767[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [37/98] 未选定，跳过: 兽人墓地[0m
+[32m08:36:21.768[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1669 [32m
+🎯 [38/98] 处理副本: 毁灭高台[0m
+[32m08:36:21.768[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1514 [32m🗺️ 状态机: 前往区域 暗影大陆，寻找副本 毁灭高台[0m
+[32m08:36:21.768[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:36:21.878[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:36:22.137[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:733 [32m🗺️ 打开地图[0m
+[32m08:36:23.142[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:915 [32m
+==================================================[0m
+[32m08:36:23.142[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:916 [32m🌍 切换区域: 暗影大陆[0m
+[32m08:36:23.142[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:917 [32m==================================================[0m
+[32m08:36:23.143[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 切换区域[0m
+[32m08:36:23.391[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '切换区域' 置信度:0.993 位置:(359, 1064) 缓存:是[0m
+[32m08:36:23.392[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 切换区域[0m
+[32m08:36:23.637[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 切换区域 at (359, 1064)[0m
+[32m08:36:24.641[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 暗影大陆 (第2个)[0m
+[32m08:36:24.839[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第2个匹配，但只找到1个，使用最后一个[0m
+[32m08:36:24.839[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '暗影大陆LV.250-LV.300' 置信度:0.944 位置:(359, 892) 缓存:是[0m
+[32m08:36:24.839[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 暗影大陆 (第2个)[0m
+[32m08:36:25.096[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 暗影大陆 at (359, 892)[0m
+[32m08:36:26.101[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:923 [32m✅ 成功切换到: 暗影大陆[0m
+[32m08:36:26.336[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 毁灭高台 (第9个)[0m
+[32m08:36:26.999[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第9个匹配，但只找到1个，使用最后一个[0m
+[32m08:36:26.999[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '毁灭高台' 置信度:0.979 位置:(563, 786) 缓存:是[0m
+[32m08:36:26.999[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 毁灭高台 (第9个)[0m
+[32m08:36:27.238[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 毁灭高台 at (563, 786)[0m
+[32m08:36:28.244[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 免费 [区域[8]][0m
+[32m08:36:28.703[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '免费(1/1)' 置信度:0.893 位置:(306, 920) 缓存:否 耗时:0.276s[0m
+[32m08:36:28.704[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 免费 [区域[8]][0m
+[32m08:36:28.934[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 免费 [区域[8]] at (306, 920)[0m
+[32m08:36:29.939[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:642 [32m💰 点击了免费按钮: 免费[0m
+[32m08:36:29.940[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1546 [32m⚔️ 状态机: 进入副本战斗 - 毁灭高台[0m
+[32m08:36:29.940[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:36:30.129[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.997 位置:(393, 1211) 缓存:是 耗时:0.000s[0m
+[32m08:36:30.130[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:36:30.365[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (393, 1211)[0m
+[32m08:36:31.370[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:749 [32m⚔️ 开始自动战斗[0m
+[32m08:36:31.371[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:36:31.661[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:36:31.661[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:36:31.934[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:36:32.973[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:765 [32m内置自动战斗: True[0m
+⚔️ 战斗进度 [30/19] |                                           | 30/? [00:00<?]⚔️ 战斗进度 [30/19] |                                       | 31/? [01:08<00:00]⚔️ 战斗进度 [30/19] |                                       | 31/? [01:08<00:00]
+[32m08:37:41.937[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:828 [32m✅ 战斗完成[0m
+[32m08:37:41.937[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1694 [32m✅ 完成: 毁灭高台[0m
+[32m08:37:41.937[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1562 [32m🎁 状态机: 处理副本奖励[0m
+[32m08:37:41.940[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 dungeon_db.py:122 [32m💾 记录通关: 暗影大陆 - 毁灭高台[0m
+[32m08:37:42.945[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:37:42.946[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:37:43.035[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:37:43.036[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2172 [32m
+✅ 完成区域: 暗影大陆[0m
+[32m08:37:43.036[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2113 [32m
+############################################################[0m
+[32m08:37:43.036[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2114 [32m# 🌍 [4/8] 区域: 迷雾大陆[0m
+[32m08:37:43.036[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2115 [32m# 🎯 副本数: 12[0m
+[32m08:37:43.036[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2116 [32m############################################################[0m
+[32m08:37:43.036[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1669 [32m
+🎯 [39/98] 处理副本: 兽人圣殿[0m
+[32m08:37:43.036[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1514 [32m🗺️ 状态机: 前往区域 迷雾大陆，寻找副本 兽人圣殿[0m
+[32m08:37:43.036[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:37:43.115[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:37:43.371[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:733 [32m🗺️ 打开地图[0m
+[32m08:37:44.377[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:915 [32m
+==================================================[0m
+[32m08:37:44.378[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:916 [32m🌍 切换区域: 迷雾大陆[0m
+[32m08:37:44.378[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:917 [32m==================================================[0m
+[32m08:37:44.378[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 切换区域[0m
+[32m08:37:44.624[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '切换区域' 置信度:0.993 位置:(359, 1064) 缓存:是[0m
+[32m08:37:44.624[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 切换区域[0m
+[32m08:37:44.877[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 切换区域 at (359, 1064)[0m
+[32m08:37:45.879[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 迷雾大陆 (第2个)[0m
+[32m08:37:46.169[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第2个匹配，但只找到1个，使用最后一个[0m
+[32m08:37:46.169[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '迷雾大陆LV.200-LV.250' 置信度:0.961 位置:(358, 846) 缓存:是[0m
+[32m08:37:46.170[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 迷雾大陆 (第2个)[0m
+[32m08:37:46.408[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 迷雾大陆 at (358, 846)[0m
+[32m08:37:47.413[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:923 [32m✅ 成功切换到: 迷雾大陆[0m
+[32m08:37:47.671[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 兽人圣殿 (第9个)[0m
+[32m08:37:47.898[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第9个匹配，但只找到1个，使用最后一个[0m
+[32m08:37:47.898[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '兽人圣殿' 置信度:0.999 位置:(177, 301) 缓存:是[0m
+[32m08:37:47.898[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 兽人圣殿 (第9个)[0m
+[32m08:37:48.130[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 兽人圣殿 at (177, 301)[0m
+[32m08:37:49.133[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 免费 [区域[8]][0m
+[32m08:37:49.521[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '免费(1/1)' 置信度:0.893 位置:(306, 920) 缓存:否 耗时:0.275s[0m
+[32m08:37:49.521[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 免费 [区域[8]][0m
+[32m08:37:49.761[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 免费 [区域[8]] at (306, 920)[0m
+[32m08:37:50.767[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:642 [32m💰 点击了免费按钮: 免费[0m
+[32m08:37:50.767[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1546 [32m⚔️ 状态机: 进入副本战斗 - 兽人圣殿[0m
+[32m08:37:50.767[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:37:51.055[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:37:51.056[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:37:51.306[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:37:52.311[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:749 [32m⚔️ 开始自动战斗[0m
+[32m08:37:52.312[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:37:52.631[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:37:52.631[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:37:52.903[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:37:53.942[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:765 [32m内置自动战斗: True[0m
+⚔️ 战斗进度 [31/19] |                                           | 31/? [00:00<?]⚔️ 战斗进度 [31/19] |                                       | 32/? [00:54<00:00]⚔️ 战斗进度 [31/19] |                                       | 32/? [00:54<00:00]
+[32m08:38:48.880[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:828 [32m✅ 战斗完成[0m
+[32m08:38:48.881[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1694 [32m✅ 完成: 兽人圣殿[0m
+[32m08:38:48.882[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1562 [32m🎁 状态机: 处理副本奖励[0m
+[32m08:38:48.886[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 dungeon_db.py:122 [32m💾 记录通关: 迷雾大陆 - 兽人圣殿[0m
+[32m08:38:49.934[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:38:49.936[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:38:50.147[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:38:50.148[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1669 [32m
+🎯 [40/98] 处理副本: 恐魔之心[0m
+[32m08:38:50.148[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1514 [32m🗺️ 状态机: 前往区域 迷雾大陆，寻找副本 恐魔之心[0m
+[32m08:38:50.148[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:38:50.351[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:38:50.620[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:733 [32m🗺️ 打开地图[0m
+[32m08:38:51.624[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:915 [32m
+==================================================[0m
+[32m08:38:51.626[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:916 [32m🌍 切换区域: 迷雾大陆[0m
+[32m08:38:51.626[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:917 [32m==================================================[0m
+[32m08:38:51.628[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 切换区域[0m
+[32m08:38:52.232[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '切换区域' 置信度:0.993 位置:(359, 1064) 缓存:是[0m
+[32m08:38:52.232[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 切换区域[0m
+[32m08:38:52.474[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 切换区域 at (359, 1064)[0m
+[32m08:38:53.476[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 迷雾大陆 (第2个)[0m
+[32m08:38:54.078[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第2个匹配，但只找到1个，使用最后一个[0m
+[32m08:38:54.079[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '迷雾大陆LV.200-LV.250' 置信度:0.961 位置:(358, 846) 缓存:是[0m
+[32m08:38:54.079[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 迷雾大陆 (第2个)[0m
+[32m08:38:54.316[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 迷雾大陆 at (358, 846)[0m
+[32m08:38:55.318[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:923 [32m✅ 成功切换到: 迷雾大陆[0m
+[32m08:38:55.581[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 恐魔之心 (第9个)[0m
+[32m08:38:55.840[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第9个匹配，但只找到1个，使用最后一个[0m
+[32m08:38:55.840[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '恐魔之心' 置信度:0.997 位置:(319, 353) 缓存:是[0m
+[32m08:38:55.840[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 恐魔之心 (第9个)[0m
+[32m08:38:56.062[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 恐魔之心 at (319, 353)[0m
+[32m08:38:57.068[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 免费 [区域[8]][0m
+[32m08:38:57.578[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '免费(1/1)' 置信度:0.893 位置:(306, 920) 缓存:否 耗时:0.384s[0m
+[32m08:38:57.578[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 免费 [区域[8]][0m
+[32m08:38:57.800[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 免费 [区域[8]] at (306, 920)[0m
+[32m08:38:58.805[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:642 [32m💰 点击了免费按钮: 免费[0m
+[32m08:38:58.805[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1546 [32m⚔️ 状态机: 进入副本战斗 - 恐魔之心[0m
+[32m08:38:58.806[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:38:59.262[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:38:59.262[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:38:59.505[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:39:00.507[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:749 [32m⚔️ 开始自动战斗[0m
+[32m08:39:00.507[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:39:00.796[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:39:00.796[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:39:01.040[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:39:02.083[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:765 [32m内置自动战斗: True[0m
+⚔️ 战斗进度 [32/19] |                                           | 32/? [00:00<?]⚔️ 战斗进度 [32/19] |                                       | 33/? [00:47<00:00]⚔️ 战斗进度 [32/19] |                                       | 33/? [00:47<00:00]
+[32m08:39:49.572[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:828 [32m✅ 战斗完成[0m
+[32m08:39:49.573[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1694 [32m✅ 完成: 恐魔之心[0m
+[32m08:39:49.574[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1562 [32m🎁 状态机: 处理副本奖励[0m
+[32m08:39:49.578[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 dungeon_db.py:122 [32m💾 记录通关: 迷雾大陆 - 恐魔之心[0m
+[32m08:39:50.583[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:39:50.583[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:39:50.673[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:39:50.673[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1571 [32m🧹 状态机: 卖出垃圾道具[0m
+[32m08:39:50.673[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:932 [32m💰 卖垃圾[0m
+[32m08:39:51.903[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:629 [32m🔙 点击返回按钮[0m
+[32m08:39:51.904[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 装备 [区域[7, 8, 9]][0m
+[32m08:39:52.224[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '装备' 置信度:1.000 位置:(196, 1213) 缓存:是 耗时:0.000s[0m
+[32m08:39:52.224[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 装备 [区域[7, 8, 9]][0m
+[32m08:39:52.481[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 装备 [区域[7, 8, 9]] at (196, 1213)[0m
+[32m08:39:53.493[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 整理售卖 [区域[7, 8, 9]][0m
+[32m08:39:53.780[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '整理售卖' 置信度:0.999 位置:(442, 1110) 缓存:是 耗时:0.000s[0m
+[32m08:39:53.780[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 整理售卖 [区域[7, 8, 9]][0m
+[32m08:39:54.011[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 整理售卖 [区域[7, 8, 9]] at (442, 1110)[0m
+[32m08:39:57.480[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:629 [32m🔙 点击返回按钮[0m
+[32m08:39:58.706[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:629 [32m🔙 点击返回按钮[0m
+[32m08:39:58.706[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:39:58.706[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:39:58.779[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:39:58.780[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1669 [32m
+🎯 [41/98] 处理副本: 古魔宝库[0m
+[32m08:39:58.780[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1514 [32m🗺️ 状态机: 前往区域 迷雾大陆，寻找副本 古魔宝库[0m
+[32m08:39:58.780[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:39:58.840[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:39:59.069[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:733 [32m🗺️ 打开地图[0m
+[32m08:40:00.075[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:915 [32m
+==================================================[0m
+[32m08:40:00.075[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:916 [32m🌍 切换区域: 迷雾大陆[0m
+[32m08:40:00.075[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:917 [32m==================================================[0m
+[32m08:40:00.075[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 切换区域[0m
+[32m08:40:00.290[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '切换区域' 置信度:0.993 位置:(359, 1064) 缓存:是[0m
+[32m08:40:00.290[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 切换区域[0m
+[32m08:40:00.546[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 切换区域 at (359, 1064)[0m
+[32m08:40:01.547[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 迷雾大陆 (第2个)[0m
+[32m08:40:01.723[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第2个匹配，但只找到1个，使用最后一个[0m
+[32m08:40:01.723[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '迷雾大陆LV.200-LV.250' 置信度:0.961 位置:(358, 846) 缓存:是[0m
+[32m08:40:01.723[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 迷雾大陆 (第2个)[0m
+[32m08:40:01.973[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 迷雾大陆 at (358, 846)[0m
+[32m08:40:02.978[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:923 [32m✅ 成功切换到: 迷雾大陆[0m
+[32m08:40:03.205[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 古魔宝库 (第9个)[0m
+[32m08:40:03.410[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第9个匹配，但只找到1个，使用最后一个[0m
+[32m08:40:03.410[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '古魔宝库' 置信度:0.999 位置:(461, 358) 缓存:是[0m
+[32m08:40:03.411[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 古魔宝库 (第9个)[0m
+[32m08:40:03.633[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 古魔宝库 at (461, 358)[0m
+[32m08:40:04.636[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 免费 [区域[8]][0m
+[32m08:40:05.501[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '免费（1/1)' 置信度:0.877 位置:(306, 920) 缓存:否 耗时:0.753s[0m
+[32m08:40:05.502[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 免费 [区域[8]][0m
+[32m08:40:05.734[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 免费 [区域[8]] at (306, 920)[0m
+[32m08:40:06.737[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:642 [32m💰 点击了免费按钮: 免费[0m
+[32m08:40:06.737[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1546 [32m⚔️ 状态机: 进入副本战斗 - 古魔宝库[0m
+[32m08:40:06.737[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:40:06.956[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.997 位置:(393, 1211) 缓存:是 耗时:0.000s[0m
+[32m08:40:06.957[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:40:07.225[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (393, 1211)[0m
+[32m08:40:08.230[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:749 [32m⚔️ 开始自动战斗[0m
+[32m08:40:08.230[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:40:08.539[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:40:08.539[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:40:08.766[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:40:09.815[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:765 [32m内置自动战斗: True[0m
+⚔️ 战斗进度 [33/19] |                                           | 33/? [00:00<?]⚔️ 战斗进度 [33/19] |                                       | 34/? [00:44<00:00]⚔️ 战斗进度 [33/19] |                                       | 34/? [00:44<00:00]
+[32m08:40:53.962[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:828 [32m✅ 战斗完成[0m
+[32m08:40:53.962[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1694 [32m✅ 完成: 古魔宝库[0m
+[32m08:40:53.962[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1562 [32m🎁 状态机: 处理副本奖励[0m
+[32m08:40:53.965[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 dungeon_db.py:122 [32m💾 记录通关: 迷雾大陆 - 古魔宝库[0m
+[32m08:40:54.968[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:40:54.968[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:40:55.048[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:40:55.049[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1669 [32m
+🎯 [42/98] 处理副本: 兽人都城[0m
+[32m08:40:55.049[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1514 [32m🗺️ 状态机: 前往区域 迷雾大陆，寻找副本 兽人都城[0m
+[32m08:40:55.049[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:40:55.124[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:40:55.382[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:733 [32m🗺️ 打开地图[0m
+[32m08:40:56.385[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:915 [32m
+==================================================[0m
+[32m08:40:56.385[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:916 [32m🌍 切换区域: 迷雾大陆[0m
+[32m08:40:56.385[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:917 [32m==================================================[0m
+[32m08:40:56.385[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 切换区域[0m
+[32m08:40:56.597[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '切换区域' 置信度:0.993 位置:(359, 1064) 缓存:是[0m
+[32m08:40:56.598[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 切换区域[0m
+[32m08:40:56.842[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 切换区域 at (359, 1064)[0m
+[32m08:40:57.847[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 迷雾大陆 (第2个)[0m
+[32m08:40:58.055[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第2个匹配，但只找到1个，使用最后一个[0m
+[32m08:40:58.055[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '迷雾大陆LV.200-LV.250' 置信度:0.961 位置:(358, 846) 缓存:是[0m
+[32m08:40:58.055[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 迷雾大陆 (第2个)[0m
+[32m08:40:58.304[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 迷雾大陆 at (358, 846)[0m
+[32m08:40:59.306[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:923 [32m✅ 成功切换到: 迷雾大陆[0m
+[32m08:40:59.552[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 兽人都城 (第9个)[0m
+[32m08:40:59.776[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第9个匹配，但只找到1个，使用最后一个[0m
+[32m08:40:59.776[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '兽人都城' 置信度:0.997 位置:(261, 451) 缓存:是[0m
+[32m08:40:59.777[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 兽人都城 (第9个)[0m
+[32m08:41:00.001[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 兽人都城 at (261, 451)[0m
+[32m08:41:01.006[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 免费 [区域[8]][0m
+[32m08:41:01.432[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '免费(1/1)' 置信度:0.893 位置:(306, 920) 缓存:否 耗时:0.315s[0m
+[32m08:41:01.432[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 免费 [区域[8]][0m
+[32m08:41:01.674[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 免费 [区域[8]] at (306, 920)[0m
+[32m08:41:02.679[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:642 [32m💰 点击了免费按钮: 免费[0m
+[32m08:41:02.679[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1546 [32m⚔️ 状态机: 进入副本战斗 - 兽人都城[0m
+[32m08:41:02.680[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:41:02.914[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:41:02.914[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:41:03.139[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:41:04.144[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:749 [32m⚔️ 开始自动战斗[0m
+[32m08:41:04.145[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:41:04.436[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:41:04.436[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:41:04.672[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:41:05.713[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:765 [32m内置自动战斗: True[0m
+⚔️ 战斗进度 [34/19] |                                           | 34/? [00:00<?]⚔️ 战斗进度 [34/19] |                                       | 35/? [01:01<00:00]⚔️ 战斗进度 [34/19] |                                       | 35/? [01:01<00:00]
+[32m08:42:07.134[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:828 [32m✅ 战斗完成[0m
+[32m08:42:07.134[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1694 [32m✅ 完成: 兽人都城[0m
+[32m08:42:07.134[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1562 [32m🎁 状态机: 处理副本奖励[0m
+[32m08:42:07.136[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 dungeon_db.py:122 [32m💾 记录通关: 迷雾大陆 - 兽人都城[0m
+[32m08:42:08.137[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:42:08.137[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:42:08.236[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:42:08.237[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [43/98] 未选定，跳过: 古魔宫殿[0m
+[32m08:42:08.238[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1669 [32m
+🎯 [44/98] 处理副本: 风暴之巅[0m
+[32m08:42:08.238[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1514 [32m🗺️ 状态机: 前往区域 迷雾大陆，寻找副本 风暴之巅[0m
+[32m08:42:08.239[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:42:08.319[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:42:08.576[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:733 [32m🗺️ 打开地图[0m
+[32m08:42:09.580[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:915 [32m
+==================================================[0m
+[32m08:42:09.580[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:916 [32m🌍 切换区域: 迷雾大陆[0m
+[32m08:42:09.580[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:917 [32m==================================================[0m
+[32m08:42:09.580[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 切换区域[0m
+[32m08:42:09.876[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '切换区域' 置信度:0.993 位置:(359, 1064) 缓存:是[0m
+[32m08:42:09.877[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 切换区域[0m
+[32m08:42:10.136[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 切换区域 at (359, 1064)[0m
+[32m08:42:11.141[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 迷雾大陆 (第2个)[0m
+[32m08:42:11.355[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第2个匹配，但只找到1个，使用最后一个[0m
+[32m08:42:11.355[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '迷雾大陆LV.200-LV.250' 置信度:0.961 位置:(358, 846) 缓存:是[0m
+[32m08:42:11.355[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 迷雾大陆 (第2个)[0m
+[32m08:42:11.606[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 迷雾大陆 at (358, 846)[0m
+[32m08:42:12.607[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:923 [32m✅ 成功切换到: 迷雾大陆[0m
+[32m08:42:12.836[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 风暴之巅 (第9个)[0m
+[32m08:42:13.064[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第9个匹配，但只找到1个，使用最后一个[0m
+[32m08:42:13.065[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '风暴之巅' 置信度:0.999 位置:(104, 483) 缓存:是[0m
+[32m08:42:13.065[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 风暴之巅 (第9个)[0m
+[32m08:42:13.303[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 风暴之巅 at (104, 483)[0m
+[32m08:42:14.306[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 免费 [区域[8]][0m
+[32m08:42:14.760[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '免费(1/1)' 置信度:0.893 位置:(306, 920) 缓存:否 耗时:0.339s[0m
+[32m08:42:14.761[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 免费 [区域[8]][0m
+[32m08:42:15.001[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 免费 [区域[8]] at (306, 920)[0m
+[32m08:42:16.008[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:642 [32m💰 点击了免费按钮: 免费[0m
+[32m08:42:16.008[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1546 [32m⚔️ 状态机: 进入副本战斗 - 风暴之巅[0m
+[32m08:42:16.008[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:42:16.321[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:42:16.322[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:42:16.574[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:42:17.579[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:749 [32m⚔️ 开始自动战斗[0m
+[32m08:42:17.580[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:42:18.597[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:42:18.598[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:42:18.858[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:42:19.917[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:765 [32m内置自动战斗: True[0m
+⚔️ 战斗进度 [35/19] |                                           | 35/? [00:00<?]⚔️ 战斗进度 [35/19] |                                       | 36/? [01:01<00:00]⚔️ 战斗进度 [35/19] |                                       | 36/? [01:01<00:00]
+[32m08:43:21.286[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:828 [32m✅ 战斗完成[0m
+[32m08:43:21.287[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1694 [32m✅ 完成: 风暴之巅[0m
+[32m08:43:21.287[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1562 [32m🎁 状态机: 处理副本奖励[0m
+[32m08:43:21.289[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 dungeon_db.py:122 [32m💾 记录通关: 迷雾大陆 - 风暴之巅[0m
+[32m08:43:22.291[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:43:22.291[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:43:22.376[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:43:22.376[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1571 [32m🧹 状态机: 卖出垃圾道具[0m
+[32m08:43:22.376[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:932 [32m💰 卖垃圾[0m
+[32m08:43:23.636[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:629 [32m🔙 点击返回按钮[0m
+[32m08:43:23.637[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 装备 [区域[7, 8, 9]][0m
+[32m08:43:23.882[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '装备' 置信度:1.000 位置:(196, 1213) 缓存:是 耗时:0.000s[0m
+[32m08:43:23.882[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 装备 [区域[7, 8, 9]][0m
+[32m08:43:24.112[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 装备 [区域[7, 8, 9]] at (196, 1213)[0m
+[32m08:43:25.116[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 整理售卖 [区域[7, 8, 9]][0m
+[32m08:43:25.347[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '整理售卖' 置信度:0.999 位置:(442, 1110) 缓存:是 耗时:0.000s[0m
+[32m08:43:25.347[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 整理售卖 [区域[7, 8, 9]][0m
+[32m08:43:25.593[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 整理售卖 [区域[7, 8, 9]] at (442, 1110)[0m
+[32m08:43:29.077[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:629 [32m🔙 点击返回按钮[0m
+[32m08:43:30.310[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:629 [32m🔙 点击返回按钮[0m
+[32m08:43:30.311[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:43:30.311[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:43:30.425[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:43:30.425[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [45/98] 未选定，跳过: 酿酒厂[0m
+[32m08:43:30.425[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1669 [32m
+🎯 [46/98] 处理副本: 风暴王座[0m
+[32m08:43:30.425[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1514 [32m🗺️ 状态机: 前往区域 迷雾大陆，寻找副本 风暴王座[0m
+[32m08:43:30.425[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:43:30.533[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:43:30.772[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:733 [32m🗺️ 打开地图[0m
+[32m08:43:31.778[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:915 [32m
+==================================================[0m
+[32m08:43:31.778[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:916 [32m🌍 切换区域: 迷雾大陆[0m
+[32m08:43:31.778[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:917 [32m==================================================[0m
+[32m08:43:31.778[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 切换区域[0m
+[32m08:43:32.035[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '切换区域' 置信度:0.993 位置:(359, 1064) 缓存:是[0m
+[32m08:43:32.036[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 切换区域[0m
+[32m08:43:32.273[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 切换区域 at (359, 1064)[0m
+[32m08:43:33.277[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 迷雾大陆 (第2个)[0m
+[32m08:43:33.491[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第2个匹配，但只找到1个，使用最后一个[0m
+[32m08:43:33.492[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '迷雾大陆LV.200-LV.250' 置信度:0.961 位置:(358, 846) 缓存:是[0m
+[32m08:43:33.492[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 迷雾大陆 (第2个)[0m
+[32m08:43:33.751[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 迷雾大陆 at (358, 846)[0m
+[32m08:43:34.757[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:923 [32m✅ 成功切换到: 迷雾大陆[0m
+[32m08:43:35.009[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 风暴王座 (第9个)[0m
+[32m08:43:35.217[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第9个匹配，但只找到1个，使用最后一个[0m
+[32m08:43:35.217[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '风暴王座' 置信度:0.999 位置:(130, 640) 缓存:是[0m
+[32m08:43:35.217[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 风暴王座 (第9个)[0m
+[32m08:43:35.442[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 风暴王座 at (130, 640)[0m
+[32m08:43:36.448[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 免费 [区域[8]][0m
+[32m08:43:36.989[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '免费(1/1)' 置信度:0.893 位置:(306, 920) 缓存:否 耗时:0.362s[0m
+[32m08:43:36.990[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 免费 [区域[8]][0m
+[32m08:43:37.240[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 免费 [区域[8]] at (306, 920)[0m
+[32m08:43:38.245[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:642 [32m💰 点击了免费按钮: 免费[0m
+[32m08:43:38.245[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1546 [32m⚔️ 状态机: 进入副本战斗 - 风暴王座[0m
+[32m08:43:38.246[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:43:38.464[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.997 位置:(393, 1211) 缓存:是 耗时:0.000s[0m
+[32m08:43:38.464[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:43:38.717[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (393, 1211)[0m
+[32m08:43:39.722[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:749 [32m⚔️ 开始自动战斗[0m
+[32m08:43:39.722[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:43:40.047[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:43:40.047[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:43:40.293[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:43:41.355[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:765 [32m内置自动战斗: True[0m
+⚔️ 战斗进度 [36/19] |                                           | 36/? [00:00<?]⚔️ 战斗进度 [36/19] |                                       | 37/? [00:52<00:00]⚔️ 战斗进度 [36/19] |                                       | 37/? [00:52<00:00]
+[32m08:44:34.093[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:828 [32m✅ 战斗完成[0m
+[32m08:44:34.095[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1694 [32m✅ 完成: 风暴王座[0m
+[32m08:44:34.095[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1562 [32m🎁 状态机: 处理副本奖励[0m
+[32m08:44:34.098[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 dungeon_db.py:122 [32m💾 记录通关: 迷雾大陆 - 风暴王座[0m
+[32m08:44:35.104[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:44:35.104[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:44:35.179[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:44:35.179[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [47/98] 未选定，跳过: 青龙寺[0m
+[32m08:44:35.179[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [48/98] 未选定，跳过: 白虎寺[0m
+[32m08:44:35.179[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [49/98] 未选定，跳过: 日落关[0m
+[32m08:44:35.179[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [50/98] 未选定，跳过: 玄牛寺[0m
+[32m08:44:35.179[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2172 [32m
+✅ 完成区域: 迷雾大陆[0m
+[32m08:44:35.179[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2113 [32m
+############################################################[0m
+[32m08:44:35.179[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2114 [32m# 🌍 [5/8] 区域: 元素之地[0m
+[32m08:44:35.179[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2115 [32m# 🎯 副本数: 11[0m
+[32m08:44:35.179[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2116 [32m############################################################[0m
+[32m08:44:35.180[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1669 [32m
+🎯 [51/98] 处理副本: 火焰宫殿[0m
+[32m08:44:35.180[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1514 [32m🗺️ 状态机: 前往区域 元素之地，寻找副本 火焰宫殿[0m
+[32m08:44:35.180[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:44:35.245[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:44:35.483[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:733 [32m🗺️ 打开地图[0m
+[32m08:44:36.488[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:915 [32m
+==================================================[0m
+[32m08:44:36.489[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:916 [32m🌍 切换区域: 元素之地[0m
+[32m08:44:36.489[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:917 [32m==================================================[0m
+[32m08:44:36.489[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 切换区域[0m
+[32m08:44:36.694[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '切换区域' 置信度:0.993 位置:(359, 1064) 缓存:是[0m
+[32m08:44:36.694[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 切换区域[0m
+[32m08:44:36.942[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 切换区域 at (359, 1064)[0m
+[32m08:44:37.946[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 元素之地 (第2个)[0m
+[32m08:44:38.174[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第2个匹配，但只找到1个，使用最后一个[0m
+[32m08:44:38.175[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '元素之地LV.150-Lv.200' 置信度:0.947 位置:(360, 800) 缓存:是[0m
+[32m08:44:38.175[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 元素之地 (第2个)[0m
+[32m08:44:38.406[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 元素之地 at (360, 800)[0m
+[32m08:44:39.409[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:923 [32m✅ 成功切换到: 元素之地[0m
+[32m08:44:39.640[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 火焰宫殿 (第9个)[0m
+[32m08:44:39.837[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第9个匹配，但只找到1个，使用最后一个[0m
+[32m08:44:39.837[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '火焰宫殿' 置信度:0.977 位置:(255, 333) 缓存:是[0m
+[32m08:44:39.837[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 火焰宫殿 (第9个)[0m
+[32m08:44:40.083[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 火焰宫殿 at (255, 333)[0m
+[32m08:44:41.088[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 免费 [区域[8]][0m
+[32m08:44:41.969[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '免费（(1/1)' 置信度:0.815 位置:(306, 920) 缓存:否 耗时:0.774s[0m
+[32m08:44:41.969[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 免费 [区域[8]][0m
+[32m08:44:42.214[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 免费 [区域[8]] at (306, 920)[0m
+[32m08:44:43.218[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:642 [32m💰 点击了免费按钮: 免费[0m
+[32m08:44:43.219[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1546 [32m⚔️ 状态机: 进入副本战斗 - 火焰宫殿[0m
+[32m08:44:43.219[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:44:43.555[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:44:43.555[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:44:43.795[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:44:44.800[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:749 [32m⚔️ 开始自动战斗[0m
+[32m08:44:44.800[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:44:45.066[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:44:45.066[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:44:45.307[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:44:46.369[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:765 [32m内置自动战斗: True[0m
+⚔️ 战斗进度 [37/19] |                                           | 37/? [00:00<?]⚔️ 战斗进度 [37/19] |                                       | 38/? [00:41<00:00]⚔️ 战斗进度 [37/19] |                                       | 38/? [00:41<00:00]
+[32m08:45:27.858[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:828 [32m✅ 战斗完成[0m
+[32m08:45:27.860[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1694 [32m✅ 完成: 火焰宫殿[0m
+[32m08:45:27.860[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1562 [32m🎁 状态机: 处理副本奖励[0m
+[32m08:45:27.864[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 dungeon_db.py:122 [32m💾 记录通关: 元素之地 - 火焰宫殿[0m
+[32m08:45:28.870[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:45:28.870[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:45:28.953[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:45:28.955[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1669 [32m
+🎯 [52/98] 处理副本: 守护者神殿[0m
+[32m08:45:28.955[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1514 [32m🗺️ 状态机: 前往区域 元素之地，寻找副本 守护者神殿[0m
+[32m08:45:28.955[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:45:29.014[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:45:29.247[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:733 [32m🗺️ 打开地图[0m
+[32m08:45:30.248[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:915 [32m
+==================================================[0m
+[32m08:45:30.248[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:916 [32m🌍 切换区域: 元素之地[0m
+[32m08:45:30.248[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:917 [32m==================================================[0m
+[32m08:45:30.248[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 切换区域[0m
+[32m08:45:30.513[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '切换区域' 置信度:0.993 位置:(359, 1064) 缓存:是[0m
+[32m08:45:30.514[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 切换区域[0m
+[32m08:45:30.750[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 切换区域 at (359, 1064)[0m
+[32m08:45:31.756[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 元素之地 (第2个)[0m
+[32m08:45:31.944[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第2个匹配，但只找到1个，使用最后一个[0m
+[32m08:45:31.944[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '元素之地LV.150-Lv.200' 置信度:0.947 位置:(360, 800) 缓存:是[0m
+[32m08:45:31.944[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 元素之地 (第2个)[0m
+[32m08:45:32.214[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 元素之地 at (360, 800)[0m
+[32m08:45:33.220[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:923 [32m✅ 成功切换到: 元素之地[0m
+[32m08:45:33.442[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 守护者神殿 (第9个)[0m
+[32m08:45:33.654[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第9个匹配，但只找到1个，使用最后一个[0m
+[32m08:45:33.654[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '守护者神殿' 置信度:0.998 位置:(502, 355) 缓存:是[0m
+[32m08:45:33.655[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 守护者神殿 (第9个)[0m
+[32m08:45:33.885[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 守护者神殿 at (502, 355)[0m
+[32m08:45:34.887[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 免费 [区域[8]][0m
+[32m08:45:35.658[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '免费(1/1)' 置信度:0.867 位置:(306, 920) 缓存:否 耗时:0.666s[0m
+[32m08:45:35.658[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 免费 [区域[8]][0m
+[32m08:45:35.917[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 免费 [区域[8]] at (306, 920)[0m
+[32m08:45:36.923[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:642 [32m💰 点击了免费按钮: 免费[0m
+[32m08:45:36.923[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1546 [32m⚔️ 状态机: 进入副本战斗 - 守护者神殿[0m
+[32m08:45:36.923[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:45:37.189[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:45:37.189[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:45:37.412[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:45:38.414[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:749 [32m⚔️ 开始自动战斗[0m
+[32m08:45:38.414[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:45:38.709[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:45:38.709[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:45:38.941[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:45:40.016[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:765 [32m内置自动战斗: True[0m
+⚔️ 战斗进度 [38/19] |                                           | 38/? [00:00<?]⚔️ 战斗进度 [38/19] |                                       | 39/? [00:41<00:00]⚔️ 战斗进度 [38/19] |                                       | 39/? [00:41<00:00]
+[32m08:46:21.097[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:828 [32m✅ 战斗完成[0m
+[32m08:46:21.099[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1694 [32m✅ 完成: 守护者神殿[0m
+[32m08:46:21.099[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1562 [32m🎁 状态机: 处理副本奖励[0m
+[32m08:46:21.104[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 dungeon_db.py:122 [32m💾 记录通关: 元素之地 - 守护者神殿[0m
+[32m08:46:22.109[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:46:22.109[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:46:22.184[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:46:22.184[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1571 [32m🧹 状态机: 卖出垃圾道具[0m
+[32m08:46:22.184[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:932 [32m💰 卖垃圾[0m
+[32m08:46:23.422[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:629 [32m🔙 点击返回按钮[0m
+[32m08:46:23.423[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 装备 [区域[7, 8, 9]][0m
+[32m08:46:23.785[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '装备' 置信度:1.000 位置:(196, 1213) 缓存:是 耗时:0.000s[0m
+[32m08:46:23.786[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 装备 [区域[7, 8, 9]][0m
+[32m08:46:24.018[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 装备 [区域[7, 8, 9]] at (196, 1213)[0m
+[32m08:46:25.024[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 整理售卖 [区域[7, 8, 9]][0m
+[32m08:46:25.223[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '整理售卖' 置信度:0.999 位置:(442, 1110) 缓存:是 耗时:0.000s[0m
+[32m08:46:25.224[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 整理售卖 [区域[7, 8, 9]][0m
+[32m08:46:25.449[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 整理售卖 [区域[7, 8, 9]] at (442, 1110)[0m
+[32m08:46:28.954[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:629 [32m🔙 点击返回按钮[0m
+[32m08:46:30.187[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:629 [32m🔙 点击返回按钮[0m
+[32m08:46:30.188[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:46:30.189[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:46:30.276[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:46:30.276[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [53/98] 未选定，跳过: 黑龙宫殿[0m
+[32m08:46:30.276[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [54/98] 未选定，跳过: 黑暗堡垒[0m
+[32m08:46:30.276[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [55/98] 未选定，跳过: 潮汐宫殿[0m
+[32m08:46:30.276[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [56/98] 未选定，跳过: 黑暗监狱[0m
+[32m08:46:30.276[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [57/98] 未选定，跳过: 泰坦密室[0m
+[32m08:46:30.276[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [58/98] 未选定，跳过: 大地神殿[0m
+[32m08:46:30.276[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [59/98] 未选定，跳过: 失落之城[0m
+[32m08:46:30.277[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1669 [32m
+🎯 [60/98] 处理副本: 天空之城[0m
+[32m08:46:30.277[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1514 [32m🗺️ 状态机: 前往区域 元素之地，寻找副本 天空之城[0m
+[32m08:46:30.277[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:46:30.448[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:46:30.680[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:733 [32m🗺️ 打开地图[0m
+[32m08:46:31.685[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:915 [32m
+==================================================[0m
+[32m08:46:31.685[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:916 [32m🌍 切换区域: 元素之地[0m
+[32m08:46:31.685[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:917 [32m==================================================[0m
+[32m08:46:31.686[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 切换区域[0m
+[32m08:46:32.462[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '切换区域' 置信度:0.993 位置:(359, 1064) 缓存:是[0m
+[32m08:46:32.463[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 切换区域[0m
+[32m08:46:32.725[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 切换区域 at (359, 1064)[0m
+[32m08:46:33.734[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 元素之地 (第2个)[0m
+[32m08:46:34.090[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第2个匹配，但只找到1个，使用最后一个[0m
+[32m08:46:34.090[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '元素之地LV.150-Lv.200' 置信度:0.947 位置:(360, 800) 缓存:是[0m
+[32m08:46:34.090[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 元素之地 (第2个)[0m
+[32m08:46:34.307[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 元素之地 at (360, 800)[0m
+[32m08:46:35.311[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:923 [32m✅ 成功切换到: 元素之地[0m
+[32m08:46:35.550[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 天空之城 (第9个)[0m
+[32m08:46:35.768[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第9个匹配，但只找到1个，使用最后一个[0m
+[32m08:46:35.768[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '天空之城' 置信度:0.999 位置:(509, 747) 缓存:是[0m
+[32m08:46:35.768[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 天空之城 (第9个)[0m
+[32m08:46:36.013[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 天空之城 at (509, 747)[0m
+[32m08:46:37.015[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 免费 [区域[8]][0m
+[32m08:46:38.150[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '免费（1/1)' 置信度:0.877 位置:(306, 920) 缓存:否 耗时:0.959s[0m
+[32m08:46:38.150[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 免费 [区域[8]][0m
+[32m08:46:38.389[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 免费 [区域[8]] at (306, 920)[0m
+[32m08:46:39.393[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:642 [32m💰 点击了免费按钮: 免费[0m
+[32m08:46:39.394[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1546 [32m⚔️ 状态机: 进入副本战斗 - 天空之城[0m
+[32m08:46:39.394[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:46:39.695[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.997 位置:(393, 1211) 缓存:是 耗时:0.000s[0m
+[32m08:46:39.695[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:46:39.947[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (393, 1211)[0m
+[32m08:46:40.953[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:749 [32m⚔️ 开始自动战斗[0m
+[32m08:46:40.953[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:46:41.229[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:46:41.230[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:46:41.494[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:46:42.565[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:765 [32m内置自动战斗: True[0m
+⚔️ 战斗进度 [39/19] |                                           | 39/? [00:00<?]⚔️ 战斗进度 [39/19] |                                       | 40/? [00:35<00:00]⚔️ 战斗进度 [39/19] |                                       | 40/? [00:35<00:00]
+[32m08:47:17.826[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:828 [32m✅ 战斗完成[0m
+[32m08:47:17.827[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1694 [32m✅ 完成: 天空之城[0m
+[32m08:47:17.828[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1562 [32m🎁 状态机: 处理副本奖励[0m
+[32m08:47:17.830[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 dungeon_db.py:122 [32m💾 记录通关: 元素之地 - 天空之城[0m
+[32m08:47:18.839[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:47:18.840[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:47:19.019[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:47:19.020[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [61/98] 未选定，跳过: 黑石熔炉[0m
+[32m08:47:19.020[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2172 [32m
+✅ 完成区域: 元素之地[0m
+[32m08:47:19.021[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2113 [32m
+############################################################[0m
+[32m08:47:19.022[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2114 [32m# 🌍 [6/8] 区域: 冰封大陆[0m
+[32m08:47:19.023[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2115 [32m# 🎯 副本数: 11[0m
+[32m08:47:19.023[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2116 [32m############################################################[0m
+[32m08:47:19.023[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [62/98] 未选定，跳过: 泰坦基地[0m
+[32m08:47:19.023[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [63/98] 未选定，跳过: 冠军试炼[0m
+[32m08:47:19.023[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [64/98] 未选定，跳过: 寒冰堡垒[0m
+[32m08:47:19.031[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1669 [32m
+🎯 [65/98] 处理副本: 寒冰王座[0m
+[32m08:47:19.035[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1514 [32m🗺️ 状态机: 前往区域 冰封大陆，寻找副本 寒冰王座[0m
+[32m08:47:19.036[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:47:19.212[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:47:19.465[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:733 [32m🗺️ 打开地图[0m
+[32m08:47:20.483[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:915 [32m
+==================================================[0m
+[32m08:47:20.487[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:916 [32m🌍 切换区域: 冰封大陆[0m
+[32m08:47:20.487[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:917 [32m==================================================[0m
+[32m08:47:20.491[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 切换区域[0m
+[32m08:47:21.345[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '切换区域' 置信度:0.993 位置:(359, 1064) 缓存:是[0m
+[32m08:47:21.345[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 切换区域[0m
+[32m08:47:21.726[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 切换区域 at (359, 1064)[0m
+[32m08:47:22.735[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 冰封大陆 (第2个)[0m
+[32m08:47:23.197[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第2个匹配，但只找到1个，使用最后一个[0m
+[32m08:47:23.198[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '冰封大陆LV.100-LV.150' 置信度:0.930 位置:(359, 754) 缓存:是[0m
+[32m08:47:23.198[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 冰封大陆 (第2个)[0m
+[32m08:47:23.457[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 冰封大陆 at (359, 754)[0m
+[32m08:47:24.465[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:923 [32m✅ 成功切换到: 冰封大陆[0m
+[32m08:47:24.754[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 寒冰王座 (第9个)[0m
+[32m08:47:25.819[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第9个匹配，但只找到1个，使用最后一个[0m
+[32m08:47:25.820[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '寒冰王座' 置信度:0.999 位置:(574, 461) 缓存:是[0m
+[32m08:47:25.822[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 寒冰王座 (第9个)[0m
+[32m08:47:26.169[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 寒冰王座 at (574, 461)[0m
+[32m08:47:27.218[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 免费 [区域[8]][0m
+[32m08:47:29.928[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '免费(1/1)' 置信度:0.854 位置:(306, 920) 缓存:否 耗时:1.960s[0m
+[32m08:47:29.928[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 免费 [区域[8]][0m
+[32m08:47:30.177[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 免费 [区域[8]] at (306, 920)[0m
+[32m08:47:31.178[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:642 [32m💰 点击了免费按钮: 免费[0m
+[32m08:47:31.178[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1546 [32m⚔️ 状态机: 进入副本战斗 - 寒冰王座[0m
+[32m08:47:31.179[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:47:31.494[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:47:31.495[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:47:31.751[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:47:32.753[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:749 [32m⚔️ 开始自动战斗[0m
+[32m08:47:32.754[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:47:33.140[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:47:33.140[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:47:33.476[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:47:34.526[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:765 [32m内置自动战斗: True[0m
+⚔️ 战斗进度 [40/19] |                                           | 40/? [00:00<?]⚔️ 战斗进度 [40/19] |                                       | 41/? [00:30<00:00]⚔️ 战斗进度 [40/19] |                                       | 41/? [00:30<00:00]
+[32m08:48:05.235[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:828 [32m✅ 战斗完成[0m
+[32m08:48:05.236[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1694 [32m✅ 完成: 寒冰王座[0m
+[32m08:48:05.236[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1562 [32m🎁 状态机: 处理副本奖励[0m
+[32m08:48:05.237[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 dungeon_db.py:122 [32m💾 记录通关: 冰封大陆 - 寒冰王座[0m
+[32m08:48:06.243[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:48:06.243[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:48:06.370[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:48:06.370[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [66/98] 未选定，跳过: 灵魂熔炉[0m
+[32m08:48:06.370[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [67/98] 未选定，跳过: 瘟疫之城[0m
+[32m08:48:06.370[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [68/98] 未选定，跳过: 古代大厅[0m
+[32m08:48:06.370[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [69/98] 未选定，跳过: 古代王国[0m
+[32m08:48:06.370[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [70/98] 未选定，跳过: 巨魔要塞[0m
+[32m08:48:06.370[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1669 [32m
+🎯 [71/98] 处理副本: 峡湾城堡[0m
+[32m08:48:06.371[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1514 [32m🗺️ 状态机: 前往区域 冰封大陆，寻找副本 峡湾城堡[0m
+[32m08:48:06.371[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:48:06.457[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:48:06.689[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:733 [32m🗺️ 打开地图[0m
+[32m08:48:07.693[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:915 [32m
+==================================================[0m
+[32m08:48:07.693[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:916 [32m🌍 切换区域: 冰封大陆[0m
+[32m08:48:07.693[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:917 [32m==================================================[0m
+[32m08:48:07.693[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 切换区域[0m
+[32m08:48:07.937[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '切换区域' 置信度:0.993 位置:(359, 1064) 缓存:是[0m
+[32m08:48:07.937[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 切换区域[0m
+[32m08:48:08.181[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 切换区域 at (359, 1064)[0m
+[32m08:48:09.186[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 冰封大陆 (第2个)[0m
+[32m08:48:09.397[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第2个匹配，但只找到1个，使用最后一个[0m
+[32m08:48:09.397[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '冰封大陆LV.100-LV.150' 置信度:0.930 位置:(359, 754) 缓存:是[0m
+[32m08:48:09.397[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 冰封大陆 (第2个)[0m
+[32m08:48:09.650[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 冰封大陆 at (359, 754)[0m
+[32m08:48:10.653[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:923 [32m✅ 成功切换到: 冰封大陆[0m
+[32m08:48:10.898[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 峡湾城堡 (第9个)[0m
+[32m08:48:11.164[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第9个匹配，但只找到1个，使用最后一个[0m
+[32m08:48:11.164[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '峡湾城堡' 置信度:0.999 位置:(441, 742) 缓存:是[0m
+[32m08:48:11.165[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 峡湾城堡 (第9个)[0m
+[32m08:48:11.418[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 峡湾城堡 at (441, 742)[0m
+[32m08:48:12.419[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 免费 [区域[8]][0m
+[32m08:48:13.609[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '免费(1/1)' 置信度:0.854 位置:(306, 920) 缓存:否 耗时:1.072s[0m
+[32m08:48:13.609[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 免费 [区域[8]][0m
+[32m08:48:13.849[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 免费 [区域[8]] at (306, 920)[0m
+[32m08:48:14.854[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:642 [32m💰 点击了免费按钮: 免费[0m
+[32m08:48:14.854[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1546 [32m⚔️ 状态机: 进入副本战斗 - 峡湾城堡[0m
+[32m08:48:14.854[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:48:15.106[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:48:15.106[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:48:15.351[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:48:16.356[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:749 [32m⚔️ 开始自动战斗[0m
+[32m08:48:16.357[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:48:16.654[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:48:16.654[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:48:16.880[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:48:17.924[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:765 [32m内置自动战斗: True[0m
+⚔️ 战斗进度 [41/19] |                                           | 41/? [00:00<?]⚔️ 战斗进度 [41/19] |                                       | 42/? [00:27<00:00]⚔️ 战斗进度 [41/19] |                                       | 42/? [00:27<00:00]
+[32m08:48:45.084[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:828 [32m✅ 战斗完成[0m
+[32m08:48:45.084[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1694 [32m✅ 完成: 峡湾城堡[0m
+[32m08:48:45.085[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1562 [32m🎁 状态机: 处理副本奖励[0m
+[32m08:48:45.086[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 dungeon_db.py:122 [32m💾 记录通关: 冰封大陆 - 峡湾城堡[0m
+[32m08:48:46.091[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:48:46.091[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:48:46.187[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:48:46.187[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1571 [32m🧹 状态机: 卖出垃圾道具[0m
+[32m08:48:46.187[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:932 [32m💰 卖垃圾[0m
+[32m08:48:47.423[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:629 [32m🔙 点击返回按钮[0m
+[32m08:48:47.423[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 装备 [区域[7, 8, 9]][0m
+[32m08:48:47.686[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '装备' 置信度:1.000 位置:(196, 1213) 缓存:是 耗时:0.000s[0m
+[32m08:48:47.686[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 装备 [区域[7, 8, 9]][0m
+[32m08:48:47.937[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 装备 [区域[7, 8, 9]] at (196, 1213)[0m
+[32m08:48:48.943[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 整理售卖 [区域[7, 8, 9]][0m
+[32m08:48:49.171[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '整理售卖' 置信度:0.999 位置:(442, 1110) 缓存:是 耗时:0.000s[0m
+[32m08:48:49.171[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 整理售卖 [区域[7, 8, 9]][0m
+[32m08:48:49.416[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 整理售卖 [区域[7, 8, 9]] at (442, 1110)[0m
+[32m08:48:52.913[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:629 [32m🔙 点击返回按钮[0m
+[32m08:48:54.162[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:629 [32m🔙 点击返回按钮[0m
+[32m08:48:54.162[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:48:54.162[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:48:54.219[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:48:54.220[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1669 [32m
+🎯 [72/98] 处理副本: 蓝龙巢穴[0m
+[32m08:48:54.220[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1514 [32m🗺️ 状态机: 前往区域 冰封大陆，寻找副本 蓝龙巢穴[0m
+[32m08:48:54.220[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:48:54.302[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:48:54.558[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:733 [32m🗺️ 打开地图[0m
+[32m08:48:55.564[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:915 [32m
+==================================================[0m
+[32m08:48:55.564[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:916 [32m🌍 切换区域: 冰封大陆[0m
+[32m08:48:55.564[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:917 [32m==================================================[0m
+[32m08:48:55.564[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 切换区域[0m
+[32m08:48:55.787[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '切换区域' 置信度:0.993 位置:(359, 1064) 缓存:是[0m
+[32m08:48:55.787[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 切换区域[0m
+[32m08:48:56.008[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 切换区域 at (359, 1064)[0m
+[32m08:48:57.013[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 冰封大陆 (第2个)[0m
+[32m08:48:57.232[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第2个匹配，但只找到1个，使用最后一个[0m
+[32m08:48:57.232[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '冰封大陆LV.100-LV.150' 置信度:0.930 位置:(359, 754) 缓存:是[0m
+[32m08:48:57.232[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 冰封大陆 (第2个)[0m
+[32m08:48:57.492[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 冰封大陆 at (359, 754)[0m
+[32m08:48:58.492[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:923 [32m✅ 成功切换到: 冰封大陆[0m
+[32m08:48:58.762[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 蓝龙巢穴 (第9个)[0m
+[32m08:48:59.243[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第9个匹配，但只找到1个，使用最后一个[0m
+[32m08:48:59.243[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '蓝龙巢穴' 置信度:0.996 位置:(224, 752) 缓存:是[0m
+[32m08:48:59.243[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 蓝龙巢穴 (第9个)[0m
+[32m08:48:59.489[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 蓝龙巢穴 at (224, 752)[0m
+[32m08:49:00.495[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 免费 [区域[8]][0m
+[32m08:49:01.595[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '免费(1/1)' 置信度:0.864 位置:(306, 920) 缓存:否 耗时:0.990s[0m
+[32m08:49:01.595[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 免费 [区域[8]][0m
+[32m08:49:01.812[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 免费 [区域[8]] at (306, 920)[0m
+[32m08:49:02.812[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:642 [32m💰 点击了免费按钮: 免费[0m
+[32m08:49:02.813[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1546 [32m⚔️ 状态机: 进入副本战斗 - 蓝龙巢穴[0m
+[32m08:49:02.813[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:49:03.066[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.997 位置:(393, 1211) 缓存:是 耗时:0.000s[0m
+[32m08:49:03.066[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:49:03.316[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (393, 1211)[0m
+[32m08:49:04.321[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:749 [32m⚔️ 开始自动战斗[0m
+[32m08:49:04.322[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:49:04.652[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:49:04.653[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:49:04.884[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:49:05.925[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:765 [32m内置自动战斗: True[0m
+⚔️ 战斗进度 [42/19] |                                           | 42/? [00:00<?]⚔️ 战斗进度 [42/19] |                                       | 43/? [00:26<00:00]⚔️ 战斗进度 [42/19] |                                       | 43/? [00:26<00:00]
+[32m08:49:32.819[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:828 [32m✅ 战斗完成[0m
+[32m08:49:32.819[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1694 [32m✅ 完成: 蓝龙巢穴[0m
+[32m08:49:32.819[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1562 [32m🎁 状态机: 处理副本奖励[0m
+[32m08:49:32.821[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 dungeon_db.py:122 [32m💾 记录通关: 冰封大陆 - 蓝龙巢穴[0m
+[32m08:49:33.826[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:49:33.826[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:49:33.890[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:49:33.891[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2172 [32m
+✅ 完成区域: 冰封大陆[0m
+[32m08:49:33.891[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2113 [32m
+############################################################[0m
+[32m08:49:33.891[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2114 [32m# 🌍 [7/8] 区域: 虚空领域[0m
+[32m08:49:33.891[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2115 [32m# 🎯 副本数: 12[0m
+[32m08:49:33.891[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2116 [32m############################################################[0m
+[32m08:49:33.891[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [73/98] 未选定，跳过: 魔法之井[0m
+[32m08:49:33.891[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1669 [32m
+🎯 [74/98] 处理副本: 虚空要塞[0m
+[32m08:49:33.891[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1514 [32m🗺️ 状态机: 前往区域 虚空领域，寻找副本 虚空要塞[0m
+[32m08:49:33.892[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:49:33.955[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:49:34.206[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:733 [32m🗺️ 打开地图[0m
+[32m08:49:35.212[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:915 [32m
+==================================================[0m
+[32m08:49:35.212[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:916 [32m🌍 切换区域: 虚空领域[0m
+[32m08:49:35.212[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:917 [32m==================================================[0m
+[32m08:49:35.212[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 切换区域[0m
+[32m08:49:35.434[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '切换区域' 置信度:0.993 位置:(359, 1064) 缓存:是[0m
+[32m08:49:35.434[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 切换区域[0m
+[32m08:49:35.689[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 切换区域 at (359, 1064)[0m
+[32m08:49:36.690[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 虚空领域 (第2个)[0m
+[32m08:49:36.895[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第2个匹配，但只找到1个，使用最后一个[0m
+[32m08:49:36.895[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '虚空领域LV.60-LV.100' 置信度:0.925 位置:(360, 708) 缓存:是[0m
+[32m08:49:36.896[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 虚空领域 (第2个)[0m
+[32m08:49:37.119[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 虚空领域 at (360, 708)[0m
+[32m08:49:38.121[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:923 [32m✅ 成功切换到: 虚空领域[0m
+[32m08:49:38.348[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 虚空要塞 (第9个)[0m
+[32m08:49:39.016[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第9个匹配，但只找到1个，使用最后一个[0m
+[32m08:49:39.016[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '虚空要塞' 置信度:0.998 位置:(260, 296) 缓存:是[0m
+[32m08:49:39.017[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 虚空要塞 (第9个)[0m
+[32m08:49:39.255[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 虚空要塞 at (260, 296)[0m
+[32m08:49:40.260[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 免费 [区域[8]][0m
+[32m08:49:41.311[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '免费(1/1)' 置信度:0.864 位置:(306, 920) 缓存:否 耗时:0.937s[0m
+[32m08:49:41.311[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 免费 [区域[8]][0m
+[32m08:49:41.552[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 免费 [区域[8]] at (306, 920)[0m
+[32m08:49:42.557[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:642 [32m💰 点击了免费按钮: 免费[0m
+[32m08:49:42.558[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1546 [32m⚔️ 状态机: 进入副本战斗 - 虚空要塞[0m
+[32m08:49:42.558[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:49:42.816[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:49:42.816[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:49:43.064[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:49:44.065[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:749 [32m⚔️ 开始自动战斗[0m
+[32m08:49:44.066[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:49:44.345[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:49:44.345[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:49:44.580[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:49:45.634[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:765 [32m内置自动战斗: True[0m
+⚔️ 战斗进度 [43/19] |                                           | 43/? [00:00<?]⚔️ 战斗进度 [43/19] |                                       | 44/? [00:19<00:00]⚔️ 战斗进度 [43/19] |                                       | 44/? [00:19<00:00]
+[32m08:50:05.264[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:828 [32m✅ 战斗完成[0m
+[32m08:50:05.265[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1694 [32m✅ 完成: 虚空要塞[0m
+[32m08:50:05.265[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1562 [32m🎁 状态机: 处理副本奖励[0m
+[32m08:50:05.268[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 dungeon_db.py:122 [32m💾 记录通关: 虚空领域 - 虚空要塞[0m
+[32m08:50:06.273[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:50:06.273[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:50:06.369[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:50:06.369[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [75/98] 未选定，跳过: 海底神殿[0m
+[32m08:50:06.369[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [76/98] 未选定，跳过: 守护者之塔上层[0m
+[32m08:50:06.369[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [77/98] 未选定，跳过: 黑暗神殿[0m
+[32m08:50:06.370[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1669 [32m
+🎯 [78/98] 处理副本: 守护者之塔下层[0m
+[32m08:50:06.370[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1514 [32m🗺️ 状态机: 前往区域 虚空领域，寻找副本 守护者之塔下层[0m
+[32m08:50:06.370[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:50:06.453[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:50:06.685[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:733 [32m🗺️ 打开地图[0m
+[32m08:50:07.697[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:915 [32m
+==================================================[0m
+[32m08:50:07.698[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:916 [32m🌍 切换区域: 虚空领域[0m
+[32m08:50:07.698[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:917 [32m==================================================[0m
+[32m08:50:07.699[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 切换区域[0m
+[32m08:50:08.000[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '切换区域' 置信度:0.993 位置:(359, 1064) 缓存:是[0m
+[32m08:50:08.000[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 切换区域[0m
+[32m08:50:08.261[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 切换区域 at (359, 1064)[0m
+[32m08:50:09.266[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 虚空领域 (第2个)[0m
+[32m08:50:09.520[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第2个匹配，但只找到1个，使用最后一个[0m
+[32m08:50:09.520[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '虚空领域LV.60-LV.100' 置信度:0.925 位置:(360, 708) 缓存:是[0m
+[32m08:50:09.520[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 虚空领域 (第2个)[0m
+[32m08:50:09.752[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 虚空领域 at (360, 708)[0m
+[32m08:50:10.755[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:923 [32m✅ 成功切换到: 虚空领域[0m
+[32m08:50:10.980[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 守护者之塔下层 (第9个)[0m
+[32m08:50:11.676[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第9个匹配，但只找到1个，使用最后一个[0m
+[32m08:50:11.676[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '守护者之塔下层' 置信度:0.996 位置:(561, 515) 缓存:是[0m
+[32m08:50:11.676[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 守护者之塔下层 (第9个)[0m
+[32m08:50:11.920[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 守护者之塔下层 at (561, 515)[0m
+[32m08:50:12.925[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 免费 [区域[8]][0m
+[32m08:50:13.870[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '免费(1/1)' 置信度:0.863 位置:(306, 920) 缓存:否 耗时:0.807s[0m
+[32m08:50:13.871[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 免费 [区域[8]][0m
+[32m08:50:14.149[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 免费 [区域[8]] at (306, 920)[0m
+[32m08:50:15.152[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:642 [32m💰 点击了免费按钮: 免费[0m
+[32m08:50:15.152[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1546 [32m⚔️ 状态机: 进入副本战斗 - 守护者之塔下层[0m
+[32m08:50:15.152[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:50:15.462[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:50:15.462[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:50:15.687[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:50:16.689[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:749 [32m⚔️ 开始自动战斗[0m
+[32m08:50:16.690[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:50:16.989[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:50:16.989[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:50:17.220[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:50:18.271[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:765 [32m内置自动战斗: True[0m
+⚔️ 战斗进度 [44/19] |                                           | 44/? [00:00<?]⚔️ 战斗进度 [44/19] |                                       | 45/? [00:22<00:00]⚔️ 战斗进度 [44/19] |                                       | 45/? [00:22<00:00]
+[32m08:50:40.576[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:828 [32m✅ 战斗完成[0m
+[32m08:50:40.577[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1694 [32m✅ 完成: 守护者之塔下层[0m
+[32m08:50:40.577[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1562 [32m🎁 状态机: 处理副本奖励[0m
+[32m08:50:40.582[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 dungeon_db.py:122 [32m💾 记录通关: 虚空领域 - 守护者之塔下层[0m
+[32m08:50:41.585[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:50:41.585[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:50:41.682[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:50:41.683[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1571 [32m🧹 状态机: 卖出垃圾道具[0m
+[32m08:50:41.683[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:932 [32m💰 卖垃圾[0m
+[32m08:50:42.967[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:629 [32m🔙 点击返回按钮[0m
+[32m08:50:42.967[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 装备 [区域[7, 8, 9]][0m
+[32m08:50:43.230[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '装备' 置信度:1.000 位置:(196, 1213) 缓存:是 耗时:0.000s[0m
+[32m08:50:43.230[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 装备 [区域[7, 8, 9]][0m
+[32m08:50:43.454[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 装备 [区域[7, 8, 9]] at (196, 1213)[0m
+[32m08:50:44.459[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 整理售卖 [区域[7, 8, 9]][0m
+[32m08:50:44.706[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '整理售卖' 置信度:0.999 位置:(442, 1110) 缓存:是 耗时:0.000s[0m
+[32m08:50:44.706[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 整理售卖 [区域[7, 8, 9]][0m
+[32m08:50:44.959[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 整理售卖 [区域[7, 8, 9]] at (442, 1110)[0m
+[32m08:50:48.424[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:629 [32m🔙 点击返回按钮[0m
+[32m08:50:49.676[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:629 [32m🔙 点击返回按钮[0m
+[32m08:50:49.677[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:50:49.677[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:50:49.759[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:50:49.760[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [79/98] 未选定，跳过: 圣山战场[0m
+[32m08:50:49.760[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [80/98] 未选定，跳过: 虚空舰[0m
+[32m08:50:49.760[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [81/98] 未选定，跳过: 沼泽水库[0m
+[32m08:50:49.760[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [82/98] 未选定，跳过: 山丘城堡[0m
+[32m08:50:49.760[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [83/98] 未选定，跳过: 地狱火堡垒[0m
+[32m08:50:49.760[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1669 [32m
+🎯 [84/98] 处理副本: 亡者之城[0m
+[32m08:50:49.760[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1514 [32m🗺️ 状态机: 前往区域 虚空领域，寻找副本 亡者之城[0m
+[32m08:50:49.760[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:50:49.853[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:50:50.091[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:733 [32m🗺️ 打开地图[0m
+[32m08:50:51.096[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:915 [32m
+==================================================[0m
+[32m08:50:51.097[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:916 [32m🌍 切换区域: 虚空领域[0m
+[32m08:50:51.097[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:917 [32m==================================================[0m
+[32m08:50:51.097[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 切换区域[0m
+[32m08:50:51.290[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '切换区域' 置信度:0.993 位置:(359, 1064) 缓存:是[0m
+[32m08:50:51.290[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 切换区域[0m
+[32m08:50:51.534[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 切换区域 at (359, 1064)[0m
+[32m08:50:52.540[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 虚空领域 (第2个)[0m
+[32m08:50:52.776[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第2个匹配，但只找到1个，使用最后一个[0m
+[32m08:50:52.777[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '虚空领域LV.60-LV.100' 置信度:0.925 位置:(360, 708) 缓存:是[0m
+[32m08:50:52.777[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 虚空领域 (第2个)[0m
+[32m08:50:53.035[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 虚空领域 at (360, 708)[0m
+[32m08:50:54.043[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:923 [32m✅ 成功切换到: 虚空领域[0m
+[32m08:50:54.293[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:308 [32m🔍 查找文本: 亡者之城 (第9个)[0m
+[32m08:50:54.836[0m [1;30mWARNING[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1420 [33m请求第9个匹配，但只找到1个，使用最后一个[0m
+[32m08:50:54.836[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1430 [32m找到文字: '亡者之城' 置信度:0.996 位置:(575, 807) 缓存:是[0m
+[32m08:50:54.836[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:343 [32m✅ 找到文本: 亡者之城 (第9个)[0m
+[32m08:50:55.100[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 亡者之城 at (575, 807)[0m
+[32m08:50:56.105[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 免费 [区域[8]][0m
+[32m08:50:57.242[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '免费(1/1)' 置信度:0.864 位置:(306, 920) 缓存:否 耗时:0.970s[0m
+[32m08:50:57.243[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 免费 [区域[8]][0m
+[32m08:50:57.486[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 免费 [区域[8]] at (306, 920)[0m
+[32m08:50:58.491[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:642 [32m💰 点击了免费按钮: 免费[0m
+[32m08:50:58.491[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1546 [32m⚔️ 状态机: 进入副本战斗 - 亡者之城[0m
+[32m08:50:58.491[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:50:58.742[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.997 位置:(393, 1211) 缓存:是 耗时:0.000s[0m
+[32m08:50:58.742[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:50:58.987[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (393, 1211)[0m
+[32m08:50:59.988[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:749 [32m⚔️ 开始自动战斗[0m
+[32m08:50:59.988[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:310 [32m🔍 查找文本: 战斗 [区域[8]][0m
+[32m08:51:00.228[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 ocr_helper.py:1114 [32m找到文字: '战斗' 置信度:0.992 位置:(361, 1243) 缓存:是 耗时:0.000s[0m
+[32m08:51:00.229[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:347 [32m✅ 找到文本: 战斗 [区域[8]][0m
+[32m08:51:00.455[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:579 [32m✅ 成功点击: 战斗 [区域[8]] at (361, 1243)[0m
+[32m08:51:01.506[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:765 [32m内置自动战斗: True[0m
+⚔️ 战斗进度 [45/19] |                                           | 45/? [00:00<?]⚔️ 战斗进度 [45/19] |                                       | 46/? [00:22<00:00]⚔️ 战斗进度 [45/19] |                                       | 46/? [00:22<00:00]
+[32m08:51:23.631[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:828 [32m✅ 战斗完成[0m
+[32m08:51:23.632[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1694 [32m✅ 完成: 亡者之城[0m
+[32m08:51:23.632[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1562 [32m🎁 状态机: 处理副本奖励[0m
+[32m08:51:23.635[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 dungeon_db.py:122 [32m💾 记录通关: 虚空领域 - 亡者之城[0m
+[32m08:51:24.640[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:51:24.640[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:51:24.747[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:51:24.748[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2172 [32m
+✅ 完成区域: 虚空领域[0m
+[32m08:51:24.748[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2113 [32m
+############################################################[0m
+[32m08:51:24.748[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2114 [32m# 🌍 [8/8] 区域: 东部大陆[0m
+[32m08:51:24.748[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2115 [32m# 🎯 副本数: 14[0m
+[32m08:51:24.748[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2116 [32m############################################################[0m
+[32m08:51:24.748[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [85/98] 未选定，跳过: 亡灵要塞[0m
+[32m08:51:24.748[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [86/98] 未选定，跳过: 黑龙巢穴[0m
+[32m08:51:24.748[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [87/98] 未选定，跳过: 火焰之心[0m
+[32m08:51:24.748[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [88/98] 未选定，跳过: 巨石密室[0m
+[32m08:51:24.748[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [89/98] 未选定，跳过: 诅咒教堂[0m
+[32m08:51:24.749[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [90/98] 未选定，跳过: 盗贼矿井[0m
+[32m08:51:24.749[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [91/98] 未选定，跳过: 机械要塞[0m
+[32m08:51:24.749[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [92/98] 未选定，跳过: 巨魔墓地[0m
+[32m08:51:24.749[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [93/98] 未选定，跳过: 噩梦洞穴[0m
+[32m08:51:24.749[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [94/98] 未选定，跳过: 野猪人高地[0m
+[32m08:51:24.749[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [95/98] 未选定，跳过: 水晶庭院[0m
+[32m08:51:24.749[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [96/98] 未选定，跳过: 龙人塔[0m
+[32m08:51:24.749[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [97/98] 未选定，跳过: 精灵遗迹[0m
+[32m08:51:24.749[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2133 [32m⏭️ [98/98] 未选定，跳过: 沉没的神庙[0m
+[32m08:51:24.749[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2172 [32m
+✅ 完成区域: 东部大陆[0m
+[32m08:51:24.776[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2370 [32m
+============================================================[0m
+[32m08:51:24.778[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2371 [32m🎉 全部完成！今天共通关 46 个副本[0m
+[32m08:51:24.778[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:2372 [32m============================================================
+[0m
+[32m08:51:24.778[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:1565 [32m🏠 状态机: 返回主界面[0m
+[32m08:51:24.778[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:988 [32m🔙 返回主界面[0m
+[32m08:51:24.869[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 auto_dungeon.py:994 [32m✅ 已回到主界面[0m
+[32m08:51:24.872[0m [1;30mINFO[0m mage_alt 192.168.1.150:5565 dungeon_db.py:239 [32m📊 数据库连接已关闭[0m
+[0;32m[SUCCESS][0m mage_alt 副本运行完成！
+[0;34m[INFO][0m 结束时间: 08:51:26
+[0;32m[SUCCESS][0m 成功完成！继续下一个角色...
+
+
+[0;34m[INFO][0m ==================================================
+[0;34m[INFO][0m 运行总结
+[0;34m[INFO][0m ==================================================
+[0;34m[INFO][0m 总共运行: 1 个角色
+[0;32m[SUCCESS][0m 成功: 1 个
+[0;34m[INFO][0m 总耗时: 0小时 18分钟 33秒
+[0;34m[INFO][0m ==================================================
+
+[0;34m[INFO][0m 📱 发送 Bark 通知...
+[32m08:51:26.985[0m [1;30mINFO[0m unknown unknown system_config_loader.py:64 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m08:51:26.985[0m [1;30mINFO[0m unknown unknown system_config_loader.py:66 [32m📱 Bark 通知已启用[0m
+[32m08:51:26.985[0m [1;30mINFO[0m unknown unknown system_config_loader.py:68 [32m📊 Loki 日志已启用[0m
+[32m08:51:26.985[0m [1;30mINFO[0m unknown unknown system_config_loader.py:70 [32m📈 Grafana 可视化已启用[0m
+2025-12-03 08:51:26,985.985 - root - INFO - 📱 发送 Bark 通知: 异世界勇者 - 副本运行成功
+2025-12-03 08:51:28,413.413 - root - INFO - ✅ Bark 通知发送成功
+[0;32m[SUCCESS][0m Bark 通知发送成功
+✅ 脚本运行成功

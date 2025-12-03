@@ -4,8 +4,7 @@
 """
 
 import pytest
-import subprocess
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from emulator_manager import EmulatorManager
 
 
