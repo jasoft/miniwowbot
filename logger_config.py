@@ -79,7 +79,7 @@ class LoggerConfig:
         logger.handlers = []
         for h in existing_file_handlers:
             logger.addHandler(h)
-        logger.propagate = True
+        logger.propagate = False
 
         # 默认格式
         if log_format is None:
@@ -131,7 +131,7 @@ class LoggerConfig:
                 handler.addFilter(_ContextFilter())
                 logger.addHandler(handler)
 
-        # 继承根与主业务 logger 的文件处理器，确保所有 logger 写入文件
+        # 继承根与主业务 logger 的文件处理器，确保所有 logger 写入同一文件
         for base_name in (None, "miniwow"):
             base_logger = logging.getLogger(base_name) if base_name else logging.getLogger()
             for fh in base_logger.handlers:
