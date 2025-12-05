@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 from typing import Iterable, List, Optional
 
-from logger_config import setup_logger
+from logger_config import setup_logger, update_log_context
 from auto_dungeon import send_bark_notification
 
 
@@ -50,7 +50,7 @@ def _ensure_file_logger(logger: logging.Logger, logfile: Optional[Path]) -> None
     logger.addHandler(fh)
 
 
-def _invoke_auto_dungeon_once(config_name: str, emulator: str) -> int:
+def _invoke_auto_dungeon_once(config_name: str, emulator: str, session: str) -> int:
     """执行一次 auto_dungeon 对应配置。
 
     通过导入 `auto_dungeon` 并调用其入口，避免外部命令拼接。
@@ -67,6 +67,8 @@ def _invoke_auto_dungeon_once(config_name: str, emulator: str) -> int:
     config_file = SCRIPT_DIR / "configs" / f"{config_name}.json"
     argv_backup = sys.argv[:]
     try:
+        # 注入会话名到全局日志上下文
+        update_log_context({"session": session})
         sys.argv = [
             "auto_dungeon.py",
             "-c",
@@ -90,7 +92,7 @@ def _invoke_auto_dungeon_once(config_name: str, emulator: str) -> int:
         sys.argv = argv_backup
 
 
-def run_configs(configs: Iterable[str], emulator: str, retries: int = 3, logfile: Optional[Path] = None) -> int:
+def run_configs(configs: Iterable[str], emulator: str, session: str, retries: int = 3, logfile: Optional[Path] = None) -> int:
     """按顺序运行配置列表（带重试与汇总）。
 
     Args:
@@ -102,9 +104,9 @@ def run_configs(configs: Iterable[str], emulator: str, retries: int = 3, logfile
     Returns:
         总体退出码：全部成功为 0，否则为 1
     """
+    update_log_context({"session": session})
     logger = setup_logger(name="run_dungeons", level="INFO", use_color=False)
     if logfile is None:
-        session = os.environ.get("MINIWOW_SESSION", "").strip() or "unknown"
         logfile = SCRIPT_DIR / "log" / f"autodungeon_{session}.log"
     _ensure_file_logger(logger, logfile)
 
@@ -135,7 +137,7 @@ def run_configs(configs: Iterable[str], emulator: str, retries: int = 3, logfile
         attempt = 0
         cfg_start = time.time()
         while attempt < max(1, retries):
-            rc = _invoke_auto_dungeon_once(cfg, emulator)
+            rc = _invoke_auto_dungeon_once(cfg, emulator, session)
             if rc == 0:
                 success += 1
                 logger.info(f"✅ 配置 {cfg} 运行成功")
@@ -176,6 +178,7 @@ def _parse_args() -> argparse.Namespace:
     """解析命令行参数。"""
     p = argparse.ArgumentParser(description="运行指定配置列表的副本脚本")
     p.add_argument("--emulator", required=True, help="模拟器地址，如 192.168.1.150:5555")
+    p.add_argument("--session", required=True, help="会话名称，用于统一日志命名")
     p.add_argument("--config", action="append", required=True, help="配置名称，可重复")
     p.add_argument("--retries", type=int, default=3, help="失败重试次数（每配置）")
     p.add_argument("--logfile", type=str, help="日志文件路径（追加写入）")
@@ -186,7 +189,7 @@ def main() -> int:
     """命令行入口。"""
     args = _parse_args()
     logfile = Path(args.logfile) if args.logfile else None
-    return run_configs(args.config, args.emulator, retries=max(1, args.retries), logfile=logfile)
+    return run_configs(args.config, args.emulator, args.session, retries=max(1, args.retries), logfile=logfile)
 
 
 if __name__ == "__main__":

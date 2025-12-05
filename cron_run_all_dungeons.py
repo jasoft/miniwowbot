@@ -42,10 +42,10 @@ def build_cmd_for_configs(session: str, emulator: str, logfile: Path, configs: S
         "--logfile",
         quote(str(logfile)),
     ]
+    parts += ["--session", quote(session)]
     for cfg in configs:
         parts += ["--config", quote(cfg)]
-    env_prefix = f"MINIWOW_SESSION={quote(session)}"
-    return f"{env_prefix} " + " ".join(parts)
+    return " ".join(parts)
 
 
 
