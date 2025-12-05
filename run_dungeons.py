@@ -2,23 +2,16 @@
 # -*- encoding=utf8 -*-
 """运行指定配置列表的副本脚本。
 
-提供函数调用与命令行两种入口：
-- 函数入口：`run_configs(configs, emulator, retries, logfile)`
-- 命令行入口：`python run_dungeons.py --emulator <addr> --config <name> ...`
-
-实现要点：
-- 使用导入的 `auto_dungeon` 模块执行每个配置，避免复杂的命令拼接
-- 保留每个配置的失败重试与汇总统计
-- 可选追加文件日志到 `logfile`
+使用 Typer 提供命令行入口，支持显式会话名驱动统一日志命名。
 """
 
-import argparse
 import logging
 import os
 import sys
 import time
 from pathlib import Path
 from typing import Iterable, List, Optional
+import typer
 
 from logger_config import setup_logger, update_log_context
 from auto_dungeon import send_bark_notification
@@ -173,24 +166,21 @@ def run_configs(configs: Iterable[str], emulator: str, session: str, retries: in
 
     return 0 if failed == 0 else 1
 
-
-def _parse_args() -> argparse.Namespace:
-    """解析命令行参数。"""
-    p = argparse.ArgumentParser(description="运行指定配置列表的副本脚本")
-    p.add_argument("--emulator", required=True, help="模拟器地址，如 192.168.1.150:5555")
-    p.add_argument("--session", required=True, help="会话名称，用于统一日志命名")
-    p.add_argument("--config", action="append", required=True, help="配置名称，可重复")
-    p.add_argument("--retries", type=int, default=3, help="失败重试次数（每配置）")
-    p.add_argument("--logfile", type=str, help="日志文件路径（追加写入）")
-    return p.parse_args()
+app = typer.Typer(add_completion=False)
 
 
-def main() -> int:
-    """命令行入口。"""
-    args = _parse_args()
-    logfile = Path(args.logfile) if args.logfile else None
-    return run_configs(args.config, args.emulator, args.session, retries=max(1, args.retries), logfile=logfile)
+@app.command()
+def run(
+    emulator: str = typer.Option(..., "--emulator", help="模拟器地址，如 192.168.1.150:5555"),
+    session: str = typer.Option(..., "--session", help="会话名称，用于统一日志命名"),
+    config: List[str] = typer.Option(..., "--config", help="配置名称，可重复"),
+    retries: int = typer.Option(3, "--retries", min=1, help="失败重试次数（每配置）"),
+    logfile: Optional[Path] = typer.Option(None, "--logfile", help="日志文件路径（追加写入）"),
+) -> None:
+    """运行指定的配置列表。"""
+    rc = run_configs(config, emulator, session, retries=max(1, retries), logfile=logfile)
+    raise typer.Exit(rc)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    app()
