@@ -79,7 +79,7 @@ class LoggerConfig:
         logger.handlers = []
         for h in existing_file_handlers:
             logger.addHandler(h)
-        logger.propagate = False
+        logger.propagate = True
 
         # 默认格式
         if log_format is None:
@@ -122,14 +122,27 @@ class LoggerConfig:
                 handler.setFormatter(formatter)
                 handler.addFilter(_ContextFilter())
                 logger.addHandler(handler)
-        else:
-            # 创建处理器和格式化器
-            handler = logging.StreamHandler()
-            handler.setLevel(getattr(logging, level.upper()))
-            formatter = logging.Formatter(log_format, date_format)
-            handler.setFormatter(formatter)
-            handler.addFilter(_ContextFilter())
-            logger.addHandler(handler)
+            else:
+                # 创建处理器和格式化器
+                handler = logging.StreamHandler()
+                handler.setLevel(getattr(logging, level.upper()))
+                formatter = logging.Formatter(log_format, date_format)
+                handler.setFormatter(formatter)
+                handler.addFilter(_ContextFilter())
+                logger.addHandler(handler)
+
+        # 继承根与主业务 logger 的文件处理器，确保所有 logger 写入文件
+        for base_name in (None, "miniwow"):
+            base_logger = logging.getLogger(base_name) if base_name else logging.getLogger()
+            for fh in base_logger.handlers:
+                if isinstance(fh, logging.FileHandler):
+                    already = any(
+                        isinstance(h, logging.FileHandler)
+                        and getattr(h, "_log_file", None) == getattr(fh, "_log_file", None)
+                        for h in logger.handlers
+                    )
+                    if not already:
+                        logger.addHandler(fh)
 
         # 确保日志包含统一的上下文字段（通过过滤器注入）
 
