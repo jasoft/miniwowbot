@@ -31,46 +31,27 @@ class SystemConfigLoader:
         self.timeout_config = {}
         self.logging_config = {}
         self.grafana_config = {}
+        self._init_defaults()
         self._load_config()
 
-    def _load_config(self):
-        """加载系统配置文件"""
-        if not os.path.exists(self.config_file):
-            logger.warning(f"⚠️ 系统配置文件不存在: {self.config_file}，使用默认配置")
-            self._use_default_config()
-            return
+    def _load_config(self) -> None:
+        self._load_env()
+        if os.path.exists(self.config_file):
+            try:
+                with open(self.config_file, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+                self.bark_config.update(config.get("bark", {}))
+                self.timeout_config.update(config.get("timeout", {}))
+                self.logging_config.update(config.get("logging", {}))
+                self.grafana_config.update(config.get("grafana", {}))
+                logger.info(f"✅ 已加载 JSON 配置: {self.config_file}")
+            except json.JSONDecodeError as e:
+                logger.error(f"❌ 系统配置文件格式错误: {e}")
+            except Exception as e:
+                logger.error(f"❌ 加载系统配置文件失败: {e}")
+        self._apply_env_overrides()
 
-        try:
-            with open(self.config_file, "r", encoding="utf-8") as f:
-                config = json.load(f)
-
-            # 加载 Bark 通知配置
-            self.bark_config = config.get("bark", {})
-
-            # 加载超时配置
-            self.timeout_config = config.get("timeout", {})
-
-            # 加载日志配置
-            self.logging_config = config.get("logging", {})
-
-            # 加载 Grafana 配置
-            self.grafana_config = config.get("grafana", {})
-
-            logger.info(f"✅ 系统配置加载成功: {self.config_file}")
-            if self.bark_config.get("enabled"):
-                logger.info("📱 Bark 通知已启用")
-            if self.grafana_config.get("enabled"):
-                logger.info("📈 Grafana 可视化已启用")
-
-        except json.JSONDecodeError as e:
-            logger.error(f"❌ 系统配置文件格式错误: {e}")
-            self._use_default_config()
-        except Exception as e:
-            logger.error(f"❌ 加载系统配置文件失败: {e}")
-            self._use_default_config()
-
-    def _use_default_config(self):
-        """使用默认配置"""
+    def _init_defaults(self) -> None:
         self.bark_config = {
             "enabled": False,
             "server": "",
@@ -88,6 +69,67 @@ class SystemConfigLoader:
             "username": "admin",
             "password": "admin",
         }
+
+    def _load_env(self) -> None:
+        try:
+            from dotenv import load_dotenv  # type: ignore
+            load_dotenv()
+            logger.info("✅ 已加载 .env 环境变量")
+        except Exception:
+            env_path = ensure_project_path(".env")
+            if os.path.exists(env_path):
+                try:
+                    with open(env_path, "r", encoding="utf-8") as f:
+                        for line in f:
+                            line = line.strip()
+                            if not line or line.startswith("#"):
+                                continue
+                            if "=" in line:
+                                k, v = line.split("=", 1)
+                                os.environ.setdefault(k.strip(), v.strip())
+                    logger.info("✅ 已解析 .env（无依赖模式）")
+                except Exception:
+                    pass
+
+    def _apply_env_overrides(self) -> None:
+        def as_bool(val: str) -> bool:
+            return str(val).lower() in {"1", "true", "yes", "on"}
+
+        def as_int(val: str, default: int) -> int:
+            try:
+                return int(val)
+            except Exception:
+                return default
+
+        # Bark
+        if os.environ.get("BARK_ENABLED") is not None:
+            self.bark_config["enabled"] = as_bool(os.environ.get("BARK_ENABLED", "false"))
+        if os.environ.get("BARK_SERVER"):
+            self.bark_config["server"] = os.environ["BARK_SERVER"]
+        if os.environ.get("BARK_TITLE"):
+            self.bark_config["title"] = os.environ["BARK_TITLE"]
+        if os.environ.get("BARK_GROUP"):
+            self.bark_config["group"] = os.environ["BARK_GROUP"]
+
+        # Timeout
+        if os.environ.get("WAIT_FOR_MAIN"):
+            self.timeout_config["wait_for_main"] = as_int(os.environ["WAIT_FOR_MAIN"], self.timeout_config["wait_for_main"])
+
+        # Logging
+        if os.environ.get("LOGGER_NAME"):
+            self.logging_config["logger_name"] = os.environ["LOGGER_NAME"]
+        if os.environ.get("LOG_LEVEL"):
+            self.logging_config["level"] = os.environ["LOG_LEVEL"].upper()
+
+        # Grafana
+        if os.environ.get("GRAFANA_ENABLED") is not None:
+            self.grafana_config["enabled"] = as_bool(os.environ.get("GRAFANA_ENABLED", "false"))
+        if os.environ.get("GRAFANA_SERVER"):
+            self.grafana_config["server"] = os.environ["GRAFANA_SERVER"]
+        if os.environ.get("GRAFANA_USERNAME"):
+            self.grafana_config["username"] = os.environ["GRAFANA_USERNAME"]
+        if os.environ.get("GRAFANA_PASSWORD"):
+            self.grafana_config["password"] = os.environ["GRAFANA_PASSWORD"]
 
     def get_bark_config(self) -> Dict:
         """

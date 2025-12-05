@@ -15,24 +15,38 @@ except ImportError:
     coloredlogs = None
 
 class _ContextFilter(logging.Filter):
-    """在 LogRecord 中注入全局上下文（config、emulator）。"""
+    """将全局上下文注入到每条日志记录中。
+
+    该过滤器会把 `GlobalLogContext.context` 的键值注入到 `LogRecord`，
+    使日志格式中可以直接引用如 `%(config)s`、`%(session)s` 等字段。
+    """
 
     def filter(self, record: logging.LogRecord) -> bool:
-        record.config = GlobalLogContext.context.get("config", "unknown")
-        record.emulator = GlobalLogContext.context.get("emulator", "unknown")
+        for k, v in GlobalLogContext.context.items():
+            setattr(record, k, v)
         return True
 
 
 class GlobalLogContext:
-    """全局日志上下文，供各模块共享。"""
+    """全局日志上下文容器。"""
 
     context: Dict[str, str] = {}
 
     @classmethod
-    def update(cls, labels: Dict[str, str]):
+    def update(cls, labels: Dict[str, str]) -> None:
+        """更新上下文字段。
+
+        Args:
+            labels: 待更新的键值对
+        """
         if not labels:
             return
         cls.context.update({k: str(v) for k, v in labels.items() if v is not None})
+
+    @classmethod
+    def clear(cls) -> None:
+        """清空所有上下文字段。"""
+        cls.context.clear()
 
 
 class LoggerConfig:
@@ -84,7 +98,7 @@ class LoggerConfig:
         # 默认格式
         if log_format is None:
             log_format = (
-                "%(asctime)s.%(msecs)03d %(levelname)s %(config)s %(emulator)s %(filename)s:%(lineno)d %(message)s"
+                "%(asctime)s.%(msecs)03d %(levelname)s %(filename)s:%(lineno)d %(message)s"
             )
 
         if date_format is None:
@@ -93,10 +107,9 @@ class LoggerConfig:
             else:
                 date_format = "%Y-%m-%d %H:%M:%S"
 
-        # 使用 coloredlogs 配置彩色日志
+        # 使用 coloredlogs 配置彩色日志，否则使用标准日志处理器
         if use_color and coloredlogs:
             try:
-                # 使用标准 StreamHandler 配合 ColoredFormatter
                 handler = logging.StreamHandler(stream=sys.stdout)
                 handler.setLevel(getattr(logging, level.upper()))
                 formatter = coloredlogs.ColoredFormatter(
@@ -113,36 +126,23 @@ class LoggerConfig:
                 handler.setFormatter(formatter)
                 handler.addFilter(_ContextFilter())
                 logger.addHandler(handler)
-            except Exception as e:
-                print(f"⚠️ 配置彩色日志失败: {e}，使用标准日志")
-                # fallback到标准logging
-                handler = logging.StreamHandler()
+            except Exception:
+                # 彩色失败时降级为标准处理器
+                handler = logging.StreamHandler(stream=sys.stdout)
                 handler.setLevel(getattr(logging, level.upper()))
                 formatter = logging.Formatter(log_format, date_format)
                 handler.setFormatter(formatter)
                 handler.addFilter(_ContextFilter())
                 logger.addHandler(handler)
-            else:
-                # 创建处理器和格式化器
-                handler = logging.StreamHandler()
-                handler.setLevel(getattr(logging, level.upper()))
-                formatter = logging.Formatter(log_format, date_format)
-                handler.setFormatter(formatter)
-                handler.addFilter(_ContextFilter())
-                logger.addHandler(handler)
+        else:
+            handler = logging.StreamHandler(stream=sys.stdout)
+            handler.setLevel(getattr(logging, level.upper()))
+            formatter = logging.Formatter(log_format, date_format)
+            handler.setFormatter(formatter)
+            handler.addFilter(_ContextFilter())
+            logger.addHandler(handler)
 
-        # 继承根与主业务 logger 的文件处理器，确保所有 logger 写入同一文件
-        for base_name in (None, "miniwow"):
-            base_logger = logging.getLogger(base_name) if base_name else logging.getLogger()
-            for fh in base_logger.handlers:
-                if isinstance(fh, logging.FileHandler):
-                    already = any(
-                        isinstance(h, logging.FileHandler)
-                        and getattr(h, "_log_file", None) == getattr(fh, "_log_file", None)
-                        for h in logger.handlers
-                    )
-                    if not already:
-                        logger.addHandler(fh)
+
 
         # 确保日志包含统一的上下文字段（通过过滤器注入）
 
@@ -235,9 +235,8 @@ def setup_simple_logger(
     return LoggerConfig.get_simple_logger(name=name, level=level)
 
 
-# 兼容性函数，兼容现有的使用方式
 def get_logger(name: Optional[str] = None) -> logging.Logger:
-    """获取已配置的日志记录器"""
+    """获取（或创建）指定名称的日志记录器。"""
     return setup_logger(name=name, level="INFO")
 
 
@@ -258,82 +257,91 @@ LOG_LEVELS = {
 }
 
 
-def setup_logger_from_config(
-    config_file: str = "system_config.json",
-    use_color: bool = True,
-) -> logging.Logger:
-    """
-    从系统配置文件中加载日志配置并创建日志记录器
+def setup_logger_from_json(config_file: str, use_color: bool = True) -> logging.Logger:
+    """从 JSON 文件加载日志配置并创建日志记录器。
 
     Args:
-        config_file: 系统配置文件路径
+        config_file: JSON 配置文件路径
         use_color: 是否使用彩色日志
 
     Returns:
         配置好的日志记录器
     """
+    import json
     try:
-        from system_config_loader import load_system_config
+        with open(config_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        logging_cfg = data.get("logging", {})
+        name = logging_cfg.get("logger_name", "root")
+        level = logging_cfg.get("level", "INFO")
+        fmt = logging_cfg.get("format")
+        datefmt = logging_cfg.get("date_format")
+        return setup_logger(name=name, level=level, log_format=fmt, date_format=datefmt, use_color=use_color)
+    except Exception:
+        return setup_logger(name="root", level="INFO", use_color=use_color)
 
-        config_loader = load_system_config(config_file)
-        logging_config = config_loader.get_logging_config()
 
-        logger_name = logging_config.get("logger_name", "miniwow")
-        level = logging_config.get("level", "INFO")
+def setup_logger_from_env(use_color: bool = True) -> logging.Logger:
+    name = os.environ.get("LOGGER_NAME", "root")
+    level = os.environ.get("LOG_LEVEL", "INFO")
+    fmt = os.environ.get("LOG_FORMAT")
+    datefmt = os.environ.get("LOG_DATE_FORMAT")
+    return setup_logger(name=name, level=level, log_format=fmt, date_format=datefmt, use_color=use_color)
 
-        # 可选：调用方可使用 update_log_context 注入上下文标签（如 config、emulator）
 
-        return setup_logger(
-            name=logger_name,
-            level=level,
-            use_color=use_color,
-        )
-    except Exception as e:
-        print(f"⚠️ 从配置文件加载日志配置失败: {e}，使用默认配置")
-        return setup_logger(name="miniwow", level="INFO", use_color=use_color)
+def setup_logger_from_config(config_file: str = "system_config.json", use_color: bool = True) -> logging.Logger:
+    """兼容旧接口：优先使用环境变量初始化日志。
+
+    Args:
+        config_file: 兼容参数，不再强制依赖该文件
+        use_color: 是否使用彩色日志
+
+    Returns:
+        配置好的日志记录器
+    """
+    return setup_logger_from_env(use_color=use_color)
 
 
 def update_log_context(labels: Dict[str, str]) -> None:
-    """
-    更新所有日志记录器的上下文标签。
-
-    将提供的键值（如 config、emulator）写入全局上下文，
-    使后续日志记录行中可通过 %(config)s、%(emulator)s 展示。
-    """
+    """更新所有日志记录器的上下文标签。"""
     GlobalLogContext.update(labels)
 
 
-def attach_emulator_file_handler(
-    emulator_name: str,
-    config_name: Optional[str] = None,
+def attach_file_handler(
     log_dir: str = "log",
+    filename_prefix: str = "app",
     level: str = "INFO",
+    log_format: Optional[str] = None,
+    date_format: Optional[str] = "%Y-%m-%d %H:%M:%S",
 ) -> str:
-    """为当前进程添加 FileHandler，日志文件名统一规则：
+    """为当前进程添加文件处理器。
 
-    仅使用全局日志上下文中的 `session` 字段作为文件名后缀。
+    文件名将使用全局上下文中的 `session` 作为后缀，不存在则为 `unknown`。
+
+    Args:
+        log_dir: 日志目录
+        filename_prefix: 文件名前缀
+        level: 文件日志级别
+        log_format: 文件日志格式
+        date_format: 文件日期格式
+
+    Returns:
+        日志文件的绝对路径
     """
-    session_name = GlobalLogContext.context.get("session", "")
-    file_key = (session_name or "unknown")
-
+    session = GlobalLogContext.context.get("session", "") or "unknown"
     os.makedirs(log_dir, exist_ok=True)
-    file_path = os.path.join(log_dir, f"autodungeon_{file_key}.log")
+    file_path = os.path.join(log_dir, f"{filename_prefix}_{session}.log")
 
-    if config_name:
-        GlobalLogContext.update({"config": config_name})
-    GlobalLogContext.update({"emulator": emulator_name or "unknown"})
+    if log_format is None:
+        log_format = "%(asctime)s.%(msecs)03d %(levelname)s %(filename)s:%(lineno)d %(message)s"
 
     file_handler = logging.FileHandler(file_path, encoding="utf-8")
     file_handler.setLevel(getattr(logging, level.upper()))
     file_handler.addFilter(_ContextFilter())
-    formatter = logging.Formatter(
-        "%(asctime)s.%(msecs)03d %(levelname)s %(config)s %(emulator)s %(filename)s:%(lineno)d %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-    file_handler.setFormatter(formatter)
+    file_handler.setFormatter(logging.Formatter(log_format, datefmt=date_format))
 
-    # 将文件处理器挂在到 root 与主业务 logger（miniwow）上，避免因 propagate=False 丢失
-    for target_name in (None, "miniwow"):
+    # 挂载到 root 与指定名称 logger（如存在）
+    for target_name in (None,):
         target_logger = logging.getLogger(target_name) if target_name else logging.getLogger()
         already_attached = any(
             isinstance(h, logging.FileHandler) and getattr(h, "_log_file", None) == file_path
@@ -344,3 +352,16 @@ def attach_emulator_file_handler(
             target_logger.addHandler(file_handler)
 
     return file_path
+
+
+def attach_emulator_file_handler(
+    emulator_name: str,
+    config_name: Optional[str] = None,
+    log_dir: str = "log",
+    level: str = "INFO",
+) -> str:
+    """兼容旧接口：为进程添加文件处理器并更新上下文。"""
+    if config_name:
+        GlobalLogContext.update({"config": config_name})
+    GlobalLogContext.update({"emulator": emulator_name or "unknown"})
+    return attach_file_handler(log_dir=log_dir, filename_prefix="app", level=level)

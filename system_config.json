@@ -14,14 +14,6 @@
         "logger_name": "miniwow",
         "level": "INFO"
     },
-    "loki": {
-        "description": "Loki 日志服务配置 - 用于集中日志管理",
-        "enabled": true,
-        "server": "http://docker.home:3100",
-        "app_name": "miniwow",
-        "buffer_size": 50,
-        "upload_interval": 5
-    },
     "grafana": {
         "description": "Grafana 可视化配置 - 用于日志查询和展示",
         "enabled": true,

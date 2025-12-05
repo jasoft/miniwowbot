@@ -5,7 +5,6 @@
 使用 Typer 提供命令行入口，支持显式会话名驱动统一日志命名。
 """
 
-import logging
 import os
 import sys
 import time
@@ -13,34 +12,12 @@ from pathlib import Path
 from typing import Iterable, List, Optional
 import typer
 
-from logger_config import setup_logger, update_log_context
+from logger_config import setup_logger, update_log_context, attach_emulator_file_handler
 from auto_dungeon import send_bark_notification
 
 
 SCRIPT_DIR = Path(__file__).parent
 os.environ["PATH"] = f"/opt/homebrew/bin:{os.environ.get('PATH', '')}"
-
-
-def _ensure_file_logger(logger: logging.Logger, logfile: Optional[Path]) -> None:
-    """为当前 logger 附加文件处理器。
-
-    Args:
-        logger: 日志记录器
-        logfile: 日志文件路径；None 表示不写文件
-    """
-    if not logfile:
-        return
-    try:
-        logfile.parent.mkdir(parents=True, exist_ok=True)
-    except Exception:
-        pass
-    fh = logging.FileHandler(str(logfile), encoding="utf-8")
-    fmt = logging.Formatter(
-        "%(asctime)s.%(msecs)03d %(levelname)s %(filename)s:%(lineno)d %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-    fh.setFormatter(fmt)
-    logger.addHandler(fh)
 
 
 def _invoke_auto_dungeon_once(config_name: str, emulator: str, session: str) -> int:
@@ -98,15 +75,17 @@ def run_configs(configs: Iterable[str], emulator: str, session: str, retries: in
         总体退出码：全部成功为 0，否则为 1
     """
     update_log_context({"session": session})
-    logger = setup_logger(name="run_dungeons", level="INFO", use_color=False)
     if logfile is None:
         logfile = SCRIPT_DIR / "log" / f"autodungeon_{session}.log"
-    _ensure_file_logger(logger, logfile)
+    try:
+        attach_emulator_file_handler(emulator_name=emulator, config_name=None, log_dir=str(logfile.parent))
+    except Exception:
+        pass
+    logger = setup_logger(name="run_dungeons", level="INFO", use_color=False)
 
     cfgs: List[str] = [c for c in configs if str(c).strip()]
     if not cfgs:
         logger = setup_logger(name="run_dungeons", level="INFO", use_color=False)
-        _ensure_file_logger(logger, logfile)
         logger.error("❌ 未提供任何配置，必须显式传入 --config")
         try:
             send_bark_notification("副本运行汇总", "未提供任何配置，任务未执行")
