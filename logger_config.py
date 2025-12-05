@@ -296,21 +296,25 @@ def attach_emulator_file_handler(
     log_dir: str = "log",
     level: str = "INFO",
 ) -> str:
-    """为当前进程的根记录器添加按 emulator 分文件的 FileHandler。
+    """为当前进程添加 FileHandler，日志文件名统一规则：
 
-    返回日志文件路径。
+    优先使用环境变量 `MINIWOW_SESSION` 作为文件名后缀；
+    否则使用 `emulator`(冒号替换为下划线)。
     """
-    if not emulator_name:
-        emulator_key = "unknown"
+    session_name = os.environ.get("MINIWOW_SESSION", "").strip()
+    if session_name:
+        file_key = session_name
     else:
-        emulator_key = str(emulator_name).replace(":", "_")
+        file_key = (str(emulator_name) if emulator_name else "unknown").replace(":", "_")
 
     os.makedirs(log_dir, exist_ok=True)
-    file_path = os.path.join(log_dir, f"autodungeon_{emulator_key}.log")
+    file_path = os.path.join(log_dir, f"autodungeon_{file_key}.log")
 
     if config_name:
         GlobalLogContext.update({"config": config_name})
     GlobalLogContext.update({"emulator": emulator_name or "unknown"})
+    if session_name:
+        GlobalLogContext.update({"session": session_name})
 
     file_handler = logging.FileHandler(file_path, encoding="utf-8")
     file_handler.setLevel(getattr(logging, level.upper()))

@@ -103,6 +103,9 @@ def run_configs(configs: Iterable[str], emulator: str, retries: int = 3, logfile
         总体退出码：全部成功为 0，否则为 1
     """
     logger = setup_logger(name="run_dungeons", level="INFO", use_color=False)
+    if logfile is None:
+        session = os.environ.get("MINIWOW_SESSION", "").strip() or "unknown"
+        logfile = SCRIPT_DIR / "log" / f"autodungeon_{session}.log"
     _ensure_file_logger(logger, logfile)
 
     cfgs: List[str] = [c for c in configs if str(c).strip()]

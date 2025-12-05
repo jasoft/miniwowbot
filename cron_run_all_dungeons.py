@@ -29,7 +29,7 @@ def ensure_log_dir() -> None:
     log_dir.mkdir(parents=True, exist_ok=True)
 
 
-def build_cmd_for_configs(emulator: str, logfile: Path, configs: Sequence[str]) -> str:
+def build_cmd_for_configs(session: str, emulator: str, logfile: Path, configs: Sequence[str]) -> str:
     """构建运行配置列表的命令（通过 uv 调用 Python 入口）。"""
     from shlex import quote
     script_path = str(SCRIPT_DIR / "run_dungeons.py")
@@ -44,7 +44,8 @@ def build_cmd_for_configs(emulator: str, logfile: Path, configs: Sequence[str]) 
     ]
     for cfg in configs:
         parts += ["--config", quote(cfg)]
-    return " ".join(parts)
+    env_prefix = f"MINIWOW_SESSION={quote(session)}"
+    return f"{env_prefix} " + " ".join(parts)
 
 
 
@@ -105,7 +106,7 @@ def main() -> int:
         details = ", ".join(configs) if (isinstance(configs, list) and configs) else "全部"
         logger.info(f"🔧 {name}: 配置[{details}] @ {emulator}")
         if isinstance(configs, list) and len(configs) > 0:
-            cmd = build_cmd_for_configs(emulator, logfile, configs)
+            cmd = build_cmd_for_configs(name, emulator, logfile, configs)
         else:
             logger.error(f"❌ 会话 {name} 未提供有效的 configs 列表，已跳过")
             all_ok = False
