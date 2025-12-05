@@ -9,6 +9,7 @@ import time
 from typing import Iterable, Optional, Sequence
 
 from airtest.core.api import Template, exists, touch, wait
+from wrapt_timeout_decorator import timeout as timeout_decorator
 
 ENTER_GAME_BUTTON_TEMPLATE = Template(
     r"images/enter_game_button.png", resolution=(720, 1280)
@@ -77,10 +78,12 @@ class ErrorDialogMonitor:
         self._thread = None
         self.logger.debug("错误对话框监控线程已停止")
 
+    @timeout_decorator(5, timeout_exception=TimeoutError)
     def handle_once(self):
         """立即检测一次错误弹窗（同步调用）"""
         self._handle_dialogs()
 
+    @timeout_decorator(5, timeout_exception=TimeoutError)
     def _handle_dialogs(self):
         try:
             for template in self.error_templates:
@@ -104,6 +107,7 @@ class ErrorDialogMonitor:
         filename = getattr(template, "filename", "") or ""
         return "duplogin" in filename or "otheraccount" in filename
 
+    @timeout_decorator(5, timeout_exception=TimeoutError)
     def _click_ok_button(self) -> bool:
         """点击确认按钮"""
         try:
@@ -116,6 +120,7 @@ class ErrorDialogMonitor:
             self.logger.debug("关闭错误对话框时出现异常", exc_info=True)
         return False
 
+    @timeout_decorator(30, timeout_exception=TimeoutError)
     def _click_enter_game_button(self):
         """在检测到账号被挤下线时，尝试重新点击进入游戏"""
         self.logger.info("🔁 检测到账号被踢，尝试重新进入游戏")

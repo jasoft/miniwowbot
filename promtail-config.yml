@@ -14,28 +14,19 @@ scrape_configs:
       - targets: [localhost]
         labels:
           app: miniwow
-          __path__: log/[0-9]*.log
-      - targets: [localhost]
-        labels:
-          app: miniwow
-          __path__: log/unknown.log
+          __path__: log/autodungeon_*.log
     pipeline_stages:
       - regex:
-          expression: '^[0-9]{4}-[0-9]{2}-[0-9]{2}[^ ]*\s+\w+\s+(?P<config>\S+)\s+(?P<emulator>\S+)'
+          expression: '^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3}\s+\w+\s+(?P<config>\S+)\s+(?P<emulator>\S+)'
       - labels:
           config:
           emulator:
-  - job_name: miniwow-shell-logs
-    static_configs:
-      - targets: [localhost]
-        labels:
-          app: miniwow
-          origin: shell
-          __path__: log/shell_*.log
-    pipeline_stages:
       - regex:
           source: filename
-          expression: '.*/shell_(?P<session>[^.]+)\.log$'
+          expression: '.*/autodungeon_(?P<emulator_underscore>[^.]+)\.log$'
+      - template:
+          source: emulator_underscore
+          template: '{{ Replace .Value "_" ":" -1 }}'
+          target: emulator
       - labels:
-          origin:
-          session:
+          emulator:

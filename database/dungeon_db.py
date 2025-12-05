@@ -16,7 +16,7 @@ from peewee import (
 )
 from logger_config import setup_logger_from_config
 
-# 配置日志（从系统配置文件加载 Loki 配置）
+# 配置日志（从系统配置文件加载通用日志配置）
 logger = setup_logger_from_config(use_color=True)
 
 # 数据库实例

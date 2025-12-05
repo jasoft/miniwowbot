@@ -30,7 +30,6 @@ class SystemConfigLoader:
         self.bark_config = {}
         self.timeout_config = {}
         self.logging_config = {}
-        self.loki_config = {}
         self.grafana_config = {}
         self._load_config()
 
@@ -54,17 +53,12 @@ class SystemConfigLoader:
             # 加载日志配置
             self.logging_config = config.get("logging", {})
 
-            # 加载 Loki 配置
-            self.loki_config = config.get("loki", {})
-
             # 加载 Grafana 配置
             self.grafana_config = config.get("grafana", {})
 
             logger.info(f"✅ 系统配置加载成功: {self.config_file}")
             if self.bark_config.get("enabled"):
                 logger.info("📱 Bark 通知已启用")
-            if self.loki_config.get("enabled"):
-                logger.info("📊 Loki 日志已启用")
             if self.grafana_config.get("enabled"):
                 logger.info("📈 Grafana 可视化已启用")
 
@@ -87,13 +81,6 @@ class SystemConfigLoader:
         self.logging_config = {
             "logger_name": "miniwow",
             "level": "INFO",
-        }
-        self.loki_config = {
-            "enabled": False,
-            "server": "http://localhost:3100",
-            "app_name": "miniwow",
-            "buffer_size": 50,
-            "upload_interval": 5,
         }
         self.grafana_config = {
             "enabled": False,
@@ -147,23 +134,7 @@ class SystemConfigLoader:
         """
         return self.logging_config
 
-    def get_loki_config(self) -> Dict:
-        """
-        获取 Loki 日志服务配置
-
-        Returns:
-            Loki 配置字典
-        """
-        return self.loki_config
-
-    def is_loki_enabled(self) -> bool:
-        """
-        检查是否启用了 Loki 日志服务
-
-        Returns:
-            如果启用返回 True，否则返回 False
-        """
-        return self.loki_config.get("enabled", False)
+    # 已移除 Loki 配置相关方法，系统不再关心具体日志后端
 
     def get_grafana_config(self) -> Dict:
         """

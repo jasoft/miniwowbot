@@ -1,14 +1,14 @@
 import time
 from logger_config import (
     setup_logger_from_config,
-    update_all_loki_labels,
+    update_log_context,
     attach_emulator_file_handler,
 )
 
 
 def write_sample_logs(emulator: str, cfg: str, n: int = 5):
-    logger = setup_logger_from_config(use_color=False, loki_labels={"config": cfg})
-    update_all_loki_labels({"emulator": emulator, "config": cfg})
+    logger = setup_logger_from_config(use_color=False)
+    update_log_context({"emulator": emulator, "config": cfg})
     path = attach_emulator_file_handler(emulator_name=emulator, config_name=cfg, log_dir="log", level="INFO")
     logger.info(f"启动 {cfg} on {emulator}")
     for i in range(n):
@@ -25,4 +25,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

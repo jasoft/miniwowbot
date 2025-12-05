@@ -48,9 +48,6 @@ class LoggerConfig:
         log_format: Optional[str] = None,
         date_format: Optional[str] = None,
         use_color: bool = True,
-        enable_loki: bool = False,
-        loki_url: Optional[str] = None,
-        loki_labels: Optional[Dict] = None,
     ) -> logging.Logger:
         """
         配置日志记录器
@@ -61,9 +58,6 @@ class LoggerConfig:
             log_format: 日志格式，默认使用带颜色或普通格式
             date_format: 时间格式
             use_color: 是否使用彩色日志
-            enable_loki: 是否启用 Loki 日志上传
-            loki_url: Loki 服务地址，如 http://localhost:3100
-            loki_labels: Loki 标签字典，如 {"env": "dev"}
         """
         import sys
 
@@ -137,9 +131,7 @@ class LoggerConfig:
             handler.addFilter(_ContextFilter())
             logger.addHandler(handler)
 
-        # 将传入的上下文写入全局，便于后续写入文件与展示
-        if loki_labels:
-            GlobalLogContext.update(loki_labels)
+        # 确保日志包含统一的上下文字段（通过过滤器注入）
 
         # 标记为已配置
         cls._configured_loggers.add(logger_name)
@@ -187,29 +179,21 @@ def setup_logger(
     log_format: Optional[str] = None,
     date_format: Optional[str] = None,
     use_color: bool = True,
-    enable_loki: bool = False,
-    loki_url: Optional[str] = None,
-    loki_labels: Optional[Dict] = None,
 ) -> logging.Logger:
     """
     设置日志记录器
 
     Args:
-        name: 日志记录器名称（仅在 Loki 中有意义，console 输出中不显示）
-              用于在 Loki 中作为 logger 标签，区分不同模块的日志
+        name: 日志记录器名称
         level: 日志级别 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         log_format: 日志格式字符串
         date_format: 时间格式
         use_color: 是否使用彩色日志
-        enable_loki: 是否启用 Loki 日志上传
-        loki_url: Loki 服务地址，如 http://localhost:3100
-        loki_labels: Loki 标签字典，如 {"env": "dev"}
 
     Returns:
         配置好的日志记录器
 
     Note:
-        - name 参数仅在 Loki 中有意义，用于日志查询和过滤
         - console 输出中默认不显示 logger name
         - 如需在 console 中显示 logger name，可在 log_format 中添加 %(name)s
     """
@@ -219,9 +203,6 @@ def setup_logger(
         log_format=log_format,
         date_format=date_format,
         use_color=use_color,
-        enable_loki=False,
-        loki_url=None,
-        loki_labels=loki_labels,
     )
 
 
@@ -267,7 +248,6 @@ LOG_LEVELS = {
 def setup_logger_from_config(
     config_file: str = "system_config.json",
     use_color: bool = True,
-    loki_labels: Optional[Dict] = None,
 ) -> logging.Logger:
     """
     从系统配置文件中加载日志配置并创建日志记录器
@@ -275,7 +255,6 @@ def setup_logger_from_config(
     Args:
         config_file: 系统配置文件路径
         use_color: 是否使用彩色日志
-        loki_labels: 额外的 Loki 标签字典，如 {"config": "account1"}
 
     Returns:
         配置好的日志记录器
@@ -289,31 +268,26 @@ def setup_logger_from_config(
         logger_name = logging_config.get("logger_name", "miniwow")
         level = logging_config.get("level", "INFO")
 
-        # 更新全局上下文（如果提供）
-        if loki_labels:
-            GlobalLogContext.update(loki_labels)
+        # 可选：调用方可使用 update_log_context 注入上下文标签（如 config、emulator）
 
         return setup_logger(
             name=logger_name,
             level=level,
             use_color=use_color,
-            enable_loki=False,
-            loki_url=None,
-            loki_labels=loki_labels,
         )
     except Exception as e:
         print(f"⚠️ 从配置文件加载日志配置失败: {e}，使用默认配置")
         return setup_logger(name="miniwow", level="INFO", use_color=use_color)
 
 
-def update_all_loki_labels(loki_labels: Dict[str, str]) -> None:
+def update_log_context(labels: Dict[str, str]) -> None:
     """
-    更新所有日志记录器的上下文标签（非 Loki）。
+    更新所有日志记录器的上下文标签。
 
     将提供的键值（如 config、emulator）写入全局上下文，
     使后续日志记录行中可通过 %(config)s、%(emulator)s 展示。
     """
-    GlobalLogContext.update(loki_labels)
+    GlobalLogContext.update(labels)
 
 
 def attach_emulator_file_handler(
@@ -332,7 +306,7 @@ def attach_emulator_file_handler(
         emulator_key = str(emulator_name).replace(":", "_")
 
     os.makedirs(log_dir, exist_ok=True)
-    file_path = os.path.join(log_dir, f"{emulator_key}.log")
+    file_path = os.path.join(log_dir, f"autodungeon_{emulator_key}.log")
 
     if config_name:
         GlobalLogContext.update({"config": config_name})

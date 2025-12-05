@@ -1,0 +1,110 @@
+{
+  "title": "Miniwow Autodungeon Logs",
+  "uid": "miniwow-autodungeon-logs",
+  "schemaVersion": 39,
+  "version": 1,
+  "tags": ["miniwow", "autodungeon", "logs"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "DS_LOKI",
+        "type": "datasource",
+        "query": "loki",
+        "label": "Loki 数据源",
+        "refresh_on_load": true
+      },
+      {
+        "name": "config",
+        "type": "query",
+        "label": "配置 (config)",
+        "datasource": "$DS_LOKI",
+        "query": "label_values({filename=~\".*/autodungeon_.*\"}, config)",
+        "includeAll": true,
+        "allValue": ".*",
+        "refresh": 2
+      },
+      {
+        "name": "emulator",
+        "type": "query",
+        "label": "模拟器 (emulator)",
+        "datasource": "$DS_LOKI",
+        "query": "label_values({filename=~\".*/autodungeon_.*\"}, emulator)",
+        "includeAll": true,
+        "allValue": ".*",
+        "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "logs",
+      "title": "实时日志",
+      "gridPos": {"h": 12, "w": 24, "x": 0, "y": 0},
+      "datasource": "$DS_LOKI",
+      "options": {
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{app=\"miniwow\", filename=~\".*/autodungeon_.*\", config=~\"$config\", emulator=~\"$emulator\"}"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "5分钟日志条数",
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 12},
+      "datasource": "$DS_LOKI",
+      "options": {"reduceOptions": {"calcs": ["last"], "fields": ""}},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({app=\"miniwow\", filename=~\".*/autodungeon_.*\", config=~\"$config\", emulator=~\"$emulator\"}[5m]))"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "5分钟错误条数 (ERROR/CRITICAL)",
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 12},
+      "datasource": "$DS_LOKI",
+      "options": {"reduceOptions": {"calcs": ["last"], "fields": ""}},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({app=\"miniwow\", filename=~\".*/autodungeon_.*\", config=~\"$config\", emulator=~\"$emulator\"}[5m] |= \" ERROR \")) + sum(count_over_time({app=\"miniwow\", filename=~\".*/autodungeon_.*\", config=~\"$config\", emulator=~\"$emulator\"}[5m] |= \" CRITICAL \"))"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "按 emulator 的日志速率",
+      "gridPos": {"h": 6, "w": 12, "x": 12, "y": 12},
+      "datasource": "$DS_LOKI",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (emulator)(rate(count_over_time({app=\"miniwow\", filename=~\".*/autodungeon_.*\", config=~\"$config\", emulator=~\"$emulator\"}[5m])))"
+        }
+      ]
+    },
+    {
+      "type": "bargauge",
+      "title": "Top 配置 (最近1小时)",
+      "gridPos": {"h": 6, "w": 12, "x": 0, "y": 18},
+      "datasource": "$DS_LOKI",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, sum by (config)(count_over_time({app=\"miniwow\", filename=~\".*/autodungeon_.*\", config=~\"$config\", emulator=~\"$emulator\"}[1h])))"
+        }
+      ]
+    }
+  ],
+  "time": {"from": "now-6h", "to": "now"}
+}

@@ -1536,3 +1536,183 @@ bash: -c: line 0: `cd /Users/weiwang/Projects/miniwow ; set -o pipefail ; max_re
 2025-12-03 08:51:28,413.413 - root - INFO - ✅ Bark 通知发送成功
 [0;32m[SUCCESS][0m Bark 通知发送成功
 ✅ 脚本运行成功
+[0;34m[INFO][0m 将运行选定的 1 个角色
+
+[0;34m[INFO][0m 准备运行 1 个角色: mage_alt
+
+[0;34m[INFO][0m 正在运行第 1/1 个角色...
+[0;34m[INFO][0m ==================================================
+[0;34m[INFO][0m 开始运行: mage_alt (mage_alt)
+[0;34m[INFO][0m 配置文件: configs/mage_alt.json
+[0;34m[INFO][0m 模拟器: 192.168.1.150:5565
+[0;34m[INFO][0m 开始时间: 13:32:09
+[0;34m[INFO][0m ==================================================
+[32m13:32:10.533[0m [1;30mINFO[0m unknown unknown system_config_loader.py:63 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m13:32:10.533[0m [1;30mINFO[0m unknown unknown system_config_loader.py:65 [32m📱 Bark 通知已启用[0m
+[32m13:32:10.533[0m [1;30mINFO[0m unknown unknown system_config_loader.py:67 [32m📊 Loki 日志已启用[0m
+[32m13:32:10.533[0m [1;30mINFO[0m unknown unknown system_config_loader.py:69 [32m📈 Grafana 可视化已启用[0m
+[32m13:32:10.538[0m [1;30mINFO[0m unknown unknown system_config_loader.py:63 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m13:32:10.539[0m [1;30mINFO[0m unknown unknown system_config_loader.py:65 [32m📱 Bark 通知已启用[0m
+[32m13:32:10.539[0m [1;30mINFO[0m unknown unknown system_config_loader.py:67 [32m📊 Loki 日志已启用[0m
+[32m13:32:10.539[0m [1;30mINFO[0m unknown unknown system_config_loader.py:69 [32m📈 Grafana 可视化已启用[0m
+[32m13:32:10.539[0m [1;30mINFO[0m unknown unknown system_config_loader.py:63 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m13:32:10.539[0m [1;30mINFO[0m unknown unknown system_config_loader.py:65 [32m📱 Bark 通知已启用[0m
+[32m13:32:10.539[0m [1;30mINFO[0m unknown unknown system_config_loader.py:67 [32m📊 Loki 日志已启用[0m
+[32m13:32:10.539[0m [1;30mINFO[0m unknown unknown system_config_loader.py:69 [32m📈 Grafana 可视化已启用[0m
+[32m13:32:10.540[0m [1;30mINFO[0m unknown unknown system_config_loader.py:63 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m13:32:10.540[0m [1;30mINFO[0m unknown unknown system_config_loader.py:65 [32m📱 Bark 通知已启用[0m
+[32m13:32:10.540[0m [1;30mINFO[0m unknown unknown system_config_loader.py:67 [32m📊 Loki 日志已启用[0m
+[32m13:32:10.540[0m [1;30mINFO[0m unknown unknown system_config_loader.py:69 [32m📈 Grafana 可视化已启用[0m
+[32m13:32:10.541[0m [1;30mINFO[0m unknown unknown auto_dungeon.py:2279 [32m
+============================================================[0m
+[32m13:32:10.541[0m [1;30mINFO[0m unknown unknown auto_dungeon.py:2280 [32m🎮 副本自动遍历脚本[0m
+[32m13:32:10.541[0m [1;30mINFO[0m unknown unknown auto_dungeon.py:2281 [32m============================================================
+[0m
+[32m13:32:10.541[0m [1;30mINFO[0m unknown unknown system_config_loader.py:63 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m13:32:10.541[0m [1;30mINFO[0m unknown unknown system_config_loader.py:65 [32m📱 Bark 通知已启用[0m
+[32m13:32:10.541[0m [1;30mINFO[0m unknown unknown system_config_loader.py:67 [32m📊 Loki 日志已启用[0m
+[32m13:32:10.541[0m [1;30mINFO[0m unknown unknown system_config_loader.py:69 [32m📈 Grafana 可视化已启用[0m
+[32m13:32:10.541[0m [1;30mINFO[0m unknown unknown config_loader.py:82 [32m✅ 配置加载成功: /Users/weiwang/Projects/miniwow/configs/mage_alt.json[0m
+[32m13:32:10.541[0m [1;30mINFO[0m unknown unknown config_loader.py:83 [32m📝 配置名称: mage_alt[0m
+[32m13:32:10.541[0m [1;30mINFO[0m unknown unknown config_loader.py:85 [32m⚔️ 角色职业: 法师[0m
+[32m13:32:10.541[0m [1;30mINFO[0m unknown unknown config_loader.py:87 [32m🎁 每日领取: 启用[0m
+[32m13:32:10.541[0m [1;30mINFO[0m unknown unknown config_loader.py:91 [32m🎁 指定宝箱: 风暴宝箱[0m
+[32m13:32:10.541[0m [1;30mINFO[0m unknown unknown config_loader.py:92 [32m🌍 区域数量: 8[0m
+[32m13:32:10.541[0m [1;30mINFO[0m unknown unknown config_loader.py:93 [32m🎯 副本总数: 98[0m
+[32m13:32:10.541[0m [1;30mINFO[0m unknown unknown config_loader.py:100 [32m✅ 选定副本: 32[0m
+[32m13:32:10.541[0m [1;30mINFO[0m unknown unknown system_config_loader.py:63 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m13:32:10.541[0m [1;30mINFO[0m unknown unknown system_config_loader.py:65 [32m📱 Bark 通知已启用[0m
+[32m13:32:10.541[0m [1;30mINFO[0m unknown unknown system_config_loader.py:67 [32m📊 Loki 日志已启用[0m
+[32m13:32:10.541[0m [1;30mINFO[0m unknown unknown system_config_loader.py:69 [32m📈 Grafana 可视化已启用[0m
+[32m13:32:10.544[0m [1;30mINFO[0m mage_alt unknown dungeon_db.py:75 [32m📊 数据库初始化完成: database/dungeon_progress.db[0m
+[32m13:32:10.544[0m [1;30mINFO[0m mage_alt unknown dungeon_db.py:76 [32m🎮 当前配置: mage_alt[0m
+[32m13:32:10.545[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1939 [32m📊 今天已通关 46 个副本[0m
+[32m13:32:10.547[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1942 [32m  ✅ 风暴群岛 - 真理之地[0m
+[32m13:32:10.547[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1942 [32m  ✅ 风暴群岛 - 预言神殿[0m
+[32m13:32:10.547[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1942 [32m  ✅ 风暴群岛 - 海底王宫[0m
+[32m13:32:10.547[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1942 [32m  ✅ 风暴群岛 - 泰坦密室[0m
+[32m13:32:10.547[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1942 [32m  ✅ 风暴群岛 - 黑暗庄园[0m
+[32m13:32:10.547[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1944 [32m  ... 还有 41 个[0m
+[32m13:32:10.547[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1945 [32m[0m
+[32m13:32:10.552[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1967 [32m📊 总计: 8 个区域, 98 个副本[0m
+[32m13:32:10.552[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1968 [32m📊 选定: 32 个副本[0m
+[32m13:32:10.552[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1969 [32m📊 已完成: 46 个副本[0m
+[32m13:32:10.552[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1973 [32m
+============================================================[0m
+[32m13:32:10.552[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1974 [32m🎉 今天所有选定的副本都已完成！[0m
+[32m13:32:10.552[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1975 [32m============================================================[0m
+[32m13:32:10.552[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1976 [32m💤 无需执行任何操作，脚本退出[0m
+[32m13:32:10.552[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:2316 [32m✅ 无需启动模拟器，脚本退出[0m
+[32m13:32:10.552[0m [1;30mINFO[0m mage_alt unknown dungeon_db.py:239 [32m📊 数据库连接已关闭[0m
+[0;32m[SUCCESS][0m mage_alt 副本运行完成！
+[0;34m[INFO][0m 结束时间: 13:32:10
+[0;32m[SUCCESS][0m 成功完成！继续下一个角色...
+
+
+[0;34m[INFO][0m ==================================================
+[0;34m[INFO][0m 运行总结
+[0;34m[INFO][0m ==================================================
+[0;34m[INFO][0m 总共运行: 1 个角色
+[0;32m[SUCCESS][0m 成功: 1 个
+[0;34m[INFO][0m 总耗时: 0小时 0分钟 1秒
+[0;34m[INFO][0m ==================================================
+
+[0;34m[INFO][0m 📱 发送 Bark 通知...
+[32m13:32:10.655[0m [1;30mINFO[0m unknown unknown system_config_loader.py:63 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m13:32:10.655[0m [1;30mINFO[0m unknown unknown system_config_loader.py:65 [32m📱 Bark 通知已启用[0m
+[32m13:32:10.655[0m [1;30mINFO[0m unknown unknown system_config_loader.py:67 [32m📊 Loki 日志已启用[0m
+[32m13:32:10.655[0m [1;30mINFO[0m unknown unknown system_config_loader.py:69 [32m📈 Grafana 可视化已启用[0m
+2025-12-03 13:32:10,655.655 - root - INFO - 📱 发送 Bark 通知: 异世界勇者 - 副本运行成功
+2025-12-03 13:32:11,982.982 - root - INFO - ✅ Bark 通知发送成功
+[0;32m[SUCCESS][0m Bark 通知发送成功
+✅ 脚本运行成功
+[0;34m[INFO][0m 将运行选定的 1 个角色
+
+[0;34m[INFO][0m 准备运行 1 个角色: mage_alt
+
+[0;34m[INFO][0m 正在运行第 1/1 个角色...
+[0;34m[INFO][0m ==================================================
+[0;34m[INFO][0m 开始运行: mage_alt (mage_alt)
+[0;34m[INFO][0m 配置文件: configs/mage_alt.json
+[0;34m[INFO][0m 模拟器: 192.168.1.150:5565
+[0;34m[INFO][0m 开始时间: 13:41:37
+[0;34m[INFO][0m ==================================================
+[32m13:41:37.957[0m [1;30mINFO[0m unknown unknown system_config_loader.py:63 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m13:41:37.957[0m [1;30mINFO[0m unknown unknown system_config_loader.py:65 [32m📱 Bark 通知已启用[0m
+[32m13:41:37.957[0m [1;30mINFO[0m unknown unknown system_config_loader.py:67 [32m📊 Loki 日志已启用[0m
+[32m13:41:37.957[0m [1;30mINFO[0m unknown unknown system_config_loader.py:69 [32m📈 Grafana 可视化已启用[0m
+[32m13:41:37.968[0m [1;30mINFO[0m unknown unknown system_config_loader.py:63 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m13:41:37.968[0m [1;30mINFO[0m unknown unknown system_config_loader.py:65 [32m📱 Bark 通知已启用[0m
+[32m13:41:37.968[0m [1;30mINFO[0m unknown unknown system_config_loader.py:67 [32m📊 Loki 日志已启用[0m
+[32m13:41:37.968[0m [1;30mINFO[0m unknown unknown system_config_loader.py:69 [32m📈 Grafana 可视化已启用[0m
+[32m13:41:37.969[0m [1;30mINFO[0m unknown unknown system_config_loader.py:63 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m13:41:37.969[0m [1;30mINFO[0m unknown unknown system_config_loader.py:65 [32m📱 Bark 通知已启用[0m
+[32m13:41:37.969[0m [1;30mINFO[0m unknown unknown system_config_loader.py:67 [32m📊 Loki 日志已启用[0m
+[32m13:41:37.969[0m [1;30mINFO[0m unknown unknown system_config_loader.py:69 [32m📈 Grafana 可视化已启用[0m
+[32m13:41:37.970[0m [1;30mINFO[0m unknown unknown system_config_loader.py:63 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m13:41:37.970[0m [1;30mINFO[0m unknown unknown system_config_loader.py:65 [32m📱 Bark 通知已启用[0m
+[32m13:41:37.970[0m [1;30mINFO[0m unknown unknown system_config_loader.py:67 [32m📊 Loki 日志已启用[0m
+[32m13:41:37.970[0m [1;30mINFO[0m unknown unknown system_config_loader.py:69 [32m📈 Grafana 可视化已启用[0m
+[32m13:41:37.971[0m [1;30mINFO[0m unknown unknown auto_dungeon.py:2279 [32m
+============================================================[0m
+[32m13:41:37.971[0m [1;30mINFO[0m unknown unknown auto_dungeon.py:2280 [32m🎮 副本自动遍历脚本[0m
+[32m13:41:37.971[0m [1;30mINFO[0m unknown unknown auto_dungeon.py:2281 [32m============================================================
+[0m
+[32m13:41:37.971[0m [1;30mINFO[0m unknown unknown system_config_loader.py:63 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m13:41:37.971[0m [1;30mINFO[0m unknown unknown system_config_loader.py:65 [32m📱 Bark 通知已启用[0m
+[32m13:41:37.971[0m [1;30mINFO[0m unknown unknown system_config_loader.py:67 [32m📊 Loki 日志已启用[0m
+[32m13:41:37.971[0m [1;30mINFO[0m unknown unknown system_config_loader.py:69 [32m📈 Grafana 可视化已启用[0m
+[32m13:41:37.972[0m [1;30mINFO[0m unknown unknown config_loader.py:82 [32m✅ 配置加载成功: /Users/weiwang/Projects/miniwow/configs/mage_alt.json[0m
+[32m13:41:37.972[0m [1;30mINFO[0m unknown unknown config_loader.py:83 [32m📝 配置名称: mage_alt[0m
+[32m13:41:37.972[0m [1;30mINFO[0m unknown unknown config_loader.py:85 [32m⚔️ 角色职业: 法师[0m
+[32m13:41:37.972[0m [1;30mINFO[0m unknown unknown config_loader.py:87 [32m🎁 每日领取: 启用[0m
+[32m13:41:37.972[0m [1;30mINFO[0m unknown unknown config_loader.py:91 [32m🎁 指定宝箱: 风暴宝箱[0m
+[32m13:41:37.972[0m [1;30mINFO[0m unknown unknown config_loader.py:92 [32m🌍 区域数量: 8[0m
+[32m13:41:37.972[0m [1;30mINFO[0m unknown unknown config_loader.py:93 [32m🎯 副本总数: 98[0m
+[32m13:41:37.972[0m [1;30mINFO[0m unknown unknown config_loader.py:100 [32m✅ 选定副本: 32[0m
+[32m13:41:37.972[0m [1;30mINFO[0m unknown unknown system_config_loader.py:63 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m13:41:37.972[0m [1;30mINFO[0m unknown unknown system_config_loader.py:65 [32m📱 Bark 通知已启用[0m
+[32m13:41:37.972[0m [1;30mINFO[0m unknown unknown system_config_loader.py:67 [32m📊 Loki 日志已启用[0m
+[32m13:41:37.972[0m [1;30mINFO[0m unknown unknown system_config_loader.py:69 [32m📈 Grafana 可视化已启用[0m
+[32m13:41:37.985[0m [1;30mINFO[0m mage_alt unknown dungeon_db.py:75 [32m📊 数据库初始化完成: database/dungeon_progress.db[0m
+[32m13:41:37.985[0m [1;30mINFO[0m mage_alt unknown dungeon_db.py:76 [32m🎮 当前配置: mage_alt[0m
+[32m13:41:37.988[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1939 [32m📊 今天已通关 46 个副本[0m
+[32m13:41:37.990[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1942 [32m  ✅ 风暴群岛 - 真理之地[0m
+[32m13:41:37.990[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1942 [32m  ✅ 风暴群岛 - 预言神殿[0m
+[32m13:41:37.990[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1942 [32m  ✅ 风暴群岛 - 海底王宫[0m
+[32m13:41:37.990[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1942 [32m  ✅ 风暴群岛 - 泰坦密室[0m
+[32m13:41:37.990[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1942 [32m  ✅ 风暴群岛 - 黑暗庄园[0m
+[32m13:41:37.990[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1944 [32m  ... 还有 41 个[0m
+[32m13:41:37.990[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1945 [32m[0m
+[32m13:41:37.995[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1967 [32m📊 总计: 8 个区域, 98 个副本[0m
+[32m13:41:37.995[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1968 [32m📊 选定: 32 个副本[0m
+[32m13:41:37.995[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1969 [32m📊 已完成: 46 个副本[0m
+[32m13:41:37.995[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1973 [32m
+============================================================[0m
+[32m13:41:37.995[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1974 [32m🎉 今天所有选定的副本都已完成！[0m
+[32m13:41:37.995[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1975 [32m============================================================[0m
+[32m13:41:37.995[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:1976 [32m💤 无需执行任何操作，脚本退出[0m
+[32m13:41:37.995[0m [1;30mINFO[0m mage_alt unknown auto_dungeon.py:2316 [32m✅ 无需启动模拟器，脚本退出[0m
+[32m13:41:37.995[0m [1;30mINFO[0m mage_alt unknown dungeon_db.py:239 [32m📊 数据库连接已关闭[0m
+[0;32m[SUCCESS][0m mage_alt 副本运行完成！
+[0;34m[INFO][0m 结束时间: 13:41:38
+[0;32m[SUCCESS][0m 成功完成！继续下一个角色...
+
+
+[0;34m[INFO][0m ==================================================
+[0;34m[INFO][0m 运行总结
+[0;34m[INFO][0m ==================================================
+[0;34m[INFO][0m 总共运行: 1 个角色
+[0;32m[SUCCESS][0m 成功: 1 个
+[0;34m[INFO][0m 总耗时: 0小时 0分钟 1秒
+[0;34m[INFO][0m ==================================================
+
+[0;34m[INFO][0m 📱 发送 Bark 通知...
+[32m13:41:38.102[0m [1;30mINFO[0m unknown unknown system_config_loader.py:63 [32m✅ 系统配置加载成功: /Users/weiwang/Projects/miniwow/system_config.json[0m
+[32m13:41:38.102[0m [1;30mINFO[0m unknown unknown system_config_loader.py:65 [32m📱 Bark 通知已启用[0m
+[32m13:41:38.102[0m [1;30mINFO[0m unknown unknown system_config_loader.py:67 [32m📊 Loki 日志已启用[0m
+[32m13:41:38.102[0m [1;30mINFO[0m unknown unknown system_config_loader.py:69 [32m📈 Grafana 可视化已启用[0m
+2025-12-03 13:41:38,102.102 - root - INFO - 📱 发送 Bark 通知: 异世界勇者 - 副本运行成功
+2025-12-03 13:41:39,906.906 - root - INFO - ✅ Bark 通知发送成功
+[0;32m[SUCCESS][0m Bark 通知发送成功
+✅ 脚本运行成功

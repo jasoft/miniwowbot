@@ -82,7 +82,7 @@ class OCRHelper:
         os.makedirs(self.cache_dir, exist_ok=True)
         os.makedirs(self.temp_dir, exist_ok=True)
 
-        # 配置彩色日志（从系统配置文件加载 Loki 配置）
+        # 配置彩色日志（从系统配置文件加载通用日志配置）
         # 需要先初始化，因为缓存加载时会用到
         self.logger = setup_logger_from_config(use_color=True)
 

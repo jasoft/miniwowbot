@@ -35,7 +35,7 @@ from wrapt_timeout_decorator import timeout as timeout_decorator
 from logger_config import (
     attach_emulator_file_handler,
     setup_logger_from_config,
-    update_all_loki_labels,
+    update_log_context,
     GlobalLogContext,
 )
 from project_paths import resolve_project_path
@@ -94,7 +94,7 @@ ENTER_GAME_BUTTON_TEMPLATE = Template(
 CLICK_INTERVAL = 1
 STOP_FILE = str(resolve_project_path(".stop_dungeon"))  # 停止标记文件路径
 
-# 配置彩色日志（从系统配置文件加载 Loki 配置）
+# 配置彩色日志（从系统配置文件加载通用日志配置）
 logger = setup_logger_from_config(use_color=True)
 
 # 设置 OCRHelper 的日志级别
@@ -108,7 +108,7 @@ zone_dungeons = None
 ocr_helper = None
 emulator_manager = None
 target_emulator = None  # 目标模拟器名称
-config_name = None  # 配置文件名称（用于 Loki 标签）
+config_name = None  # 配置文件名称（用于日志上下文标签）
 error_dialog_monitor = None  # 全局错误对话框监控器
 
 
@@ -132,6 +132,7 @@ def _normalize_emulator_name(name: Optional[str]) -> Optional[str]:
     return name
 
 
+@timeout_decorator(120, timeout_exception=TimeoutError)
 def check_and_start_emulator(emulator_name: Optional[str] = None):
     """
     检查模拟器状态并在需要时启动
@@ -150,7 +151,7 @@ def check_and_start_emulator(emulator_name: Optional[str] = None):
         logger.info(f"🔍 检查模拟器状态: {emulator_name}")
         target_emulator = emulator_name
         # 更新日志上下文中的 emulator 标签，便于后续写入文件与采集
-        update_all_loki_labels({"emulator": _normalize_emulator_name(emulator_name)})
+        update_log_context({"emulator": _normalize_emulator_name(emulator_name)})
     else:
         logger.info("🔍 检查BlueStacks模拟器状态")
     logger.info("=" * 60)
@@ -350,6 +351,7 @@ def find_text(
 
 
 @timer_decorator
+@timeout_decorator(15, timeout_exception=TimeoutError)
 def text_exists(
     texts,
     similarity_threshold: float = 0.7,
@@ -512,6 +514,7 @@ def text_exists(
     return None
 
 
+@timeout_decorator(30, timeout_exception=TimeoutError)
 def find_text_and_click(
     text,
     timeout=10,
@@ -561,6 +564,7 @@ def find_text_and_click(
         raise
 
 
+@timeout_decorator(30, timeout_exception=TimeoutError)
 def find_text_and_click_safe(
     text,
     timeout=10,
@@ -597,6 +601,7 @@ def find_text_and_click_safe(
         return default_return
 
 
+@timeout_decorator(10, timeout_exception=TimeoutError)
 def click_back():
     """点击返回按钮（左上角）"""
     try:
@@ -609,6 +614,7 @@ def click_back():
         return False
 
 
+@timeout_decorator(10, timeout_exception=TimeoutError)
 def click_free_button():
     """点击免费按钮"""
     free_words = ["免费"]
@@ -667,6 +673,7 @@ def send_bark_notification(title, message, level="active"):
 
         # 发送请求
         logger.info(f"📱 发送 Bark 通知: {enriched_title}")
+        logger.info(f"📄 Bark 内容: {enriched_message}")
         response = requests.get(url, params=params, timeout=10)
 
         if response.status_code == 200:
@@ -705,6 +712,7 @@ def is_main_world():
         return False
 
 
+@timeout_decorator(15, timeout_exception=TimeoutError)
 def open_map():
     back_to_main()
 
@@ -713,6 +721,7 @@ def open_map():
     sleep(CLICK_INTERVAL)
 
 
+@timeout_decorator(5, timeout_exception=TimeoutError)
 def is_on_map():
     return exists(MAP_DUNGEON_TEMPLATE)
 
@@ -805,6 +814,7 @@ def auto_combat(completed_dungeons=0, total_dungeons=0):
     logger.info("✅ 战斗完成")
 
 
+@timeout_decorator(120, timeout_exception=TimeoutError)
 def is_on_character_selection(timeout=30):
     """
     检查当前是否位于角色选择界面，模板识别失败时回退到 OCR
@@ -887,6 +897,7 @@ def wait_for_main(timeout=300):
         raise TimeoutError("等待主界面超时")
 
 
+@timeout_decorator(30, timeout_exception=TimeoutError)
 def switch_to_zone(zone_name):
     """切换到指定区域"""
     logger.info(f"\n{'=' * 50}")
@@ -905,6 +916,7 @@ def switch_to_zone(zone_name):
     return False
 
 
+@timeout_decorator(60, timeout_exception=TimeoutError)
 def sell_trashes():
     logger.info("💰 卖垃圾")
     click_back()
@@ -920,6 +932,7 @@ def sell_trashes():
     click_back()
 
 
+@timeout_decorator(120, timeout_exception=TimeoutError)
 def switch_account(account_name):
     logger.info(f"切换账号: {account_name}")
     stop_app("com.ms.ysjyzr")
@@ -1002,6 +1015,7 @@ def back_to_main(max_duration=15, backoff_interval=0.2):
         sleep(backoff_interval)
 
 
+@timeout_decorator(10, timeout_exception=TimeoutError)
 def switch_to(section_name):
     """切换到指定区域"""
     logger.info(f"🌍 切换到: {section_name}")
@@ -1078,6 +1092,7 @@ class DailyCollectManager:
             self.logger.error(f"❌ 每日收集操作失败: {e}")
             raise
 
+    @timeout_decorator(60, timeout_exception=TimeoutError)
     def _collect_gifts(self):
         """领取礼包"""
         logger.info("领取礼包")
@@ -1087,12 +1102,13 @@ class DailyCollectManager:
         find_text_and_click("领取奖励", regions=[8])
         back_to_main()
 
+    @timeout_decorator(120, timeout_exception=TimeoutError)
     def _small_cookie(self):
         """领取各种主题奖励"""
-        logger.info("领取各种主题奖励[海盗船,冰封王座]")
+        logger.info("领取各种主题奖励[海盗船,法师塔]")
         back_to_main()
         find_text_and_click("活动", regions=[3])
-        res = text_exists(["海盗船"], regions=[5, 6])
+        res = text_exists(["海盗船","法师塔"], regions=[5, 6])
         if res:
             touch(res["center"])
             sleep(CLICK_INTERVAL)
@@ -1106,6 +1122,7 @@ class DailyCollectManager:
             find_text_and_click("领取", regions=[9])
         back_to_main()
 
+    @timeout_decorator(180, timeout_exception=TimeoutError)
     def _checkin_taptap(self):
         """签到 taptap,领一些礼品"""
         logger.info("签到 taptap")
@@ -1125,6 +1142,7 @@ class DailyCollectManager:
         text("")
         touch(send_button["center"])
 
+    @timeout_decorator(120, timeout_exception=TimeoutError)
     def _collect_idle_rewards(self):
         """
         领取每日挂机奖励
@@ -1151,6 +1169,7 @@ class DailyCollectManager:
             self.logger.warning(f"⚠️ 未找到战斗按钮或点击失败: {e}")
             raise
 
+    @timeout_decorator(120, timeout_exception=TimeoutError)
     def _collect_quick_afk(self):
         """
         执行快速挂机领取
@@ -1165,6 +1184,7 @@ class DailyCollectManager:
         else:
             self.logger.warning("⚠️ 未找到快速挂机按钮")
 
+    @timeout_decorator(180, timeout_exception=TimeoutError)
     def _handle_retinue_deployment(self):
         """
         处理随从派遣操作
@@ -1234,6 +1254,7 @@ class DailyCollectManager:
 
         back_to_main()
 
+    @timeout_decorator(120, timeout_exception=TimeoutError)
     def _sweep_tower_floor(self, floor_name, regions):
         """
         扫荡试炼塔的特定楼层
@@ -1252,6 +1273,7 @@ class DailyCollectManager:
         else:
             self.logger.warning(f"⚠️ 未找到{floor_name}楼层")
 
+    @timeout_decorator(300, timeout_exception=TimeoutError)
     def _kill_world_boss(self):
         """
         杀死世界boss
@@ -1273,6 +1295,7 @@ class DailyCollectManager:
             self.logger.warning(f"⚠️ 未找到世界boss: {e}")
             back_to_main()
 
+    @timeout_decorator(120, timeout_exception=TimeoutError)
     def _buy_market_items(self):
         """
         购买市场商品
@@ -1291,6 +1314,7 @@ class DailyCollectManager:
             self.logger.warning(f"⚠️ 未找到商店: {e}")
             back_to_main()
 
+    @timeout_decorator(120, timeout_exception=TimeoutError)
     def _open_chests(self, chest_name):
         """
         开启宝箱
@@ -1313,6 +1337,7 @@ class DailyCollectManager:
             self.logger.warning(f"⚠️ 未找到宝箱: {e}")
             back_to_main()
 
+    @timeout_decorator(120, timeout_exception=TimeoutError)
     def _receive_mails(self):
         """
         领取邮件
@@ -1589,6 +1614,7 @@ def daily_collect():
         return True
 
 
+@timeout_decorator(60, timeout_exception=TimeoutError)
 def focus_and_click_dungeon(dungeon_name, zone_name, max_attempts=2):
     """
     尝试聚焦到指定副本并点击，必要时重新刷新地图
@@ -1686,7 +1712,21 @@ def process_dungeon(
 
 
 def parse_arguments():
-    """解析命令行参数"""
+    """解析命令行参数。
+
+    Returns:
+        argparse.Namespace: 解析后的参数对象，包含脚本运行所需的选项。
+
+    本脚本支持的主要参数：
+    - ``--skip-emulator-check``: 跳过模拟器检查与启动。
+    - ``-c/--config``: 指定配置文件路径。
+    - ``--load-account``: 仅加载指定账号后退出。
+    - ``--emulator``: 指定模拟器网络地址。
+    - ``--memlog``: 启用内存监控日志。
+    - ``--low-mem``: 启用低内存模式（降低 OCR 资源占用）。
+    - ``-e/--env``: 以 ``key=value`` 形式覆盖环境变量。
+    - ``--max-iterations``: 限制主遍历循环的最大轮数，防止终端长时间卡住。
+    """
     parser = argparse.ArgumentParser(description="副本自动遍历脚本")
     parser.add_argument(
         "--skip-emulator-check",
@@ -1728,9 +1768,16 @@ def parse_arguments():
         dest="env_overrides",
         help="环境变量覆盖，格式为 key=value（可多次使用，如 -e enable_daily_collect=false -e enable_quick_afk=true）",
     )
+    parser.add_argument(
+        "--max-iterations",
+        type=int,
+        default=1,
+        help="限制副本遍历的最大轮数，默认 1；用于避免异常情况下长时间运行",
+    )
     return parser.parse_args()
 
 
+@timeout_decorator(180, timeout_exception=TimeoutError)
 def handle_load_account_mode(
     account_name, emulator_name: Optional[str] = None, low_mem: bool = False
 ):
@@ -1887,11 +1934,10 @@ def initialize_configs(config_path, env_overrides=None):
         # 获取配置文件名称，用于日志上下文
         config_name = config_loader.get_config_name()
 
-        # 重新初始化日志，添加配置文件名称标签
-        logger = setup_logger_from_config(use_color=True, loki_labels={"config": config_name})
-
-        # 更新全局日志上下文（非 Loki），使所有模块日志包含 config 标签
-        update_all_loki_labels({"config": config_name})
+        # 重新初始化日志
+        logger = setup_logger_from_config(use_color=True)
+        # 更新全局日志上下文，使所有模块日志包含 config 标签
+        update_log_context({"config": config_name})
 
         # 应用环境变量覆盖
         if env_overrides:
@@ -1970,7 +2016,7 @@ def show_progress_statistics(db):
 
     return completed_count, total_selected_dungeons, total_dungeons
 
-
+@timeout_decorator(120, timeout_exception=TimeoutError)
 def initialize_device_and_ocr(emulator_name: Optional[str] = None, low_mem: bool = False):
     """
     初始化设备连接和OCR助手
@@ -2037,14 +2083,26 @@ def initialize_device_and_ocr(emulator_name: Optional[str] = None, low_mem: bool
     try:
         # 关键：先连接设备，再调用 auto_setup
         # 这样可以避免 auto_setup 重新初始化导致其他设备断开
-        auto_setup(__file__, logdir=True)
+        auto_setup(__file__)
         logger.info("自动配置设备中...")
         connect_device(connection_string)
         logger.info("   ✅ 成功连接到设备")
 
     except Exception as e:
         logger.error(f"   ❌ 连接设备失败: {e}")
-        raise
+        # 尝试重置 ADB 并重连一次
+        try:
+            logger.warning("🔁 尝试重置 ADB 并重新连接设备…")
+            # 使用 EmulatorManager 的 ADB 路径执行 kill-server/start-server
+            import subprocess
+            subprocess.run([emulator_manager.adb_path, "kill-server"], timeout=5)
+            subprocess.run([emulator_manager.adb_path, "start-server"], timeout=10)
+            emulator_manager.ensure_adb_connection()
+            connect_device(connection_string)
+            logger.info("   ✅ 重试连接成功")
+        except Exception as retry_err:
+            logger.error(f"   ❌ 重试连接失败: {retry_err}")
+            raise
 
     if ocr_helper is None:
         ocr_helper = OCRHelper(
@@ -2346,7 +2404,8 @@ def main():
 
     with DungeonProgressDB(config_name=config_loader.get_config_name()) as db:
         iteration = 1
-        while True:
+        max_iterations = getattr(args, "max_iterations", 1) or 1
+        while iteration <= max_iterations:
             logger.info(f"\n🔁 开始第 {iteration} 轮副本遍历…")
             run_dungeon_traversal(db, total_dungeons, state_machine)
 
@@ -2358,6 +2417,13 @@ def main():
                 f"⚠️ 第 {iteration} 轮结束后仍有 {remaining_after_run} 个副本未完成，准备继续"
             )
             iteration += 1
+
+        if iteration > max_iterations:
+            remaining_after_run = count_remaining_selected_dungeons(db)
+            if remaining_after_run > 0:
+                logger.warning(
+                    f"⚠️ 已达到最大轮数 {max_iterations}，仍有 {remaining_after_run} 个副本未完成；为避免卡住已优雅退出，可稍后重试"
+                )
 
         # 10. 显示完成信息
         logger.info("\n" + "=" * 60)

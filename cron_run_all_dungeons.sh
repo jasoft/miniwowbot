@@ -1,20 +1,13 @@
 #!/bin/bash
-# Cron 任务启动脚本
-# 用于从 launchd 启动两个模拟器的副本脚本，并将日志输出到 Loki
+set -euo pipefail
 
-# 切换到脚本目录
 SCRIPT_DIR="/Users/weiwang/Projects/miniwow"
-cd "$SCRIPT_DIR" || {
-    echo "❌ 无法切换到目录: $SCRIPT_DIR"
-    exit 1
-}
+cd "$SCRIPT_DIR"
 
-# 设置环境变量
 export PATH="/opt/homebrew/bin:$PATH"
-export LOKI_URL="${LOKI_URL:-http://docker.home:3100}"
-export LOKI_ENABLED="${LOKI_ENABLED:-true}"
 
-# 调用 Python 启动器
-python3 "$SCRIPT_DIR/cron_launcher.py"
-exit $?
-
+if command -v uv >/dev/null 2>&1; then
+  uv run "$SCRIPT_DIR/cron_run_all_dungeons.py"
+else
+  PYTHONPATH="$SCRIPT_DIR" python3 "$SCRIPT_DIR/cron_run_all_dungeons.py"
+fi

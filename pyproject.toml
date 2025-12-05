@@ -8,7 +8,6 @@ dependencies = [
     "peewee>=3.17.0",
     "pytest>=8.4.2",
     "imagehash>=4.3.2",
-    "dotenv>=0.9.9",
     "pytest-timeout>=2.4.0",
     "wrapt-timeout-decorator>=1.5.1",
     "setuptools>=80.9.0",
@@ -21,6 +20,7 @@ dependencies = [
     "streamlit>=1.39.0",
     "pandas>=2.2.0",
     "streamlit-autorefresh>=1.0.1",
+    "requests>=2.32.5",
 ]
 
 [dependency-groups]

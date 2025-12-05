@@ -59,7 +59,7 @@ class TestLoggerFileHandler:
     def test_attach_file_handler_creates_log_file(self, temp_log_dir):
         """测试 attach_emulator_file_handler 创建日志文件"""
         # 先初始化 console logger
-        logger = setup_logger_from_config(use_color=True)
+        setup_logger_from_config(use_color=True)
         
         # 附加文件处理器
         log_path = attach_emulator_file_handler(
@@ -70,10 +70,10 @@ class TestLoggerFileHandler:
         )
         
         # 验证日志文件路径
-        assert log_path == os.path.join(temp_log_dir, "test_emulator.log")
+        assert log_path == os.path.join(temp_log_dir, "autodungeon_test_emulator.log")
         
         # 写入测试日志
-        logger.info("测试日志消息")
+        logging.getLogger("miniwow").info("测试日志消息")
         
         # 刷新并检查文件内容
         for handler in logging.getLogger("miniwow").handlers:
@@ -90,7 +90,7 @@ class TestLoggerFileHandler:
 
     def test_file_handler_with_colon_in_emulator_name(self, temp_log_dir):
         """测试 emulator 名称包含冒号时的文件名处理"""
-        logger = setup_logger_from_config(use_color=True)
+        setup_logger_from_config(use_color=True)
         
         log_path = attach_emulator_file_handler(
             emulator_name="192.168.1.150:5555",
@@ -100,10 +100,10 @@ class TestLoggerFileHandler:
         )
         
         # 验证冒号被替换为下划线
-        expected_path = os.path.join(temp_log_dir, "192.168.1.150_5555.log")
+        expected_path = os.path.join(temp_log_dir, "autodungeon_192.168.1.150_5555.log")
         assert log_path == expected_path
         
-        logger.info("带冒号的 emulator 测试")
+        logging.getLogger("miniwow").info("带冒号的 emulator 测试")
         
         for handler in logging.getLogger("miniwow").handlers:
             if isinstance(handler, logging.FileHandler):
@@ -113,7 +113,7 @@ class TestLoggerFileHandler:
 
     def test_file_handler_no_duplicate_on_same_path(self, temp_log_dir):
         """测试相同路径不会重复添加文件处理器"""
-        logger = setup_logger_from_config(use_color=True)
+        setup_logger_from_config(use_color=True)
         
         # 第一次附加
         attach_emulator_file_handler(
@@ -154,4 +154,3 @@ class TestLoggerFileHandler:
         
         assert GlobalLogContext.context.get("emulator") == "my_emulator"
         assert GlobalLogContext.context.get("config") == "my_config"
-

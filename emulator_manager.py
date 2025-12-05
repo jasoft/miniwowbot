@@ -90,13 +90,8 @@ class EmulatorManager:
                     return path
         return None
 
+    @timeout_decorator(15, timeout_exception=TimeoutError)
     def get_adb_devices(self) -> Dict[str, str]:
-        """
-        获取所有已连接的 ADB 设备
-        返回: {device_name: status}
-
-        使用 Airtest 内置的 ADB 避免版本冲突问题
-        """
         try:
             result = subprocess.run(
                 [self.adb_path, "devices"],
@@ -115,6 +110,7 @@ class EmulatorManager:
             logger.error(f"❌ 获取 ADB 设备列表失败: {e}")
             return {}
 
+    @timeout_decorator(30, timeout_exception=TimeoutError)
     def try_adb_connect(self, emulator_name: str) -> bool:
         """
         尝试通过 adb connect 连接到模拟器
@@ -153,6 +149,7 @@ class EmulatorManager:
             logger.warning(f"⚠️ adb connect 失败: {e}")
             return False
 
+    @timeout_decorator(15, timeout_exception=TimeoutError)
     def is_emulator_running(self, emulator_name: str, retry_count: int = 2) -> bool:
         """
         检查指定模拟器是否运行
@@ -176,6 +173,7 @@ class EmulatorManager:
 
         return False
 
+    @timeout_decorator(120, timeout_exception=TimeoutError)
     def start_bluestacks_instance(self, emulator_name: str) -> bool:
         """
         启动指定的 BlueStacks 实例（当模拟器不在设备列表中时调用）
@@ -317,6 +315,7 @@ class EmulatorManager:
         # ADB 服务器默认在 127.0.0.1:5037
         return f"Android://127.0.0.1:5037/{emulator_name}"
 
+    @timeout_decorator(30, timeout_exception=TimeoutError)
     def ensure_device_connected(self, emulator_name: str) -> bool:
         """
         确保设备连接正常，如果连接断开则尝试重新连接
@@ -347,6 +346,7 @@ class EmulatorManager:
             logger.error(f"❌ 检查设备连接失败: {e}")
             return False
 
+    @timeout_decorator(10, timeout_exception=TimeoutError)
     def check_bluestacks_running(self) -> bool:
         """
         检查BlueStacks模拟器是否正在运行
@@ -449,6 +449,7 @@ class EmulatorManager:
             logger.error(f"❌ 启动BlueStacks失败: {e}")
             return False
 
+    @timeout_decorator(20, timeout_exception=TimeoutError)
     def ensure_adb_connection(self) -> bool:
         """
         确保ADB连接已建立
