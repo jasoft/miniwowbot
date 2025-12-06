@@ -19,7 +19,7 @@ from airtest.core.api import snapshot, touch
 from airtest.aircv.cal_confidence import cal_ccoeff_confidence
 from typing import List, Tuple, Optional, Dict, Any, Set
 from project_paths import ensure_project_path
-from logger_config import setup_logger_from_config
+from logger_config import setup_logger_from_config, apply_logging_slice
 
 
 class OCRHelper:
@@ -1641,3 +1641,20 @@ class OCRHelper:
         except Exception as e:
             self.logger.error(f"读取JSON文件出错: {e}")
             return []
+
+
+# 批量为关键方法应用日志切面
+try:
+    apply_logging_slice(
+        [
+            (OCRHelper, "capture_and_find_text"),
+            (OCRHelper, "find_text_in_image"),
+            (OCRHelper, "find_and_click_text"),
+            (OCRHelper, "_get_or_create_ocr_result"),
+            (OCRHelper, "_find_text_in_regions"),
+            (OCRHelper, "_predict_with_timing"),
+        ],
+        level="DEBUG",
+    )
+except Exception:
+    pass

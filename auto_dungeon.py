@@ -37,6 +37,7 @@ from logger_config import (
     setup_logger_from_config,
     update_log_context,
     GlobalLogContext,
+    apply_logging_slice,
 )
 from project_paths import resolve_project_path
 from config_loader import load_config
@@ -1826,27 +1827,8 @@ def handle_load_account_mode(
         connection_string = emulator_manager.get_emulator_connection_string(emulator_name)
         logger.info(f"   连接字符串: {connection_string}")
 
-        # 在加载账号模式下，尽早为该 emulator 附加文件日志处理器
-        try:
-            attach_emulator_file_handler(
-                emulator_name=emulator_name,
-                config_name=(config_loader.get_config_name() if config_loader else None),
-                log_dir="log",
-                level="INFO",
-            )
-        except Exception as _e:
-            logger.warning(f"⚠️ 初始化文件日志处理器失败: {_e}")
     else:
         connection_string = "Android:///"
-        try:
-            attach_emulator_file_handler(
-                emulator_name="unknown",
-                config_name=(config_loader.get_config_name() if config_loader else None),
-                log_dir="log",
-                level="INFO",
-            )
-        except Exception as _e:
-            logger.warning(f"⚠️ 初始化文件日志处理器失败: {_e}")
 
     # 关键：先连接设备，再调用 auto_setup
     # 这样可以避免 auto_setup 重新初始化导致其他设备断开
@@ -2056,27 +2038,8 @@ def initialize_device_and_ocr(emulator_name: Optional[str] = None, low_mem: bool
         logger.info(f"📱 连接到模拟器: {emulator_name}")
         logger.info(f"   连接字符串: {connection_string}")
 
-        # 已知 emulator 与 config，上下文齐备，附加按 emulator 分文件的日志处理器
-        try:
-            attach_emulator_file_handler(
-                emulator_name=emulator_name,
-                config_name=(config_loader.get_config_name() if config_loader else None),
-                log_dir="log",
-                level="INFO",
-            )
-        except Exception as _e:
-            logger.warning(f"⚠️ 初始化文件日志处理器失败: {_e}")
     else:
         connection_string = "Android:///"
-        try:
-            attach_emulator_file_handler(
-                emulator_name="unknown",
-                config_name=(config_loader.get_config_name() if config_loader else None),
-                log_dir="log",
-                level="INFO",
-            )
-        except Exception as _e:
-            logger.warning(f"⚠️ 初始化文件日志处理器失败: {_e}")
         logger.info("📱 使用默认连接字符串")
 
     # 连接设备（Airtest 支持多设备连接，不会断开其他设备）
@@ -2324,6 +2287,18 @@ def main():
         except Exception as e:
             logger.warning(f"启用内存监控失败: {e}")
 
+    # 2.1 附加文件日志处理器（只调用一次，参数未知则传 'unknown'）
+    try:
+        emulator_for_log = _normalize_emulator_name(args.emulator) or "unknown"
+        attach_emulator_file_handler(
+            emulator_name=emulator_for_log,
+            config_name="unknown",
+            log_dir="log",
+            level="INFO",
+        )
+    except Exception as _e:
+        logger.warning(f"⚠️ 初始化文件日志处理器失败: {_e}")
+
     # 3. 处理加载账号模式（如果指定）
     if args.load_account:
         # 加载账号模式需要先启动模拟器
@@ -2337,17 +2312,7 @@ def main():
     # 4. 初始化配置
     initialize_configs(args.config, args.env_overrides)
 
-    # 4.1 尽早附加文件日志处理器（此时已知 config_name，emulator 稍后补充）
-    try:
-        emulator_for_log = _normalize_emulator_name(args.emulator) or "unknown"
-        attach_emulator_file_handler(
-            emulator_name=emulator_for_log,
-            config_name=config_name,
-            log_dir="log",
-            level="INFO",
-        )
-    except Exception as _e:
-        logger.warning(f"⚠️ 初始化文件日志处理器失败: {_e}")
+    # 已附加文件日志处理器，不再重复附加
 
     # 5. 检查进度统计 - 决定是否需要启动模拟器
     if config_loader is None:
@@ -2431,6 +2396,36 @@ def main():
         logger.info("=" * 60 + "\n")
         state_machine.ensure_main()
 
+
+# 批量为关键函数应用日志切面
+apply_logging_slice(
+    [
+        (sys.modules[__name__], "find_text"),
+        (sys.modules[__name__], "text_exists"),
+        (sys.modules[__name__], "find_text_and_click"),
+        (sys.modules[__name__], "find_text_and_click_safe"),
+        (sys.modules[__name__], "is_main_world"),
+        (sys.modules[__name__], "open_map"),
+        (sys.modules[__name__], "auto_combat"),
+        (sys.modules[__name__], "select_character"),
+        (sys.modules[__name__], "wait_for_main"),
+        (sys.modules[__name__], "switch_to_zone"),
+        (sys.modules[__name__], "sell_trashes"),
+        (sys.modules[__name__], "switch_account"),
+        (sys.modules[__name__], "back_to_main"),
+        (sys.modules[__name__], "focus_and_click_dungeon"),
+        (sys.modules[__name__], "process_dungeon"),
+        (sys.modules[__name__], "run_dungeon_traversal"),
+        (sys.modules[__name__], "initialize_device_and_ocr"),
+        (sys.modules[__name__], "initialize_configs"),
+        (sys.modules[__name__], "show_progress_statistics"),
+        (sys.modules[__name__], "apply_env_overrides"),
+        (sys.modules[__name__], "handle_load_account_mode"),
+        (sys.modules[__name__], "main_wrapper"),
+        (sys.modules[__name__], "main"),
+    ],
+    level="DEBUG",
+)
 
 if __name__ == "__main__":
     main_wrapper()

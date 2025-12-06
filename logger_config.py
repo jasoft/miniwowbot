@@ -7,6 +7,7 @@
 import logging
 import os
 from typing import Optional, Dict
+from project_paths import resolve_project_path
 
 # 导入 coloredlogs
 try:
@@ -24,6 +25,10 @@ class _ContextFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         for k, v in GlobalLogContext.context.items():
             setattr(record, k, v)
+        if not hasattr(record, "config"):
+            setattr(record, "config", "")
+        if not hasattr(record, "emulator"):
+            setattr(record, "emulator", "")
         return True
 
 
@@ -95,17 +100,14 @@ class LoggerConfig:
             logger.addHandler(h)
         logger.propagate = False
 
-        # 默认格式
+        # 默认格式（统一包含 config 与 emulator 字段，便于 Promtail 采集）
         if log_format is None:
             log_format = (
-                "%(asctime)s.%(msecs)03d %(levelname)s %(filename)s:%(lineno)d %(message)s"
+                "%(asctime)s.%(msecs)03d %(levelname)s %(filename)s:%(lineno)d %(config)s %(emulator)s %(message)s"
             )
 
         if date_format is None:
-            if use_color and coloredlogs:
-                date_format = "%H:%M:%S"
-            else:
-                date_format = "%Y-%m-%d %H:%M:%S"
+            date_format = "%Y-%m-%d %H:%M:%S"
 
         # 使用 coloredlogs 配置彩色日志，否则使用标准日志处理器
         if use_color and coloredlogs:
@@ -175,10 +177,10 @@ class LoggerConfig:
         if logger.handlers:
             return logger
 
-        # 使用basicConfig配置
+        # 使用basicConfig配置（与统一格式保持一致）
         logging.basicConfig(
             level=getattr(logging, level.upper()),
-            format="%(asctime)s.%(msecs)03d - %(name)s - %(levelname)s - %(message)s",
+            format="%(asctime)s.%(msecs)03d %(levelname)s %(filename)s:%(lineno)d %(config)s %(emulator)s %(message)s",
             handlers=[logging.StreamHandler(sys.stdout)],
         )
 
@@ -242,10 +244,10 @@ def get_logger(name: Optional[str] = None) -> logging.Logger:
 
 # 导出常用的配置常量
 DEFAULT_COLOR_FORMAT = (
-    "%(asctime)s.%(msecs)03d %(levelname)s %(filename)s:%(lineno)d %(message)s"
+    "%(asctime)s.%(msecs)03d %(levelname)s %(filename)s:%(lineno)d %(config)s %(emulator)s %(message)s"
 )
-DEFAULT_COLOR_DATE_FORMAT = "%H:%M:%S"
-DEFAULT_SIMPLE_FORMAT = "%(asctime)s.%(msecs)03d - %(name)s - %(levelname)s - %(message)s"
+DEFAULT_COLOR_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+DEFAULT_SIMPLE_FORMAT = "%(asctime)s.%(msecs)03d %(levelname)s %(filename)s:%(lineno)d %(config)s %(emulator)s %(message)s"
 
 # 日志级别映射
 LOG_LEVELS = {
@@ -333,7 +335,7 @@ def attach_file_handler(
     file_path = os.path.join(log_dir, f"{filename_prefix}_{session}.log")
 
     if log_format is None:
-        log_format = "%(asctime)s.%(msecs)03d %(levelname)s %(filename)s:%(lineno)d %(message)s"
+        log_format = "%(asctime)s.%(msecs)03d %(levelname)s %(filename)s:%(lineno)d %(config)s %(emulator)s %(message)s"
 
     file_handler = logging.FileHandler(file_path, encoding="utf-8")
     file_handler.setLevel(getattr(logging, level.upper()))
@@ -360,8 +362,159 @@ def attach_emulator_file_handler(
     log_dir: str = "log",
     level: str = "INFO",
 ) -> str:
-    """兼容旧接口：为进程添加文件处理器并更新上下文。"""
+    """兼容旧接口：为进程添加文件处理器并更新上下文。
+
+    Args:
+        emulator_name: 模拟器标识
+        config_name: 配置名
+        log_dir: 日志目录
+        level: 文件日志级别
+
+    Returns:
+        文件日志完整路径
+    """
     if config_name:
         GlobalLogContext.update({"config": config_name})
     GlobalLogContext.update({"emulator": emulator_name or "unknown"})
-    return attach_file_handler(log_dir=log_dir, filename_prefix="app", level=level)
+
+    file_path = get_log_file_path(log_dir=log_dir, emulator_name=emulator_name)
+
+    file_handler = logging.FileHandler(file_path, encoding="utf-8")
+    file_handler.setLevel(getattr(logging, level.upper()))
+    file_handler.addFilter(_ContextFilter())
+    file_handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s.%(msecs)03d %(levelname)s %(filename)s:%(lineno)d %(config)s %(emulator)s %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
+
+    target_logger = logging.getLogger()
+    already_attached = any(
+        isinstance(h, logging.FileHandler) and getattr(h, "_log_file", None) == file_path
+        for h in target_logger.handlers
+    )
+    if not already_attached:
+        setattr(file_handler, "_log_file", file_path)
+        target_logger.addHandler(file_handler)
+
+    return file_path
+
+
+def _sanitize_component(value: str) -> str:
+    """清理文件名片段为安全格式。
+
+    Args:
+        value: 待清理字符串
+
+    Returns:
+        仅包含字母数字、点和下划线的字符串
+    """
+    if not value:
+        return "unknown"
+    return str(value).replace(":", "_").replace("/", "_").replace(" ", "_")
+
+
+def get_log_file_path(log_dir: str = "log", emulator_name: Optional[str] = None, prefix: str = "autodungeon") -> str:
+    """统一生成日志文件路径。
+
+    Args:
+        log_dir: 日志目录
+        emulator_name: 模拟器标识，为空时读取全局上下文
+        prefix: 文件名前缀，默认使用 autodungeon
+
+    Returns:
+        完整日志文件路径
+    """
+    os.makedirs(log_dir, exist_ok=True)
+
+    # 优先从 emulators.json 通过 emulator 映射到 session name
+    session_name: Optional[str] = None
+    try:
+        import json
+        emulators_path = resolve_project_path("emulators.json")
+        if os.path.exists(emulators_path):
+            with open(emulators_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            sessions = data.get("sessions", [])
+            target_emulator = (emulator_name or GlobalLogContext.context.get("emulator") or "").strip()
+            for s in sessions:
+                if str(s.get("emulator", "")).strip() == target_emulator:
+                    session_name = s.get("name")
+                    break
+    except Exception:
+        session_name = None
+
+    base_name = session_name or emulator_name or GlobalLogContext.context.get("emulator") or "unknown"
+    safe = _sanitize_component(base_name)
+    return os.path.join(log_dir, f"{prefix}_{safe}.log")
+
+
+def log_calls(level: str = "DEBUG"):
+    """创建一个函数调用日志装饰器。
+
+    Args:
+        level: 日志级别字符串
+
+    Returns:
+        可用于装饰函数的装饰器，记录入参、耗时、返回值类型，并在异常时输出错误日志
+    """
+    import time
+    from functools import wraps
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            import logging as _logging
+
+            target_logger = None
+            if args and hasattr(args[0], "logger"):
+                target_logger = getattr(args[0], "logger")
+            if target_logger is None:
+                target_logger = _logging.getLogger(func.__module__)
+
+            try:
+                arg_preview = ""
+                if args:
+                    arg_preview = str(args[:3])
+                kw_preview = ""
+                if kwargs:
+                    kw_preview = ", kwargs=" + str({k: kwargs[k] for k in list(kwargs)[:5]})
+
+                getattr(target_logger, level.lower())(f"➡️ {func.__name__} 开始{(' ' + arg_preview) if arg_preview else ''}{kw_preview}")
+                start = time.perf_counter()
+                result = func(*args, **kwargs)
+                elapsed = time.perf_counter() - start
+                rtype = type(result).__name__
+                getattr(target_logger, level.lower())(f"⬅️ {func.__name__} 结束 用时 {elapsed:.4f}s 返回 {rtype}")
+                return result
+            except Exception as exc:
+                target_logger.error(f"❌ {func.__name__} 异常: {type(exc).__name__}: {exc}")
+                raise
+
+        return wrapper
+
+    return decorator
+
+
+def apply_logging_slice(targets, level: str = "DEBUG") -> None:
+    """批量为指定的函数或方法应用日志切面。
+
+    Args:
+        targets: 由 (owner, attr_name) 元组构成的列表，owner 可为模块或类对象
+        level: 日志级别字符串
+
+    Returns:
+        None
+    """
+    dec = log_calls(level=level)
+    for owner, attr in targets:
+        try:
+            original = getattr(owner, attr)
+        except Exception:
+            continue
+        try:
+            wrapped = dec(original)
+            setattr(owner, attr, wrapped)
+        except Exception:
+            pass
