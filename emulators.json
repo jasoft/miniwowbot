@@ -9,7 +9,7 @@
     {
       "name": "main",
       "emulator": "192.168.1.150:5555",
-      "configs": ["warrior", "mage", "rogue", "priest" , "shaman", "druid", "hunter", "paladin", "deathknight", "monk", "warlock"],
+      "configs": ["mage", "rogue", "priest" , "shaman", "druid", "hunter", "paladin", "deathknight", "monk", "warlock", "warrior"],
       "log": "log/autodungeon_main.log"
     }
   ]

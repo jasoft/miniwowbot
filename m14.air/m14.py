@@ -10,17 +10,17 @@ ST.FIND_TIMEOUT = 20
 ST.FIND_TIMEOUT_TMP = 1
 ST.THRESHOLD = 0.8
 
-@timeout_decorator(5, timeout_exception=TimeoutError)
+@timeout_decorator(5, timeout_exception=TimeoutError, exception_message="[TIMEOUT]is_combat 超时")
 def is_combat():
     return exists(Template(r"tpl1761909698093.png", record_pos=(-0.422, -0.408), resolution=(720, 1280)))
 
 
-@timeout_decorator(5, timeout_exception=TimeoutError)
+@timeout_decorator(5, timeout_exception=TimeoutError, exception_message="[TIMEOUT]is_main_world 超时")
 def is_main_world():
     return exists(Template(r"tpl1761909776042.png", rgb=True, record_pos=(0.429, -0.478), resolution=(720, 1280)))
 
 
-@timeout_decorator(120, timeout_exception=TimeoutError)
+@timeout_decorator(120, timeout_exception=TimeoutError, exception_message="[TIMEOUT]complete_tasks 超时")
 def complete_tasks():
     while True:
         res=exists(Template("tpl1761359506125.png")) #quest complete icon

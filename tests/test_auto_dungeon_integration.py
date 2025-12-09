@@ -5,6 +5,7 @@
 需要连接真实设备才能运行
 """
 
+from multiprocessing import managers
 import os
 import pytest
 import logging
@@ -442,7 +443,11 @@ class TestDailyCollectIntegration:
         """
         manager = DailyCollectManager()
         manager._handle_retinue_deployment()
-
+    
+    def test_click_ads(self, setup_device):
+        manager = DailyCollectManager()
+        manager._buy_ads_items()
+        
     def test_checkin_taptap(self, setup_device):
         """
         测试签到 taptap 功能 - 真机测试

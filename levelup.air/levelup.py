@@ -45,14 +45,14 @@ def check_task_timeout(last_task_time):
     return False
 
 
-@timeout_decorator(10, timeout_exception=TimeoutError)
+@timeout_decorator(10, timeout_exception=TimeoutError, exception_message="[TIMEOUT]click_back 超时")
 def click_back(n=3):
     """点击返回按钮若干次"""
     for _ in range(n):
         touch((719, 1))
 
 
-@timeout_decorator(60, timeout_exception=TimeoutError)
+@timeout_decorator(60, timeout_exception=TimeoutError, exception_message="[TIMEOUT]sell_trash 超时")
 def sell_trash():
     """售卖背包垃圾物品"""
     touch((226, 1213))

@@ -8,6 +8,8 @@
 import os
 import sys
 import time
+import json
+import subprocess
 from pathlib import Path
 from typing import Iterable, List, Optional
 import typer
@@ -18,6 +20,30 @@ from auto_dungeon import send_bark_notification
 
 SCRIPT_DIR = Path(__file__).parent
 os.environ["PATH"] = f"/opt/homebrew/bin:{os.environ.get('PATH', '')}"
+
+
+def format_duration_zh(seconds: float) -> str:
+    """将秒数格式化为中文的小时与分钟描述。
+
+    Args:
+        seconds: 时长（秒）。
+
+    Returns:
+        中文格式的时长描述，例如 "3 小时 2 分钟"；小于一分钟返回 "小于一分钟"。
+    """
+    try:
+        total = int(seconds)
+    except Exception:
+        total = 0
+    if total < 60:
+        return "小于一分钟"
+    hours = total // 3600
+    minutes = (total % 3600) // 60
+    if hours > 0 and minutes > 0:
+        return f"{hours} 小时 {minutes} 分钟"
+    if hours > 0:
+        return f"{hours} 小时"
+    return f"{minutes} 分钟"
 
 
 def _invoke_auto_dungeon_once(config_name: str, emulator: str, session: str) -> int:
@@ -60,6 +86,40 @@ def _invoke_auto_dungeon_once(config_name: str, emulator: str, session: str) -> 
         return 1
     finally:
         sys.argv = argv_backup
+
+
+def _read_start_cmd_from_config() -> Optional[str]:
+    """读取系统配置中的模拟器启动命令。
+
+    Returns:
+        配置中的启动命令字符串，若不存在或解析失败则返回 None。
+    """
+    config_path = SCRIPT_DIR / "system_config.json"
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        cmd = str(data.get("emulators", {}).get("startCmd", "")).strip()
+        return cmd or None
+    except Exception:
+        return None
+
+
+def _try_start_emulator(logger) -> None:
+    """尝试执行系统配置中的模拟器启动命令并等待完成。
+
+    Args:
+        logger: 日志记录器。
+    """
+    cmd = _read_start_cmd_from_config()
+    if not cmd:
+        logger.warning("⚠️ 未找到模拟器启动命令(startCmd)，跳过自动启动")
+        return
+    logger.info("🛠️ 正在执行模拟器启动命令…")
+    try:
+        rc = subprocess.run(cmd, shell=True).returncode
+        logger.info(f"🛠️ 启动命令已结束，退出码: {rc}")
+    except Exception:
+        logger.error("❌ 执行启动命令失败")
 
 
 def run_configs(configs: Iterable[str], emulator: str, session: str, retries: int = 3, logfile: Optional[Path] = None) -> int:
@@ -114,6 +174,8 @@ def run_configs(configs: Iterable[str], emulator: str, session: str, retries: in
                 success += 1
                 logger.info(f"✅ 配置 {cfg} 运行成功")
                 break
+            if attempt == 0:
+                _try_start_emulator(logger)
             attempt += 1
             if attempt < retries:
                 wait_sec = attempt * 10
@@ -136,8 +198,8 @@ def run_configs(configs: Iterable[str], emulator: str, session: str, retries: in
         "配置耗时:",
     ]
     for name, dur in per_durations:
-        summary_lines.append(f"• {name}: {dur:.1f}s")
-    summary_lines.append(f"总耗时: {duration}s")
+        summary_lines.append(f"• {name}: {format_duration_zh(dur)}")
+    summary_lines.append(f"总耗时: {format_duration_zh(duration)}")
     try:
         send_bark_notification("副本运行汇总", "\n".join(summary_lines))
     except Exception:

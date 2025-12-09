@@ -40,7 +40,7 @@ def get_error_dialog_monitor() -> ErrorDialogMonitor:
     return error_dialog_monitor
 
 
-@timeout_decorator(120, timeout_exception=TimeoutError)
+@timeout_decorator(120, timeout_exception=TimeoutError, exception_message="[TIMEOUT]initialize_device_and_ocr 超时")
 def initialize_device_and_ocr(emulator_name: Optional[str] = None):
     """
     初始化设备连接和OCR助手
@@ -123,7 +123,7 @@ def parse_gold_amount(text: str) -> Optional[int]:
     return None
 
 
-@timeout_decorator(30, timeout_exception=TimeoutError)
+@timeout_decorator(30, timeout_exception=TimeoutError, exception_message="[TIMEOUT]find_all_matching_prices 超时")
 def find_all_matching_prices(price_threshold: int) -> list:
     """
     查找全屏幕中所有符合 "一口价 xxxxk 金币" 模式的文本，并返回价格低于阈值的结果
@@ -266,7 +266,7 @@ def find_all_matching_prices(price_threshold: int) -> list:
         return []
 
 
-@timeout_decorator(10, timeout_exception=TimeoutError)
+@timeout_decorator(10, timeout_exception=TimeoutError, exception_message="[TIMEOUT]click_query_button 超时")
 def click_query_button(query_button_pos: Tuple[int, int]):
     """
     点击查询按钮
@@ -282,7 +282,7 @@ def click_query_button(query_button_pos: Tuple[int, int]):
         logger.error(f"❌ 点击查询按钮失败: {e}")
 
 
-@timeout_decorator(10, timeout_exception=TimeoutError)
+@timeout_decorator(10, timeout_exception=TimeoutError, exception_message="[TIMEOUT]click_one_key_price_button 超时")
 def click_one_key_price_button(text_pos: Tuple[int, int]):
     """
     点击一口价按钮
@@ -301,7 +301,7 @@ def click_one_key_price_button(text_pos: Tuple[int, int]):
         logger.error(f"❌ 点击一口价按钮失败: {e}")
 
 
-@timeout_decorator(10, timeout_exception=TimeoutError)
+@timeout_decorator(10, timeout_exception=TimeoutError, exception_message="[TIMEOUT]click_confirm_button 超时")
 def click_confirm_button(confirm_button_pos: Tuple[int, int]):
     """
     点击确定按钮
@@ -317,7 +317,7 @@ def click_confirm_button(confirm_button_pos: Tuple[int, int]):
         logger.error(f"❌ 点击确定按钮失败: {e}")
 
 
-@timeout_decorator(1800, timeout_exception=TimeoutError)
+@timeout_decorator(1800, timeout_exception=TimeoutError, exception_message="[TIMEOUT]auto_market_query 超时")
 def auto_market_query(
     price_threshold: int = 100000,
     interval: int = 5,

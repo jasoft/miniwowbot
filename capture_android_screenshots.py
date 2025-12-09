@@ -40,7 +40,7 @@ class AndroidScreenshotCapture:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         print(f"✓ 输出目录: {self.output_dir.absolute()}")
 
-    @timeout_decorator(15, timeout_exception=TimeoutError)
+    @timeout_decorator(15, timeout_exception=TimeoutError, exception_message="[TIMEOUT]check_adb_connection 超时")
     def check_adb_connection(self):
         """检查 ADB 连接是否正常"""
         try:
@@ -76,7 +76,7 @@ class AndroidScreenshotCapture:
             print(f"❌ ADB 命令执行失败: {e}")
             return False
 
-    @timeout_decorator(10, timeout_exception=TimeoutError)
+    @timeout_decorator(10, timeout_exception=TimeoutError, exception_message="[TIMEOUT]capture_screenshot 超时")
     def capture_screenshot(self):
         """
         截取屏幕截图并保存到本地
@@ -127,7 +127,7 @@ class AndroidScreenshotCapture:
             print(f"❌ 未预期的错误: {e}")
             return False
 
-    @timeout_decorator(3600, timeout_exception=TimeoutError)
+    @timeout_decorator(3600, timeout_exception=TimeoutError, exception_message="[TIMEOUT]run 超时")
     def run(self):
         """运行截图循环"""
         print("\n" + "=" * 60)

@@ -90,8 +90,7 @@ class LoggerConfig:
         if logger_name in cls._configured_loggers:
             return logger
 
-        # 设置日志级别
-        logger.setLevel(getattr(logging, level.upper()))
+        logger.setLevel(logging.DEBUG)
 
         # 保留已存在的文件处理器，避免因二次配置导致文件日志丢失
         existing_file_handlers = [h for h in logger.handlers if isinstance(h, logging.FileHandler)]
@@ -312,7 +311,7 @@ def update_log_context(labels: Dict[str, str]) -> None:
 def attach_file_handler(
     log_dir: str = "log",
     filename_prefix: str = "app",
-    level: str = "INFO",
+    level: str = "DEBUG",
     log_format: Optional[str] = None,
     date_format: Optional[str] = "%Y-%m-%d %H:%M:%S",
 ) -> str:
@@ -360,7 +359,7 @@ def attach_emulator_file_handler(
     emulator_name: str,
     config_name: Optional[str] = None,
     log_dir: str = "log",
-    level: str = "INFO",
+    level: str = "DEBUG",
 ) -> str:
     """兼容旧接口：为进程添加文件处理器并更新上下文。
 

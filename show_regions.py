@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!uv run
 # -*- encoding=utf8 -*-
 """
 显示游戏画面的9个区域划分

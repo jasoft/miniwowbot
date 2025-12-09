@@ -25,7 +25,7 @@ def test_timeout_decorator_exists():
 def test_timeout_decorator_interrupts_long_running_function():
     """测试 timeout 装饰器是否能中断长时间运行的函数"""
 
-    @timeout_decorator(1, timeout_exception=TimeoutError)
+    @timeout_decorator(1, timeout_exception=TimeoutError, exception_message="[TIMEOUT]long_running_function 超时")
     def long_running_function():
         time.sleep(5)
         return "completed"
@@ -37,7 +37,7 @@ def test_timeout_decorator_interrupts_long_running_function():
 def test_timeout_decorator_allows_quick_function():
     """测试 timeout 装饰器是否允许快速完成的函数"""
 
-    @timeout_decorator(5, timeout_exception=TimeoutError)
+    @timeout_decorator(5, timeout_exception=TimeoutError, exception_message="[TIMEOUT]quick_function 超时")
     def quick_function():
         time.sleep(0.1)
         return "completed"

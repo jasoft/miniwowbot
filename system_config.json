@@ -20,5 +20,9 @@
         "server": "http://docker.home:3099",
         "username": "admin",
         "password": "admin"
+    },
+    "emulators" :
+    {
+        "startCmd": "wakeonlan 58:41:20:71:F4:8B -p 7 && wakeonlan 58:41:20:71:F4:8B -p 9 && sleep 10 &&ssh 11885@mainpc.home \"schtasks /run /tn WakeAndStartEmulator&&sleep 60\""
     }
 }

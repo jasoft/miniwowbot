@@ -9,7 +9,7 @@ from logger_config import (
 def write_sample_logs(emulator: str, cfg: str, n: int = 5):
     logger = setup_logger_from_config(use_color=False)
     update_log_context({"emulator": emulator, "config": cfg})
-    path = attach_emulator_file_handler(emulator_name=emulator, config_name=cfg, log_dir="log", level="INFO")
+    path = attach_emulator_file_handler(emulator_name=emulator, config_name=cfg, log_dir="log", level="DEBUG")
     logger.info(f"启动 {cfg} on {emulator}")
     for i in range(n):
         logger.info(f"第 {i+1} 条测试日志 for {cfg} on {emulator}")
