@@ -43,17 +43,15 @@ CONFIRM_DUNGEON_TEMPLATE = Template(
     resolution=(720, 1280),
 )
 ARROW_TEMPLATE = Template(
-    r"tpl1761376974575.png",
-    record_pos=(-0.144, -0.56),
+    r"tpl1765982947272.png", 
     resolution=(720, 1280),
     rgb=True,
     threshold=0.4,
 )
 ENTER_DUNGEON_TEMPLATE = Template(
-    r"tpl1761443492446.png",
-    threshold=0.96,
+    r"tpl1765983180854.png",
+    threshold=0.8,
     rgb=True,
-    record_pos=(0.0, 0.394),
     resolution=(720, 1280),
 )
 
@@ -193,7 +191,7 @@ def dungeon_handler(_):
                 touch((357, 1209))
                 break
     except Exception:
-        pass
+        print("error entering dungeon")
 
 
 def build_template_job(
@@ -237,3 +235,4 @@ if __name__ == "__main__":
     else:
         loop = asyncio.get_event_loop()
         loop.run_until_complete(main_loop())
+
