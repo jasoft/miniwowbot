@@ -1111,7 +1111,7 @@ class DailyCollectManager:
         logger.info("领取各种主题奖励[海盗船,法师塔]")
         back_to_main()
         find_text_and_click("活动", regions=[3])
-        res = text_exists(["海盗船","法师塔"], regions=[5, 6])
+        res = text_exists(["海盗船","法师塔","野蛮角斗场"], regions=[2,3,5, 6])
         if res:
             touch(res["center"])
             sleep(CLICK_INTERVAL)

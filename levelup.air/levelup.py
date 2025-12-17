@@ -199,8 +199,13 @@ def dungeon_handler(_):
 def build_template_job(
     name: str, template: Template, handler: Callable[[object], None]
 ) -> DetectionJob:
+    async def _exists():
+        # asyncio.to_thread 在低版本缺失, 用 run_in_executor 兼容
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, exists, template)
+
     async def detector():
-        return await asyncio.to_thread(exists, template)
+        return await _exists()
 
     return DetectionJob(name=name, detector=detector, handler=handler)
 
@@ -227,5 +232,8 @@ last_task_time = time.time()
 
 
 if __name__ == "__main__":
-    asyncio.run(main_loop())
-
+    if hasattr(asyncio, "run"):
+        asyncio.run(main_loop())
+    else:
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(main_loop())
