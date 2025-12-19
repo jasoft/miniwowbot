@@ -5,27 +5,27 @@
 需要连接真实设备才能运行
 """
 
-from multiprocessing import managers
-import os
-import pytest
-import logging
-import time
 import json
+import logging
+import os
+import time
+
+import pytest
 
 # 添加父目录到路径
 # sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from airtest.core.api import auto_setup, connect_device  # noqa: E402
 
-from airtest.core.api import connect_device, auto_setup  # noqa: E402
-from auto_dungeon import (
-    select_character,
-    find_text_and_click_safe,
-    switch_account,
-    daily_collect,
-    DailyCollectManager,
-)  # noqa: E402
 import auto_dungeon  # noqa: E402
-from ocr_helper import OCRHelper  # noqa: E402
+from auto_dungeon import (
+    DailyCollectManager,
+    daily_collect,
+    find_text_and_click_safe,
+    select_character,
+    switch_account,
+)  # noqa: E402
 from config_loader import ConfigLoader  # noqa: E402
+from ocr_helper import OCRHelper  # noqa: E402
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -52,9 +52,7 @@ def load_test_accounts():
             return accounts
     except FileNotFoundError:
         logger.warning(f"⚠️ 未找到配置文件: {config_path}")
-        logger.info(
-            "💡 请复制 test_accounts.json.example 为 test_accounts.json 并填入真实账号"
-        )
+        logger.info("💡 请复制 test_accounts.json.example 为 test_accounts.json 并填入真实账号")
         pytest.skip("未找到测试账号配置文件")
     except json.JSONDecodeError as e:
         logger.error(f"❌ 配置文件格式错误: {e}")
@@ -84,9 +82,7 @@ def setup_device():
         logger.info(
             f"🎁 每日领取: {'启用' if warrior_config.is_daily_collect_enabled() else '禁用'}"
         )
-        logger.info(
-            f"⚡ 快速挂机: {'启用' if warrior_config.is_quick_afk_enabled() else '禁用'}"
-        )
+        logger.info(f"⚡ 快速挂机: {'启用' if warrior_config.is_quick_afk_enabled() else '禁用'}")
 
         # 连接设备
         connect_device("Android:///")
@@ -314,9 +310,7 @@ class TestMiscFunctionsIntegration:
 
     def test_is_main_world_function_exists(self):
         """测试 auto_dungeon.is_main_world 函数是否存在"""
-        assert hasattr(auto_dungeon, "is_main_world"), (
-            "auto_dungeon 应该有 is_main_world 函数"
-        )
+        assert hasattr(auto_dungeon, "is_main_world"), "auto_dungeon 应该有 is_main_world 函数"
         assert callable(auto_dungeon.is_main_world), "is_main_world 应该是可调用的"
 
     def test_is_main_world_real_device(self, setup_device):
@@ -443,11 +437,11 @@ class TestDailyCollectIntegration:
         """
         manager = DailyCollectManager()
         manager._handle_retinue_deployment()
-    
+
     def test_click_ads(self, setup_device):
         manager = DailyCollectManager()
         manager._buy_ads_items()
-        
+
     def test_checkin_taptap(self, setup_device):
         """
         测试签到 taptap 功能 - 真机测试
@@ -462,6 +456,13 @@ class TestDailyCollectIntegration:
         """
         manager = DailyCollectManager()
         manager._checkin_taptap()
+
+    def test_demonhunter_exam(self, setup_device):
+        """
+        测试猎魔试炼功能 - 真机测试
+        """
+        manager = DailyCollectManager()
+        manager._demonhunter_exam()
 
     def test_small_cookie(self, setup_device):
         """
@@ -724,18 +725,10 @@ class TestDailyCollectIntegration:
         assert auto_dungeon.config_loader is not None, "config_loader 应该已设置"
 
         # 验证配置内容
-        assert auto_dungeon.config_loader.get_char_class() == "战士", (
-            "角色职业应该是战士"
-        )
-        assert auto_dungeon.config_loader.is_daily_collect_enabled() is True, (
-            "每日领取应该启用"
-        )
-        assert auto_dungeon.config_loader.is_quick_afk_enabled() is True, (
-            "快速挂机应该启用"
-        )
-        assert auto_dungeon.config_loader.get_chest_name() == "风暴宝箱", (
-            "宝箱名称应该是风暴宝箱"
-        )
+        assert auto_dungeon.config_loader.get_char_class() == "战士", "角色职业应该是战士"
+        assert auto_dungeon.config_loader.is_daily_collect_enabled() is True, "每日领取应该启用"
+        assert auto_dungeon.config_loader.is_quick_afk_enabled() is True, "快速挂机应该启用"
+        assert auto_dungeon.config_loader.get_chest_name() == "风暴宝箱", "宝箱名称应该是风暴宝箱"
 
         # 验证副本配置
         zone_dungeons = auto_dungeon.config_loader.get_zone_dungeons()
@@ -760,9 +753,7 @@ class TestDailyCollectIntegration:
 
         # 创建 DailyCollectManager 并传入配置
         manager = DailyCollectManager(config_loader=auto_dungeon.config_loader)
-        assert manager.config_loader == auto_dungeon.config_loader, (
-            "管理器应该使用相同的配置"
-        )
+        assert manager.config_loader == auto_dungeon.config_loader, "管理器应该使用相同的配置"
 
         # 测试配置驱动的功能
         if auto_dungeon.config_loader.is_quick_afk_enabled():

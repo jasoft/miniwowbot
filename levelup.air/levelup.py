@@ -50,7 +50,7 @@ ARROW_TEMPLATE = Template(
 )
 ENTER_DUNGEON_TEMPLATE = Template(
     r"tpl1765983180854.png",
-    threshold=0.8,
+    threshold=0.94,
     rgb=True,
     resolution=(720, 1280),
 )
@@ -147,9 +147,7 @@ def task_completion_handler(first_match):
                 f"任务完成，更新时间: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(last_task_time))}"
             )
 
-            sleep(0.5)
             touch((363, 867))
-            sleep(0.5)
             touch(
                 Template(
                     r"tpl1761359681084.png",
@@ -167,7 +165,7 @@ def skill_handler(_):
     # 前面四个技能是有cd的,第五个没cd
     for i in range(4):
         touch((105 + i * 130, 560))
-    for _ in range(5):
+    for _ in range(10):
         touch((615, 560))
         sleep(0.5)
 
