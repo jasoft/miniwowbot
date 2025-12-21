@@ -32,7 +32,7 @@ line-length = 100
 # 声明你需要支持的平台集合：macOS arm64 + Windows x64（可选再加 Windows arm64）
 required-environments = [
     "sys_platform == 'darwin' and platform_machine == 'arm64'",
-    "sys_platform == 'win32' and platform_machine == 'AMD64'",
+    "sys_platform == 'win32'",
     # 如果你也要支持 Windows on ARM，可打开这一行
     # "sys_platform == 'win32' and platform_machine == 'ARM64'",
 ]

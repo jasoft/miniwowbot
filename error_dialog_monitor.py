@@ -9,7 +9,6 @@ import time
 from typing import Iterable, Optional, Sequence
 
 from airtest.core.api import Template, exists, touch, wait
-from wrapt_timeout_decorator import timeout as timeout_decorator
 
 ENTER_GAME_BUTTON_TEMPLATE = Template(
     r"images/enter_game_button.png", resolution=(720, 1280)

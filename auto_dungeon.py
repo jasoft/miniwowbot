@@ -31,7 +31,6 @@ from airtest.core.error import TargetNotFoundError
 from airtest.core.settings import Settings as ST
 from tqdm import tqdm
 from transitions import Machine, MachineError
-from wrapt_timeout_decorator import timeout as timeout_decorator
 
 from config_loader import load_config
 from coordinates import (
@@ -134,9 +133,6 @@ def _normalize_emulator_name(name: Optional[str]) -> Optional[str]:
     return name
 
 
-@timeout_decorator(
-    120, timeout_exception=TimeoutError, exception_message="[TIMEOUT]check_and_start_emulator 超时"
-)
 def check_and_start_emulator(emulator_name: Optional[str] = None):
     """
     检查模拟器状态并在需要时启动
@@ -267,7 +263,6 @@ def timer_decorator(func):
 
 
 @timer_decorator
-@timeout_decorator(30, timeout_exception=TimeoutError, exception_message="[TIMEOUT]find_text 超时")
 def find_text(
     text,
     timeout=10,
@@ -361,9 +356,6 @@ def find_text(
 
 
 @timer_decorator
-@timeout_decorator(
-    15, timeout_exception=TimeoutError, exception_message="[TIMEOUT]text_exists 超时"
-)
 def text_exists(
     texts,
     similarity_threshold: float = 0.7,
@@ -518,7 +510,6 @@ def text_exists(
     return None
 
 
-@timeout_decorator(30, exception_message="[TIMEOUT]find_text_and_click 超时")
 def find_text_and_click(
     text,
     timeout=10,
@@ -604,7 +595,6 @@ def find_text_and_click_safe(
         return default_return
 
 
-@timeout_decorator(10, timeout_exception=TimeoutError, exception_message="[TIMEOUT]click_back 超时")
 def click_back():
     """点击返回按钮（左上角）"""
     try:
@@ -617,9 +607,6 @@ def click_back():
         return False
 
 
-@timeout_decorator(
-    10, timeout_exception=TimeoutError, exception_message="[TIMEOUT]click_free_button 超时"
-)
 def click_free_button():
     """点击免费按钮"""
     free_words = ["免费"]
@@ -696,9 +683,6 @@ def send_bark_notification(title, message, level="active"):
         return False
 
 
-@timeout_decorator(
-    5, timeout_exception=TimeoutError, exception_message="[TIMEOUT]is_main_world 超时"
-)
 def is_main_world():
     """
     检查是否在主世界，并输出执行时间
@@ -719,7 +703,6 @@ def is_main_world():
         return False
 
 
-@timeout_decorator(15, timeout_exception=TimeoutError, exception_message="[TIMEOUT]open_map 超时")
 def open_map():
     back_to_main()
 
@@ -728,14 +711,10 @@ def open_map():
     sleep(CLICK_INTERVAL)
 
 
-@timeout_decorator(5, timeout_exception=TimeoutError, exception_message="[TIMEOUT]is_on_map 超时")
 def is_on_map():
     return exists(MAP_DUNGEON_TEMPLATE)
 
 
-@timeout_decorator(
-    300, timeout_exception=TimeoutError, exception_message="[TIMEOUT]auto_combat 超时"
-)
 def auto_combat(completed_dungeons=0, total_dungeons=0):
     """自动战斗，带进度条显示
 
@@ -823,9 +802,6 @@ def auto_combat(completed_dungeons=0, total_dungeons=0):
     logger.info("✅ 战斗完成")
 
 
-@timeout_decorator(
-    120, timeout_exception=TimeoutError, exception_message="[TIMEOUT]is_on_character_selection 超时"
-)
 def is_on_character_selection(timeout=30):
     """
     检查当前是否位于角色选择界面，模板识别失败时回退到 OCR
@@ -841,9 +817,6 @@ def is_on_character_selection(timeout=30):
     return False
 
 
-@timeout_decorator(
-    300, timeout_exception=TimeoutError, exception_message="[TIMEOUT]select_character 超时"
-)
 def select_character(char_class):
     """
     选择角色
@@ -887,9 +860,6 @@ def select_character(char_class):
     wait_for_main()
 
 
-@timeout_decorator(
-    300, timeout_exception=TimeoutError, exception_message="[TIMEOUT]wait_for_main 超时"
-)
 def wait_for_main(timeout=300):
     """
     等待回到主界面
@@ -912,9 +882,6 @@ def wait_for_main(timeout=300):
         raise TimeoutError("等待主界面超时")
 
 
-@timeout_decorator(
-    30, timeout_exception=TimeoutError, exception_message="[TIMEOUT]switch_to_zone 超时"
-)
 def switch_to_zone(zone_name):
     """切换到指定区域"""
     logger.info(f"\n{'=' * 50}")
@@ -933,9 +900,6 @@ def switch_to_zone(zone_name):
     return False
 
 
-@timeout_decorator(
-    60, timeout_exception=TimeoutError, exception_message="[TIMEOUT]sell_trashes 超时"
-)
 def sell_trashes():
     logger.info("💰 卖垃圾")
     click_back()
@@ -951,9 +915,6 @@ def sell_trashes():
     click_back()
 
 
-@timeout_decorator(
-    120, timeout_exception=TimeoutError, exception_message="[TIMEOUT]switch_account 超时"
-)
 def switch_account(account_name):
     logger.info(f"切换账号: {account_name}")
     stop_app("com.ms.ysjyzr")
@@ -984,9 +945,6 @@ def switch_account(account_name):
     touch(LOGIN_BUTTON)  # 登录按钮
 
 
-@timeout_decorator(
-    60, timeout_exception=TimeoutError, exception_message="[TIMEOUT]back_to_main 超时"
-)
 def back_to_main(max_duration=15, backoff_interval=0.2):
     """
     返回主界面。即使 Airtest 底层调用阻塞，也依旧通过手动计时与兜底手段
@@ -1038,7 +996,6 @@ def back_to_main(max_duration=15, backoff_interval=0.2):
         sleep(backoff_interval)
 
 
-@timeout_decorator(10, timeout_exception=TimeoutError, exception_message="[TIMEOUT]switch_to 超时")
 def switch_to(section_name):
     """切换到指定区域"""
     logger.info(f"🌍 切换到: {section_name}")
@@ -1065,9 +1022,6 @@ class DailyCollectManager:
         self.config_loader = config_loader
         self.logger = logger
 
-    @timeout_decorator(
-        300, timeout_exception=TimeoutError, exception_message="[TIMEOUT]collect_daily_rewards 超时"
-    )
     def collect_daily_rewards(self):
         """
         执行所有每日收集操作
@@ -1123,9 +1077,6 @@ class DailyCollectManager:
             self.logger.error(f"❌ 每日收集操作失败: {e}")
             raise
 
-    @timeout_decorator(
-        60, timeout_exception=TimeoutError, exception_message="[TIMEOUT]_collect_gifts 超时"
-    )
     def _collect_gifts(self):
         """领取礼包"""
         logger.info("领取礼包")
@@ -1144,9 +1095,6 @@ class DailyCollectManager:
         find_text_and_click("一键签到")
         back_to_main()
 
-    @timeout_decorator(
-        120, timeout_exception=TimeoutError, exception_message="[TIMEOUT]_small_cookie 超时"
-    )
     def _small_cookie(self):
         """领取各种主题奖励"""
         logger.info("领取各种主题奖励[海盗船,法师塔]")
@@ -1171,9 +1119,6 @@ class DailyCollectManager:
         back_to_main()
         send_bark_notification("主题奖励提醒", "别忘了买碎片")
 
-    @timeout_decorator(
-        180, timeout_exception=TimeoutError, exception_message="[TIMEOUT]_checkin_taptap 超时"
-    )
     def _checkin_taptap(self):
         """签到 taptap,领一些礼品"""
         logger.info("签到 taptap")
@@ -1193,9 +1138,6 @@ class DailyCollectManager:
         text("")
         touch(send_button["center"])
 
-    @timeout_decorator(
-        120, timeout_exception=TimeoutError, exception_message="[TIMEOUT]_collect_idle_rewards 超时"
-    )
     def _collect_idle_rewards(self):
         """
         领取每日挂机奖励
@@ -1229,9 +1171,6 @@ class DailyCollectManager:
         sleep(40)
         touch((654, 114))  # 右上角的关闭按钮
 
-    @timeout_decorator(
-        120, timeout_exception=TimeoutError, exception_message="[TIMEOUT]_collect_quick_afk 超时"
-    )
     def _collect_quick_afk(self):
         """
         执行快速挂机领取
@@ -1280,11 +1219,6 @@ class DailyCollectManager:
         back_to_main()
         self.logger.info("✅ 购买广告商品成功")
 
-    @timeout_decorator(
-        180,
-        timeout_exception=TimeoutError,
-        exception_message="[TIMEOUT]_handle_retinue_deployment 超时",
-    )
     def _handle_retinue_deployment(self):
         """
         处理随从派遣操作
@@ -1354,9 +1288,6 @@ class DailyCollectManager:
 
         back_to_main()
 
-    @timeout_decorator(
-        120, timeout_exception=TimeoutError, exception_message="[TIMEOUT]_sweep_tower_floor 超时"
-    )
     def _sweep_tower_floor(self, floor_name, regions):
         """
         扫荡试炼塔的特定楼层
@@ -1375,9 +1306,6 @@ class DailyCollectManager:
         else:
             self.logger.warning(f"⚠️ 未找到{floor_name}楼层")
 
-    @timeout_decorator(
-        300, timeout_exception=TimeoutError, exception_message="[TIMEOUT]_kill_world_boss 超时"
-    )
     def _kill_world_boss(self):
         """
         杀死世界boss
@@ -1399,9 +1327,6 @@ class DailyCollectManager:
             self.logger.warning(f"⚠️ 未找到世界boss: {e}")
             back_to_main()
 
-    @timeout_decorator(
-        120, timeout_exception=TimeoutError, exception_message="[TIMEOUT]_buy_market_items 超时"
-    )
     def _buy_market_items(self):
         """
         购买市场商品
@@ -1420,9 +1345,6 @@ class DailyCollectManager:
             self.logger.warning(f"⚠️ 未找到商店: {e}")
             back_to_main()
 
-    @timeout_decorator(
-        120, timeout_exception=TimeoutError, exception_message="[TIMEOUT]_open_chests 超时"
-    )
     def _open_chests(self, chest_name):
         """
         开启宝箱
@@ -1447,9 +1369,6 @@ class DailyCollectManager:
             self.logger.warning(f"⚠️ 未找到宝箱: {e}")
             back_to_main()
 
-    @timeout_decorator(
-        120, timeout_exception=TimeoutError, exception_message="[TIMEOUT]_receive_mails 超时"
-    )
     def _receive_mails(self):
         """
         领取邮件
@@ -1698,9 +1617,6 @@ class AutoDungeonStateMachine:
 daily_collect_manager = DailyCollectManager(config_loader)
 
 
-@timeout_decorator(
-    300, timeout_exception=TimeoutError, exception_message="[TIMEOUT]daily_collect 超时"
-)
 def daily_collect():
     """
     领取每日挂机奖励
@@ -1728,9 +1644,6 @@ def daily_collect():
         return True
 
 
-@timeout_decorator(
-    60, timeout_exception=TimeoutError, exception_message="[TIMEOUT]focus_and_click_dungeon 超时"
-)
 def focus_and_click_dungeon(dungeon_name, zone_name, max_attempts=2):
     """
     尝试聚焦到指定副本并点击，必要时重新刷新地图
@@ -1767,9 +1680,6 @@ def focus_and_click_dungeon(dungeon_name, zone_name, max_attempts=2):
     return False
 
 
-@timeout_decorator(
-    300, timeout_exception=TimeoutError, exception_message="[TIMEOUT]process_dungeon 超时"
-)
 def process_dungeon(
     dungeon_name,
     zone_name,
@@ -1895,9 +1805,6 @@ def parse_arguments():
     return parser.parse_args()
 
 
-@timeout_decorator(
-    180, timeout_exception=TimeoutError, exception_message="[TIMEOUT]handle_load_account_mode 超时"
-)
 def handle_load_account_mode(
     account_name, emulator_name: Optional[str] = None, low_mem: bool = False
 ):
@@ -2124,9 +2031,6 @@ def show_progress_statistics(db):
     return completed_count, total_selected_dungeons, total_dungeons
 
 
-@timeout_decorator(
-    120, timeout_exception=TimeoutError, exception_message="[TIMEOUT]initialize_device_and_ocr 超时"
-)
 def initialize_device_and_ocr(emulator_name: Optional[str] = None, low_mem: bool = False):
     """
     初始化设备连接和OCR助手
@@ -2233,7 +2137,6 @@ def count_remaining_selected_dungeons(db):
     return remaining
 
 
-@timeout_decorator(7200, timeout_exception=TimeoutError)  # 2 小时超时
 def run_dungeon_traversal(db, total_dungeons, state_machine):
     """执行副本遍历主循环
 
