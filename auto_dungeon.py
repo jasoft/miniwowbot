@@ -100,7 +100,7 @@ STOP_FILE = str(resolve_project_path(".stop_dungeon"))  # 停止标记文件路�
 logger = setup_logger_from_config(use_color=True)
 
 # 设置 OCRHelper 的日志级别
-logging.getLogger("ocr_helper").setLevel(logging.INFO)
+logging.getLogger("ocr_helper").setLevel(logging.DEBUG)
 
 
 # 全局变量，将在 main 函数中初始化

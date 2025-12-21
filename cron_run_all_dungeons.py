@@ -92,23 +92,23 @@ def launch_ocr_service(logger) -> bool:
     # 3. 等待2小时
     # 4. 停止容器
     
-    # 注意：docker start 如果容器不存在会报错，我们在 shell 中用 || 处理
     docker_cmd = (
-        f"echo '🚀 Starting OCR Service...'; "
+        f"echo '🚀 Starting OCR Service (Docker)...'; "
         f"if docker ps -a --format '{{{{.Names}}}}' | grep -q '^paddlex$'; then "
         f"  docker start paddlex; "
         f"else "
         f"  docker run -d --name paddlex "
         f"  -v \"$PWD:/paddle\" "
+        f"  -v \"paddlex_data:/root\" "
         f"  --shm-size=8g "
         f"  --network=host "
         f"  {image} "
-        f"  sh -lc \"paddlex --install serving && paddlex --serve --pipeline OCR\"; "
+        f"  sh -lc \"paddlex --install serving && rm -f OCR.yaml && paddlex --get_pipeline_config OCR --save_path . && sed -i 's/_server_/_mobile_/g' OCR.yaml && paddlex --serve --pipeline OCR.yaml\"; "
         f"fi; "
         f"echo '✅ OCR Service is running. Waiting for 2 hours...'; "
         f"sleep 7200; "
-        f"echo '🛑 Time is up. Stopping OCR Service...'; "
-        f"docker stop paddlex; "
+        f"echo '🛑 Time is up. Stopping and Removing OCR Service...'; "
+        f"docker rm -f paddlex; "
         f"echo '👋 Bye!'"
     )
 

@@ -4,23 +4,25 @@ OCR Helper Class - 基于PaddleOCR的文字识别和定位工具类
 支持区域分割功能，可以指定只识别屏幕的特定区域，大大提升识别速度
 """
 
-import requests
+import base64
 import json
 import os
-import time
-import base64
-import cv2
-import uuid
 import shutil
 import sqlite3
-import imagehash
-from PIL import Image
+import time
+import uuid
 from datetime import datetime
-from airtest.core.api import snapshot, touch
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+import cv2
+import imagehash
+import requests
 from airtest.aircv.cal_confidence import cal_ccoeff_confidence
-from typing import List, Tuple, Optional, Dict, Any, Set
+from airtest.core.api import snapshot, touch
+from PIL import Image
+
+from logger_config import apply_logging_slice, setup_logger_from_config
 from project_paths import ensure_project_path
-from logger_config import setup_logger_from_config, apply_logging_slice
 
 
 class OCRHelper:
@@ -120,12 +122,8 @@ class OCRHelper:
                     )
                 """)
                 # 创建索引以加速查询
-                cursor.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_phash ON cache_entries(phash)"
-                )
-                cursor.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_dhash ON cache_entries(dhash)"
-                )
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_phash ON cache_entries(phash)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_dhash ON cache_entries(dhash)")
                 cursor.execute(
                     "CREATE INDEX IF NOT EXISTS idx_last_access ON cache_entries(last_access_time)"
                 )
@@ -213,9 +211,7 @@ class OCRHelper:
         except Exception:
             return 999  # 返回一个大值表示无法比较
 
-    def _get_cache_key(
-        self, image_path: str, regions: Optional[List[int]] = None
-    ) -> str:
+    def _get_cache_key(self, image_path: str, regions: Optional[List[int]] = None) -> str:
         """
         生成缓存键，包含图像路径和区域信息
 
@@ -303,18 +299,14 @@ class OCRHelper:
                     if not cached_hash:
                         continue
 
-                    distance = self._calculate_hamming_distance(
-                        primary_hash, cached_hash
-                    )
+                    distance = self._calculate_hamming_distance(primary_hash, cached_hash)
                     if distance < best_distance and distance <= self.hash_threshold:
                         best_distance = distance
                         best_match = (json_path, distance, hit_count)
 
                 if best_match:
                     json_path, distance, hit_count = best_match
-                    self.logger.debug(
-                        f"💾 缓存命中（哈希相似，距离={distance}）: {json_path}"
-                    )
+                    self.logger.debug(f"💾 缓存命中（哈希相似，距离={distance}）: {json_path}")
 
                     # 更新访问信息
                     cursor.execute(
@@ -344,9 +336,7 @@ class OCRHelper:
 
                 if count > self.max_cache_size:
                     # 计算需要删除的条目数
-                    to_delete = (
-                        count - self.max_cache_size + 10
-                    )  # 多删除一些，避免频繁操作
+                    to_delete = count - self.max_cache_size + 10  # 多删除一些，避免频繁操作
 
                     # 获取最久未访问的条目
                     cursor.execute(
@@ -616,9 +606,7 @@ class OCRHelper:
                         cache_pairs[cache_id] = (image_path, json_path)
 
             # 按 ID 排序并加载到缓存列表
-            for cache_id in sorted(
-                cache_pairs.keys(), key=lambda x: int(x) if x.isdigit() else 0
-            ):
+            for cache_id in sorted(cache_pairs.keys(), key=lambda x: int(x) if x.isdigit() else 0):
                 self.ocr_cache.append(cache_pairs[cache_id])
 
             if self.ocr_cache:
@@ -626,9 +614,7 @@ class OCRHelper:
         except Exception as e:
             self.logger.error(f"加载缓存失败: {e}")
 
-    def _find_similar_cached_image(
-        self, current_image_path, regions: Optional[List[int]] = None
-    ):
+    def _find_similar_cached_image(self, current_image_path, regions: Optional[List[int]] = None):
         """
         查找缓存中是否有相似的图片（使用新的哈希索引系统）
 
@@ -652,9 +638,7 @@ class OCRHelper:
 
             # 遍历缓存，查找相似图片
             for cached_img_path, cached_json_path in self.ocr_cache:
-                if not os.path.exists(cached_img_path) or not os.path.exists(
-                    cached_json_path
-                ):
+                if not os.path.exists(cached_img_path) or not os.path.exists(cached_json_path):
                     continue
 
                 cached_img = cv2.imread(cached_img_path)
@@ -681,9 +665,7 @@ class OCRHelper:
             self.logger.error(f"查找相似缓存图片失败: {e}")
             return None
 
-    def _save_to_cache(
-        self, image_path, json_file, regions: Optional[List[int]] = None
-    ):
+    def _save_to_cache(self, image_path, json_file, regions: Optional[List[int]] = None):
         """
         保存图片和 OCR 结果到缓存（使用新的 SQLite 系统）
 
@@ -721,49 +703,94 @@ class OCRHelper:
             self.logger.error(f"保存缓存失败: {e}")
 
     def _resize_image_for_ocr(self, image_path):
+
         """
+
         调整图片大小以加速 OCR 识别
 
+
+
         Args:
+
             image_path (str): 原始图片路径
 
+
+
         Returns:
-            str: 调整后的图片路径（如果需要调整），否则返回原路径
+
+            Tuple[str, float]: (调整后的图片路径, 缩放比例)
+
         """
+
         if not self.resize_image:
-            return image_path
+
+            return image_path, 1.0
+
+
 
         try:
+
             img = cv2.imread(image_path)
+
             if img is None:
-                return image_path
+
+                return image_path, 1.0
+
+
 
             height, width = img.shape[:2]
 
+
+
             # 如果图片宽度大于最大宽度，进行缩放
+
             if width > self.max_width:
+
                 scale = self.max_width / width
+
                 new_width = self.max_width
+
                 new_height = int(height * scale)
 
+
+
                 # 缩小图片
+
                 resized_img = cv2.resize(
+
                     img, (new_width, new_height), interpolation=cv2.INTER_AREA
+
                 )
+
+
 
                 # 保存到临时文件
+
                 temp_path = image_path.replace(".png", "_resized.png")
+
                 cv2.imwrite(temp_path, resized_img)
 
-                self.logger.debug(
-                    f"🔧 图片已缩小: {width}x{height} -> {new_width}x{new_height}"
-                )
-                return temp_path
 
-            return image_path
+
+                self.logger.debug(
+
+                    f"🔧 图片已缩小: {width}x{height} -> {new_width}x{new_height} (scale={scale:.2f})"
+
+                )
+
+                return temp_path, scale
+
+
+
+            return image_path, 1.0
+
         except Exception as e:
+
             self.logger.warning(f"图片缩放失败: {e}，使用原图")
-            return image_path
+
+            return image_path, 1.0
+
+
 
     def _predict_with_timing(self, image_path):
         """
@@ -776,7 +803,7 @@ class OCRHelper:
             OCR 识别结果 (dict: {rec_texts: [], rec_scores: [], dt_polys: []})
         """
         # 预处理：缩小图片
-        processed_image_path = self._resize_image_for_ocr(image_path)
+        processed_image_path, scale = self._resize_image_for_ocr(image_path)
 
         start_time = time.time()
         result = None
@@ -784,14 +811,17 @@ class OCRHelper:
         try:
             # 1. 转换为 Base64
             with open(processed_image_path, "rb") as f:
-                image_data = base64.b64encode(f.read()).decode('utf-8')
+                image_data = base64.b64encode(f.read()).decode("utf-8")
 
             # 2. 构建符合 PaddleX 3.0 规范的 Payload
             payload = {
                 "file": image_data,
-                "fileType": 1
+                "fileType": 1,
+                "useDocOrientationClassify": False,
+                "useDocUnwarping": False,
+                "useTextlineOrientation": False
             }
-            
+
             # 3. 发送请求 (默认端口 8080)
             response = requests.post(self.ocr_url, json=payload, timeout=30)
             response.raise_for_status()
@@ -802,15 +832,28 @@ class OCRHelper:
                 ocr_results = json_resp.get("result", {}).get("ocrResults", [])
                 if ocr_results:
                     pruned = ocr_results[0].get("prunedResult", {})
+
+                    dt_polys = pruned.get("dt_polys", [])
                     
+                    # 如果进行了缩放，需要还原坐标
+                    if scale != 1.0 and dt_polys:
+                        restored_polys = []
+                        for poly in dt_polys:
+                            # poly 是 [[x1, y1], [x2, y2], ...]
+                            restored_poly = []
+                            for point in poly:
+                                restored_poly.append([int(point[0] / scale), int(point[1] / scale)])
+                            restored_polys.append(restored_poly)
+                        dt_polys = restored_polys
+
                     # 转换格式为 OCRHelper 所需的格式
                     result = {
                         "rec_texts": pruned.get("rec_texts", []),
                         "rec_scores": pruned.get("rec_scores", []),
-                        "dt_polys": pruned.get("dt_polys", [])
+                        "dt_polys": dt_polys,
                     }
                 else:
-                    self.logger.warning(f"OCR Server returned empty ocrResults")
+                    self.logger.warning("OCR Server returned empty ocrResults")
             else:
                 self.logger.error(f"OCR Server Error: {json_resp.get('errorMsg')}")
 
@@ -856,9 +899,7 @@ class OCRHelper:
 
         if result:
             # 使用完整的文件路径保存到 cache 目录
-            json_filename = os.path.basename(image_path).replace(
-                ".png", "_res.json"
-            )
+            json_filename = os.path.basename(image_path).replace(".png", "_res.json")
             json_path = os.path.join(self.cache_dir, json_filename)
 
             # 保存 JSON
@@ -943,9 +984,7 @@ class OCRHelper:
                 }
 
             # 从 JSON 中查找目标文字
-            return self._find_text_in_json(
-                json_file, target_text, confidence_threshold, occurrence
-            )
+            return self._find_text_in_json(json_file, target_text, confidence_threshold, occurrence)
 
         except Exception as e:
             self.logger.error(f"图像OCR识别出错: {e}")
@@ -1030,29 +1069,27 @@ class OCRHelper:
 
             # 如果没有命中缓存或不使用缓存，进行OCR识别
             if result is None:
-                # 对区域进行OCR识别
-                start_time = time.time()
-                result = self.ocr.predict(region_img)
-                elapsed_time = time.time() - start_time
-                self.logger.debug(
-                    f"⏱️ 区域 OCR 耗时: {elapsed_time:.3f}秒 (偏移: {offset})"
-                )
+                # 确保区域图片已保存（Remote OCR 需要文件）
+                if not os.path.exists(region_cache_path):
+                    cv2.imwrite(region_cache_path, region_img)
 
-                # 保存OCR结果到缓存（仅在使用缓存时）
-                if use_cache and result and len(result) > 0:
-                    # 保存OCR结果
-                    region_json_path = region_cache_path.replace(".png", "_res.json")
-                    # 直接保存结果到指定路径
-                    for res in result:
-                        # PaddleOCR 的 save_to_json 方法需要完整路径
-                        res.save_to_json(
-                            os.path.join(
-                                self.cache_dir, os.path.basename(region_json_path)
-                            )
-                        )
+                # 对区域进行OCR识别 (Remote)
+                ocr_dict = self._predict_with_timing(region_cache_path)
+                
+                if ocr_dict:
+                    result = [ocr_dict] # 包装成列表以兼容后续逻辑
 
-                    # 更新缓存数据库
-                    self._save_to_cache_db(region_cache_path, region_json_path, regions)
+                    # 保存OCR结果到缓存（仅在使用缓存时）
+                    if use_cache:
+                        region_json_path = region_cache_path.replace(".png", "_res.json")
+                        
+                        with open(region_json_path, "w", encoding="utf-8") as f:
+                            json.dump(ocr_dict, f, ensure_ascii=False)
+
+                        # 更新缓存数据库
+                        self._save_to_cache_db(region_cache_path, region_json_path, regions)
+                else:
+                    result = []
 
             if not result or len(result) == 0:
                 self.logger.warning("OCR识别结果为空")
@@ -1091,9 +1128,7 @@ class OCRHelper:
                             poly = dt_polys[i]
 
                             # 调整坐标到原图
-                            adjusted_poly = self._adjust_coordinates_to_full_image(
-                                poly, offset
-                            )
+                            adjusted_poly = self._adjust_coordinates_to_full_image(poly, offset)
 
                             # 计算中心点
                             x_coords = [point[0] for point in adjusted_poly]
@@ -1243,9 +1278,7 @@ class OCRHelper:
             """生成并记录临时截图路径"""
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             unique_id = str(uuid.uuid4())[:8]
-            temp_path = os.path.join(
-                self.temp_dir, f"screenshot_{timestamp}_{unique_id}.png"
-            )
+            temp_path = os.path.join(self.temp_dir, f"screenshot_{timestamp}_{unique_id}.png")
             temp_screenshot_paths.add(temp_path)
             return temp_path
 
@@ -1273,9 +1306,7 @@ class OCRHelper:
             if use_cache and (not result or not result.get("found")):
                 self.logger.info("缓存 OCR 未找到目标文字，尝试实时截图重试")
                 fallback_path = (
-                    screenshot_path
-                    if user_provided_path
-                    else _create_temp_screenshot_path()
+                    screenshot_path if user_provided_path else _create_temp_screenshot_path()
                 )
 
                 snapshot(filename=fallback_path)
@@ -1507,9 +1538,7 @@ class OCRHelper:
                 "selected_index": 0,
             }
 
-    def find_all_matching_texts(
-        self, image_path, target_text, confidence_threshold=0.5
-    ):
+    def find_all_matching_texts(self, image_path, target_text, confidence_threshold=0.5):
         """
         查找图像中所有匹配的文字
 
@@ -1609,19 +1638,18 @@ class OCRHelper:
             # OCR 识别
             result = self._predict_with_timing(image_path)
 
-            if not result or len(result) == 0:
+            if not result:
                 self.logger.warning(f"OCR识别结果为空: {image_path}")
                 return []
 
             # 保存识别结果到JSON
-            for res in result:
-                res.save_to_json(self.output_dir)
+            json_filename = os.path.basename(image_path).replace(".png", "_res.json")
+            json_file = os.path.join(self.output_dir, json_filename)
+            
+            with open(json_file, "w", encoding="utf-8") as f:
+                json.dump(result, f, ensure_ascii=False, indent=2)
 
             # 从JSON文件读取所有文字
-            json_file = os.path.join(
-                self.output_dir,
-                os.path.basename(image_path).replace(".png", "_res.json"),
-            )
             return self._get_all_texts_from_json(json_file)
 
         except Exception as e:
