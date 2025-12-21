@@ -81,6 +81,40 @@ def launch_tmux(session: str, cmd: str, logger) -> bool:
     return False
 
 
+def launch_ocr_service(logger) -> bool:
+    """启动 OCR Docker 服务（2小时后自动停止）。"""
+    session_name = "ocr_service"
+    image = "ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlex/paddlex:paddlex3.3.11-paddlepaddle3.2.0-cpu"
+    
+    # 逻辑：
+    # 1. 尝试启动现有容器
+    # 2. 如果启动失败（容器不存在），则创建并运行新容器
+    # 3. 等待2小时
+    # 4. 停止容器
+    
+    # 注意：docker start 如果容器不存在会报错，我们在 shell 中用 || 处理
+    docker_cmd = (
+        f"echo '🚀 Starting OCR Service...'; "
+        f"if docker ps -a --format '{{{{.Names}}}}' | grep -q '^paddlex$'; then "
+        f"  docker start paddlex; "
+        f"else "
+        f"  docker run -d --name paddlex "
+        f"  -v \"$PWD:/paddle\" "
+        f"  --shm-size=8g "
+        f"  --network=host "
+        f"  {image} "
+        f"  sh -lc \"paddlex --install serving && paddlex --serve --pipeline OCR\"; "
+        f"fi; "
+        f"echo '✅ OCR Service is running. Waiting for 2 hours...'; "
+        f"sleep 7200; "
+        f"echo '🛑 Time is up. Stopping OCR Service...'; "
+        f"docker stop paddlex; "
+        f"echo '👋 Bye!'"
+    )
+
+    return launch_tmux(session_name, docker_cmd, logger)
+
+
 def main() -> int:
     """主入口：加载会话配置并启动各会话。"""
     logger = setup_logger(name="cron_run_all_dungeons", level="INFO", use_color=True)
@@ -95,6 +129,16 @@ def main() -> int:
     logger.info("🚀 启动 tmux 会话（JSON 驱动）")
     logger.info(f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info("=" * 50)
+
+    # 1. 优先启动 OCR 服务
+    logger.info("🔧 启动 OCR 服务 (PaddleX Docker)...")
+    if launch_ocr_service(logger):
+        logger.info("✅ OCR 服务会话已启动 (将在2小时后自动关闭)")
+        logger.info("⏳ 等待 30 秒以确保 OCR 服务完全就绪...")
+        time.sleep(30)
+    else:
+        logger.error("❌ OCR 服务启动失败，后续任务可能会受影响")
+        # 这里选择不中断，因为可能已有服务在运行，或者 OCR 不是强制依赖（取决于配置）
 
     all_ok = True
     for idx, sess in enumerate(sessions, start=1):

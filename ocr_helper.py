@@ -4,10 +4,11 @@ OCR Helper Class - 基于PaddleOCR的文字识别和定位工具类
 支持区域分割功能，可以指定只识别屏幕的特定区域，大大提升识别速度
 """
 
-from paddleocr import PaddleOCR
+import requests
 import json
 import os
 import time
+import base64
 import cv2
 import uuid
 import shutil
@@ -63,14 +64,7 @@ class OCRHelper:
         self.hash_type = hash_type
         self.hash_threshold = hash_threshold
 
-        self.ocr = PaddleOCR(
-            use_doc_orientation_classify=use_doc_orientation_classify,
-            use_doc_unwarping=use_doc_unwarping,
-            use_textline_orientation=use_textline_orientation,
-            text_detection_model_name="PP-OCRv5_mobile_det",
-            text_recognition_model_name="PP-OCRv5_mobile_rec",
-            cpu_threads=(cpu_threads if cpu_threads is not None else 4),
-        )
+        self.ocr_url = os.getenv("OCR_SERVER_URL", "http://localhost:8080/ocr")
 
         # 创建输出目录
         if not os.path.exists(self.output_dir):
@@ -773,19 +767,56 @@ class OCRHelper:
 
     def _predict_with_timing(self, image_path):
         """
-        执行 OCR 识别并记录耗时
+        执行 OCR 识别并记录耗时 (Remote PaddleX 3.0)
 
         Args:
             image_path (str): 图像文件路径
 
         Returns:
-            OCR 识别结果
+            OCR 识别结果 (dict: {rec_texts: [], rec_scores: [], dt_polys: []})
         """
         # 预处理：缩小图片
         processed_image_path = self._resize_image_for_ocr(image_path)
 
         start_time = time.time()
-        result = self.ocr.predict(processed_image_path)
+        result = None
+
+        try:
+            # 1. 转换为 Base64
+            with open(processed_image_path, "rb") as f:
+                image_data = base64.b64encode(f.read()).decode('utf-8')
+
+            # 2. 构建符合 PaddleX 3.0 规范的 Payload
+            payload = {
+                "file": image_data,
+                "fileType": 1
+            }
+            
+            # 3. 发送请求 (默认端口 8080)
+            response = requests.post(self.ocr_url, json=payload, timeout=30)
+            response.raise_for_status()
+            json_resp = response.json()
+
+            if json_resp.get("errorCode") == 0:
+                # PaddleX 3.0 的结果嵌套在 result.ocrResults[0].prunedResult 中
+                ocr_results = json_resp.get("result", {}).get("ocrResults", [])
+                if ocr_results:
+                    pruned = ocr_results[0].get("prunedResult", {})
+                    
+                    # 转换格式为 OCRHelper 所需的格式
+                    result = {
+                        "rec_texts": pruned.get("rec_texts", []),
+                        "rec_scores": pruned.get("rec_scores", []),
+                        "dt_polys": pruned.get("dt_polys", [])
+                    }
+                else:
+                    self.logger.warning(f"OCR Server returned empty ocrResults")
+            else:
+                self.logger.error(f"OCR Server Error: {json_resp.get('errorMsg')}")
+
+        except Exception as e:
+            self.logger.error(f"OCR Request Failed: {e}")
+
         elapsed_time = time.time() - start_time
 
         filename = os.path.basename(image_path)
@@ -823,21 +854,19 @@ class OCRHelper:
         # 缓存未命中或禁用缓存，执行 OCR 识别
         result = self._predict_with_timing(image_path)
 
-        if result and len(result) > 0:
-            # 直接保存到缓存目录
-            for res in result:
-                # 使用完整的文件路径保存到 cache 目录
-                json_filename = os.path.basename(image_path).replace(
-                    ".png", "_res.json"
-                )
-                json_path = os.path.join(self.cache_dir, json_filename)
-                res.save_to_json(json_path)
+        if result:
+            # 使用完整的文件路径保存到 cache 目录
+            json_filename = os.path.basename(image_path).replace(
+                ".png", "_res.json"
+            )
+            json_path = os.path.join(self.cache_dir, json_filename)
+
+            # 保存 JSON
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump(result, f, ensure_ascii=False)
 
             # 获取 JSON 文件路径
-            json_file = os.path.join(
-                self.cache_dir,
-                os.path.basename(image_path).replace(".png", "_res.json"),
-            )
+            json_file = json_path
 
             # 如果启用缓存，同时保存到缓存
             if use_cache and os.path.exists(json_file):
