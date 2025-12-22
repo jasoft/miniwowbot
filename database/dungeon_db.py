@@ -133,6 +133,14 @@ class DungeonProgressDB:
             DAILY_COLLECT_ZONE_NAME, DAILY_COLLECT_DUNGEON_NAME
         )
 
+    def mark_daily_step_completed(self, step_name):
+        """标记每日收集的某个步骤为已完成"""
+        self.mark_dungeon_completed(DAILY_COLLECT_ZONE_NAME, step_name)
+
+    def is_daily_step_completed(self, step_name):
+        """判断每日收集的某个步骤是否已完成"""
+        return self.is_dungeon_completed(DAILY_COLLECT_ZONE_NAME, step_name)
+
     def _build_completed_query(self, target_date=None, include_special=False):
         """构建已通关记录查询条件"""
         if target_date is None:

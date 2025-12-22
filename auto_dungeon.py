@@ -1029,9 +1029,25 @@ class DailyCollectManager:
         self.config_loader = config_loader
         self.logger = logger
 
-    def collect_daily_rewards(self):
+    def _run_step(self, db, step_name, func, *args, **kwargs):
+        """
+        执行单个步骤，支持进度保存
+        """
+        if db and db.is_daily_step_completed(step_name):
+            self.logger.info(f"⏭️ 步骤 {step_name} 已完成，跳过")
+            return
+
+        func(*args, **kwargs)
+
+        if db:
+            db.mark_daily_step_completed(step_name)
+
+    def collect_daily_rewards(self, db=None):
         """
         执行所有每日收集操作
+
+        Args:
+            db: DungeonProgressDB 实例，用于记录步骤进度
         """
         self.logger.info("=" * 60)
         self.logger.info("🎁 开始执行每日收集操作")
@@ -1039,42 +1055,50 @@ class DailyCollectManager:
 
         try:
             # 1. 领取每日挂机奖励
-            self._collect_idle_rewards()
+            self._run_step(db, "idle_rewards", self._collect_idle_rewards)
 
             # 2. 购买商店每日
-            self._buy_market_items()
+            self._run_step(db, "buy_market_items", self._buy_market_items)
 
             # 3. 执行随从派遣
-            self._handle_retinue_deployment()
+            self._run_step(db, "retinue_deployment", self._handle_retinue_deployment)
 
             # 4. 领取每日免费地下城
-            self._collect_free_dungeons()
+            self._run_step(db, "free_dungeons", self._collect_free_dungeons)
 
             # 5. 开启宝箱（如果配置了宝箱名称）
             if self.config_loader and self.config_loader.get_chest_name():
-                self._open_chests(self.config_loader.get_chest_name())
+                self._run_step(
+                    db,
+                    "open_chests",
+                    self._open_chests,
+                    self.config_loader.get_chest_name(),
+                )
 
             # 6. 打三次世界 boss
-            for _ in range(3):
-                self._kill_world_boss()
+            def kill_boss_loop():
+                for _ in range(3):
+                    self._kill_world_boss()
+
+            self._run_step(db, "world_boss", kill_boss_loop)
 
             # 7. 领取 taptap 奖励
             # self._checkin_taptap()
 
             # 8. 领取邮件
-            self._receive_mails()
+            self._run_step(db, "receive_mails", self._receive_mails)
 
             # 9. 领取各种主题奖励
-            self._small_cookie()
+            self._run_step(db, "small_cookie", self._small_cookie)
 
             # 10. 领取礼包
-            self._collect_gifts()
+            self._run_step(db, "collect_gifts", self._collect_gifts)
 
             # 11. 领取广告奖励
-            self._buy_ads_items()
+            self._run_step(db, "buy_ads_items", self._buy_ads_items)
 
             # 12. 猎魔试炼
-            self._demonhunter_exam()
+            self._run_step(db, "demonhunter_exam", self._demonhunter_exam)
 
             self.logger.info("=" * 60)
             self.logger.info("✅ 每日收集操作全部完成")
@@ -1649,7 +1673,7 @@ def daily_collect():
             logger.info("⏭️ 今日每日收集已完成，跳过重复执行")
             return False
 
-        daily_collect_manager.collect_daily_rewards()
+        daily_collect_manager.collect_daily_rewards(db=db)
         db.mark_daily_collect_completed()
         logger.info("💾 已记录今日每日收集完成")
         return True
