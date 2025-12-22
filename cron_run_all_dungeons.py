@@ -75,7 +75,17 @@ def launch_tmux(session: str, cmd: str, logger) -> bool:
         if has.returncode == 0:
             subprocess.run(["tmux", "kill-session", "-t", session], capture_output=True)
         result = subprocess.run(
-            ["tmux", "new-session", "-d", "-s", session, cmd], capture_output=True
+            [
+                "tmux",
+                "new-session",
+                "-d",
+                "-s",
+                session,
+                "-c",
+                str(SCRIPT_DIR),
+                cmd,
+            ],
+            capture_output=True,
         )
         if result.returncode == 0:
             logger.info(f"🧰 tmux 会话已启动: {session}")
@@ -91,13 +101,13 @@ def launch_powershell(session: str, cmd: str, logger) -> bool:
     """在 Windows 上启动一个新的 PowerShell 窗口执行命令。"""
     try:
         # 在 PowerShell 内部设置标题并执行命令
-        full_cmd = f"$Host.UI.RawUI.WindowTitle = '{session}'; {cmd}"
+        full_cmd = f"$Host.UI.RawUI.WindowTitle = '{session}'; Set-Location '{SCRIPT_DIR}'; {cmd}"
 
         # 使用 subprocess.CREATE_NEW_CONSOLE 在 Windows 上创建新窗口
         # 这比 Start-Process 更稳健，避免了多层引号嵌套转义问题
         subprocess.Popen(
-            ["powershell", "-NoExit", "-Command", full_cmd],
-            creationflags=subprocess.CREATE_NEW_CONSOLE if IS_WINDOWS else 0
+            ["pwsh", "-NoExit", "-Command", full_cmd],
+            creationflags=subprocess.CREATE_NEW_CONSOLE if IS_WINDOWS else 0,
         )
         logger.info(f"🧰 PowerShell 窗口已启动: {session}")
         return True
@@ -129,9 +139,7 @@ def launch_ocr_service(logger) -> bool:
 
     session_name = "ocr_service"
     # 使用已验证存在的 PaddleX 3.0 GPU 镜像标签
-    image = (
-        "ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlex/paddlex:paddlex3.0.1-paddlepaddle3.0.0-gpu-cuda11.8-cudnn8.9-trt8.6"
-    )
+    image = "ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlex/paddlex:paddlex3.0.1-paddlepaddle3.0.0-gpu-cuda11.8-cudnn8.9-trt8.6"
 
     if IS_WINDOWS:
         # Windows 上的 Docker 不支持 --network=host 达到 localhost 访问的效果，改用 -p 端口映射
@@ -140,7 +148,7 @@ def launch_ocr_service(logger) -> bool:
             f"Write-Host '🚀 Starting OCR Service (GPU Docker)...'; "
             f"docker rm -f paddlex 2>$null; "
             f"docker run -d --name paddlex "
-            f' --gpus all '
+            f" --gpus all "
             f' -v "${{pwd}}:/paddle" '
             f' -v "paddlex_data:/root" '
             f" --shm-size=8g "
@@ -162,7 +170,7 @@ def launch_ocr_service(logger) -> bool:
             f"  docker start paddlex; "
             f"else "
             f"  docker run -d --name paddlex "
-            f'  --gpus all '
+            f"  --gpus all "
             f'  -v "$PWD:/paddle" '
             f'  -v "paddlex_data:/root" '
             f"  --shm-size=8g "
