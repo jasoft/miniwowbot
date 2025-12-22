@@ -86,6 +86,27 @@ class TestOCRCacheLoading:
             cursor.execute("SELECT COUNT(*) FROM ocr_cache")
             assert cursor.fetchone()[0] == 0
 
+    def test_drop_legacy_cache_table(self, temp_output_dir):
+        """旧的 cache_entries 表会被删除"""
+        cache_dir = os.path.join(temp_output_dir, "cache")
+        os.makedirs(cache_dir, exist_ok=True)
+        db_path = os.path.join(cache_dir, "cache.db")
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "CREATE TABLE IF NOT EXISTS cache_entries (image_path TEXT, json_path TEXT)"
+            )
+            conn.commit()
+
+        OCRHelper(output_dir=temp_output_dir)
+
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='cache_entries'"
+            )
+            assert cursor.fetchone() is None
+
     def test_cache_persistence(self, temp_output_dir, monkeypatch):
         """测试缓存持久化"""
         # 第一次初始化

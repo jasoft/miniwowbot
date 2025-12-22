@@ -100,6 +100,8 @@ class OCRHelper:
         try:
             with sqlite3.connect(self.cache_db_path) as conn:
                 cursor = conn.cursor()
+                # 删除旧缓存表，避免继续落盘图片缓存
+                cursor.execute("DROP TABLE IF EXISTS cache_entries")
                 # 创建缓存表（仅保存哈希与 JSON 数据，不落盘图片）
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS ocr_cache (

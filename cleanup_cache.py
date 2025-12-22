@@ -44,23 +44,6 @@ def cleanup_output_directory():
 
     # 读取数据库，了解哪些文件应该保留
     files_to_keep = {"cache.db", "cache_index.json"}
-    if os.path.exists(db_path):
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='ocr_cache'"
-        )
-        has_new_cache = cursor.fetchone() is not None
-        if not has_new_cache:
-            try:
-                cursor.execute("SELECT image_path, json_path FROM cache_entries")
-                for img_path, json_path in cursor.fetchall():
-                    files_to_keep.add(os.path.basename(img_path))
-                    files_to_keep.add(os.path.basename(json_path))
-                print(f"  数据库中有 {len(files_to_keep)} 个文件需要保留")
-            except sqlite3.Error:
-                pass
-        conn.close()
     # 删除不在数据库中的缓存文件
     print("  扫描 cache 目录中的所有文件...")
     all_files = os.listdir(cache_dir)
