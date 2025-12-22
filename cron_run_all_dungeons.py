@@ -205,10 +205,25 @@ def main() -> int:
 
     # 1. 优先启动 OCR 服务
     logger.info("🔧 启动 OCR 服务 (PaddleX Docker)...")
+    
+    # 先检查是否已经健康，如果已经健康则无需后续的等待
+    is_already_healthy = check_ocr_health(logger)
+
     if launch_ocr_service(logger):
         logger.info(f"✅ OCR 服务{launcher_name}已启动 (将在2小时后自动关闭)")
-        logger.info("⏳ 等待 30 秒以确保 OCR 服务完全就绪...")
-        time.sleep(30)
+        
+        if is_already_healthy:
+            logger.info("⚡ OCR 服务 (/health) 已正常，跳过等待")
+        else:
+            logger.info("⏳ 新启动的服务，等待就绪 (最多 30 秒)...")
+            start_time = time.time()
+            while time.time() - start_time < 30:
+                if check_ocr_health(logger):
+                    logger.info(f"✅ OCR 服务已就绪 (耗时 {time.time() - start_time:.1f}s)")
+                    break
+                time.sleep(1)
+            else:
+                logger.warning("⚠️ 等待超时，服务可能仍在启动中...")
     else:
         logger.error("❌ OCR 服务启动失败，后续任务可能会受影响")
 

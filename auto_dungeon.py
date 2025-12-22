@@ -115,8 +115,8 @@ error_dialog_monitor = None  # 全局错误对话框监控器
 
 def sleep(seconds: float, reason: str = "[需要填写原因]"):
     """sleep 的封装，便于打桩测试"""
-    airtest_sleep(seconds)
     logger.info(f"💤 等待 {seconds} 秒, 原因是: {reason}")
+    airtest_sleep(seconds)
 
 
 def _normalize_emulator_name(name: Optional[str]) -> Optional[str]:
@@ -139,77 +139,7 @@ def _normalize_emulator_name(name: Optional[str]) -> Optional[str]:
     return name
 
 
-def check_and_start_emulator(emulator_name: Optional[str] = None):
-    """
-    检查模拟器状态并在需要时启动
-    支持指定特定的模拟器实例
 
-    Args:
-        emulator_name: 模拟器网络地址，如 '127.0.0.1:5555'，如果为 None 则使用默认行为
-
-    Returns:
-        bool: 准备成功返回True，失败返回False
-    """
-    global emulator_manager, target_emulator
-
-    logger.info("\n" + "=" * 60)
-    if emulator_name:
-        logger.info(f"🔍 检查模拟器状态: {emulator_name}")
-        target_emulator = emulator_name
-        # 更新日志上下文中的 emulator 标签，便于后续写入文件与采集
-        normalized_name = _normalize_emulator_name(emulator_name)
-        if normalized_name:
-            update_log_context({"emulator": normalized_name})
-    else:
-        logger.info("🔍 检查BlueStacks模拟器状态")
-    logger.info("=" * 60)
-
-    # 初始化模拟器管理器
-    if emulator_manager is None:
-        emulator_manager = EmulatorManager()
-
-    # 如果指定了模拟器名称，仅检查是否已运行/连接
-    if emulator_name:
-        normalized_name = _normalize_emulator_name(emulator_name)
-        if normalized_name is None:
-            logger.error("❌ 模拟器名称规范化失败")
-            return False
-        emulator_name = normalized_name
-        devices = emulator_manager.get_adb_devices()
-        if emulator_name not in devices:
-            logger.warning(f"⚠️ 模拟器 {emulator_name} 未运行或未连接")
-            logger.info(f"   可用设备: {list(devices.keys()) if devices else '无'}")
-            # 尝试一次adb连接（不做任何自动启动）
-            if emulator_manager.ensure_device_connected(emulator_name):
-                logger.info(f"✅ 已通过 adb connect 确认连接: {emulator_name}")
-            else:
-                send_bark_notification(
-                    "副本助手 - 错误",
-                    f"模拟器 {emulator_name} 未运行或未连接，请手动启动后重试",
-                    level="timeSensitive",
-                )
-                return False
-        logger.info(f"✅ 模拟器 {emulator_name} 已在设备列表中")
-    else:
-        # 默认模拟器：不再自动启动
-        if emulator_manager.check_bluestacks_running():
-            logger.info("✅ BlueStacks模拟器已在运行")
-        else:
-            logger.info("⚠️ BlueStacks模拟器未运行")
-            send_bark_notification(
-                "副本助手 - 错误",
-                "BlueStacks 未运行，请手动启动后重试",
-                level="timeSensitive",
-            )
-            return False
-
-    # 无论模拟器是否刚启动，都执行adb devices
-    if not emulator_manager.ensure_adb_connection():
-        logger.error("❌ 建立ADB连接失败")
-        return False
-
-    logger.info("=" * 60 + "\n")
-    return True
 
 
 def check_stop_signal():
@@ -813,6 +743,7 @@ def is_on_character_selection(timeout=30):
     检查当前是否位于角色选择界面，模板识别失败时回退到 OCR
     """
     try:
+        logger.info("🔍 等待进入角色选择界面...")
         wait(ENTER_GAME_BUTTON_TEMPLATE, timeout=timeout, interval=0.1)
         return True
     except TargetNotFoundError:
@@ -1792,11 +1723,6 @@ def parse_arguments():
     """
     parser = argparse.ArgumentParser(description="副本自动遍历脚本")
     parser.add_argument(
-        "--skip-emulator-check",
-        action="store_true",
-        help="跳过模拟器检查和启动（用于测试或特殊情况）",
-    )
-    parser.add_argument(
         "-c",
         "--config",
         type=str,
@@ -2377,11 +2303,6 @@ def main():
 
     # 3. 处理加载账号模式（如果指定）
     if args.load_account:
-        # 加载账号模式需要先启动模拟器
-        if not args.skip_emulator_check:
-            if not check_and_start_emulator(args.emulator):
-                logger.error("❌ 模拟器准备失败，脚本退出")
-                sys.exit(1)
         handle_load_account_mode(args.load_account, args.emulator, low_mem=args.low_mem)
         return
 
@@ -2404,13 +2325,7 @@ def main():
             return
 
     # 6. 检查并启动模拟器（只在有需要完成的副本时执行）
-    logger.info("\n🔍 检测到有未完成的副本，准备启动模拟器...")
-    if not args.skip_emulator_check:
-        if not check_and_start_emulator(args.emulator):
-            logger.error("❌ 模拟器准备失败，脚本退出")
-            sys.exit(1)
-    else:
-        logger.info("⚠️ 跳过模拟器检查（--skip-emulator-check）")
+    # (已移除自动启动模拟器逻辑)
 
     # 7. 初始化设备和OCR
     initialize_device_and_ocr(args.emulator, low_mem=args.low_mem)
@@ -2418,9 +2333,11 @@ def main():
     state_machine = AutoDungeonStateMachine(config_loader)
 
     # 启动游戏
-    logger.info("启动游戏...")
+    logger.info("关闭游戏...")
     stop_app("com.ms.ysjyzr")
     sleep(2, "关闭游戏")
+
+    logger.info("启动游戏")
     start_app("com.ms.ysjyzr")
 
     # 等待进入角色选择界面
