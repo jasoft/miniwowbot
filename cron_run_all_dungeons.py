@@ -13,6 +13,7 @@ import platform
 import subprocess
 import sys
 import time
+import urllib.request
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Sequence
@@ -105,8 +106,27 @@ def launch_powershell(session: str, cmd: str, logger) -> bool:
     return False
 
 
+def check_ocr_health(logger) -> bool:
+    """检查 OCR 服务健康状态。"""
+    url = "http://localhost:8080/health"
+    try:
+        # 尝试连接服务，超时设置为 2 秒
+        with urllib.request.urlopen(url, timeout=2) as response:
+            if response.status == 200:
+                return True
+    except Exception:
+        # 连接失败或超时，说明服务未就绪
+        pass
+    return False
+
+
 def launch_ocr_service(logger) -> bool:
     """启动 OCR Docker 服务（2小时后自动停止）。"""
+    # 1. 优先进行健康检查
+    if check_ocr_health(logger):
+        logger.info("✅ OCR 服务 (/health) 响应正常，跳过启动")
+        return True
+
     session_name = "ocr_service"
     # 使用已验证存在的 PaddleX 3.0 GPU 镜像标签
     image = (
