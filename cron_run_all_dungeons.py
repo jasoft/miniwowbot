@@ -108,24 +108,26 @@ def launch_powershell(session: str, cmd: str, logger) -> bool:
 def launch_ocr_service(logger) -> bool:
     """启动 OCR Docker 服务（2小时后自动停止）。"""
     session_name = "ocr_service"
+    # 使用已验证存在的 PaddleX 3.0 GPU 镜像标签
     image = (
-        "ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlex/paddlex:paddlex3.3.11-paddlepaddle3.2.0-cpu"
+        "ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlex/paddlex:paddlex3.0.1-paddlepaddle3.0.0-gpu-cuda11.8-cudnn8.9-trt8.6"
     )
 
     if IS_WINDOWS:
         # Windows 上的 Docker 不支持 --network=host 达到 localhost 访问的效果，改用 -p 端口映射
-        # 同时使用 $pwd 确保路径正确，并先删除旧容器确保配置更新
+        # 同时添加 --gpus all 以支持 GPU 加速
         docker_cmd = (
-            f"Write-Host '🚀 Starting OCR Service (Docker)...'; "
+            f"Write-Host '🚀 Starting OCR Service (GPU Docker)...'; "
             f"docker rm -f paddlex 2>$null; "
             f"docker run -d --name paddlex "
+            f' --gpus all '
             f' -v "${{pwd}}:/paddle" '
             f' -v "paddlex_data:/root" '
             f" --shm-size=8g "
             f" -p 8080:8080 "
             f" {image} "
             f" sh -lc \"paddlex --install serving && rm -f OCR.yaml && paddlex --get_pipeline_config OCR --save_path . && sed -i 's/_server_/_mobile_/g' OCR.yaml && paddlex --serve --pipeline OCR.yaml\"; "
-            f"Write-Host '✅ OCR Service is running. Waiting for 2 hours...'; "
+            f"Write-Host '✅ OCR GPU Service is running. Waiting for 2 hours...'; "
             f"Start-Sleep -Seconds 7200; "
             f"Write-Host '🛑 Time is up. Stopping and Removing OCR Service...'; "
             f"docker rm -f paddlex; "
@@ -133,12 +135,14 @@ def launch_ocr_service(logger) -> bool:
         )
         return launch_powershell(session_name, docker_cmd, logger)
     else:
+        # 非 Windows 环境也同步更新为 GPU 镜像并添加 --gpus all
         docker_cmd = (
-            f"echo '🚀 Starting OCR Service (Docker)...'; "
+            f"echo '🚀 Starting OCR Service (GPU Docker)...'; "
             f"if docker ps -a --format '{{{{.Names}}}}' | grep -q '^paddlex$'; then "
             f"  docker start paddlex; "
             f"else "
             f"  docker run -d --name paddlex "
+            f'  --gpus all '
             f'  -v "$PWD:/paddle" '
             f'  -v "paddlex_data:/root" '
             f"  --shm-size=8g "
@@ -146,7 +150,7 @@ def launch_ocr_service(logger) -> bool:
             f"  {image} "
             f"  sh -lc \"paddlex --install serving && rm -f OCR.yaml && paddlex --get_pipeline_config OCR --save_path . && sed -i 's/_server_/_mobile_/g' OCR.yaml && paddlex --serve --pipeline OCR.yaml\"; "
             f"fi; "
-            f"echo '✅ OCR Service is running. Waiting for 2 hours...'; "
+            f"echo '✅ OCR GPU Service is running. Waiting for 2 hours...'; "
             f"sleep 7200; "
             f"echo '🛑 Time is up. Stopping and Removing OCR Service...'; "
             f"docker rm -f paddlex; "

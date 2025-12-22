@@ -8,6 +8,7 @@
 import sys
 import os
 import cv2
+import tempfile
 import numpy as np
 import argparse
 from typing import Optional
@@ -281,25 +282,25 @@ def put_chinese_text(img, text, position, font_size, color=(0, 255, 0)):
     draw = ImageDraw.Draw(img_pil)
 
     # 尝试加载中文字体
-    try:
-        # macOS 系统字体
-        font = ImageFont.truetype("/System/Library/Fonts/PingFang.ttc", font_size)
-    except Exception:
-        try:
-            # 备选字体
-            font = ImageFont.truetype(
-                "/System/Library/Fonts/STHeiti Light.ttc", font_size
-            )
-        except Exception:
+    font_paths = [
+        "C:/Windows/Fonts/msyh.ttc",              # Windows 微软雅黑
+        "C:/Windows/Fonts/simhei.ttf",            # Windows 黑体
+        "/System/Library/Fonts/PingFang.ttc",     # macOS 苹方
+        "/System/Library/Fonts/STHeiti Light.ttc", # macOS 华文细黑
+        "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf", # Linux Droid Sans
+    ]
+
+    font = None
+    for path in font_paths:
+        if os.path.exists(path):
             try:
-                # Linux 字体
-                font = ImageFont.truetype(
-                    "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
-                    font_size,
-                )
+                font = ImageFont.truetype(path, font_size)
+                break
             except Exception:
-                # 使用默认字体
-                font = ImageFont.load_default()
+                continue
+
+    if font is None:
+        font = ImageFont.load_default()
 
     # PIL 使用 RGB，需要转换颜色
     color_rgb = (color[2], color[1], color[0])
@@ -325,8 +326,8 @@ def recognize_and_overlay_text(image, ocr_helper):
     result = image.copy()
     height, width = result.shape[:2]
 
-    # 保存临时图像用于 OCR 识别
-    temp_path = "/tmp/ocr_temp.png"
+    # 使用系统临时目录保存图像用于 OCR 识别
+    temp_path = os.path.join(tempfile.gettempdir(), "ocr_temp.png")
     cv2.imwrite(temp_path, image)
 
     print("🔍 正在识别图像上的所有文字...")
@@ -455,7 +456,7 @@ def main():
     # 截取当前画面
     print("📸 截取游戏画面...")
     try:
-        screenshot_path = "/tmp/game_screenshot.png"
+        screenshot_path = os.path.join(tempfile.gettempdir(), "game_screenshot.png")
         snapshot(filename=screenshot_path)
         print(f"✅ 截图保存到: {screenshot_path}\n")
     except Exception as e:
@@ -476,7 +477,7 @@ def main():
     result = draw_regions(image)
 
     # 保存结果
-    output_path = "/tmp/game_regions.png"
+    output_path = os.path.join(tempfile.gettempdir(), "game_regions.png")
     cv2.imwrite(output_path, result)
     print(f"✅ 区域划分图保存到: {output_path}\n")
 
@@ -560,7 +561,7 @@ def main():
 
         # S 键保存
         elif key == ord("s") or key == ord("S"):
-            save_path = "/tmp/game_regions_highlighted.png"
+            save_path = os.path.join(tempfile.gettempdir(), "game_regions_highlighted.png")
             cv2.imwrite(save_path, current_image)
             print(f"💾 图像已保存到: {save_path}")
 

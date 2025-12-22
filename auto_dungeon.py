@@ -18,7 +18,6 @@ from airtest.core.api import (
     keyevent,
     log,
     shell,
-    sleep,
     snapshot,
     start_app,
     stop_app,
@@ -27,6 +26,7 @@ from airtest.core.api import (
     touch,
     wait,
 )
+from airtest.core.api import sleep as airtest_sleep
 from airtest.core.error import TargetNotFoundError
 from airtest.core.settings import Settings as ST
 from tqdm import tqdm
@@ -111,6 +111,12 @@ emulator_manager = None
 target_emulator = None  # 目标模拟器名称
 config_name = None  # 配置文件名称（用于日志上下文标签）
 error_dialog_monitor = None  # 全局错误对话框监控器
+
+
+def sleep(seconds: float, reason: str = "[需要填写原因]"):
+    """sleep 的封装，便于打桩测试"""
+    airtest_sleep(seconds)
+    logger.info(f"💤 等待 {seconds} 秒, 原因是: {reason}")
 
 
 def _normalize_emulator_name(name: Optional[str]) -> Optional[str]:
@@ -837,8 +843,9 @@ def select_character(char_class):
         raise RuntimeError("未在角色选择界面，无法选择角色")
 
     # 查找职业文字位置
+    sleep(3, "等待角色选择界面加载完毕")
     logger.info(f"🔍 查找职业: {char_class}")
-    result = find_text(char_class, similarity_threshold=0.6)
+    result = find_text(char_class, similarity_threshold=0.8, use_cache=False)
 
     if result and result.get("found"):
         # 点击找到的位置
@@ -1090,10 +1097,14 @@ class DailyCollectManager:
         """猎魔试炼"""
         logger.info("猎魔试炼")
         back_to_main()
-        find_text_and_click("猎魔试炼")
-        find_text_and_click("签到")
-        find_text_and_click("一键签到")
-        back_to_main()
+
+        try:
+            find_text_and_click("猎魔试炼")
+            find_text_and_click("签到")
+            find_text_and_click("一键签到")
+            back_to_main()
+        except Exception as e:
+            logger.error(f"❌ 猎魔试炼失败: {e}, 活动可能已结束")
 
     def _small_cookie(self):
         """领取各种主题奖励"""
@@ -2385,7 +2396,7 @@ def main():
     # 启动游戏
     logger.info("启动游戏...")
     stop_app("com.ms.ysjyzr")
-    sleep(2)
+    sleep(2, "关闭游戏")
     start_app("com.ms.ysjyzr")
 
     # 等待进入角色选择界面
