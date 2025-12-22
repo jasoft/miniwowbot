@@ -9,16 +9,15 @@
 
 import json
 import os
+import platform
 import subprocess
 import sys
 import time
-import platform
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Sequence
 
 from logger_config import setup_logger
-
 
 SCRIPT_DIR = Path(__file__).parent
 IS_WINDOWS = platform.system() == "Windows"
@@ -32,9 +31,12 @@ def ensure_log_dir() -> None:
     log_dir.mkdir(parents=True, exist_ok=True)
 
 
-def build_cmd_for_configs(session: str, emulator: str, logfile: Path, configs: Sequence[str]) -> str:
+def build_cmd_for_configs(
+    session: str, emulator: str, logfile: Path, configs: Sequence[str]
+) -> str:
     """构建运行配置列表的命令（通过 uv 调用 Python 入口）。"""
     from shlex import quote
+
     script_path = str(SCRIPT_DIR / "run_dungeons.py")
     parts = [
         "uv",
@@ -49,8 +51,6 @@ def build_cmd_for_configs(session: str, emulator: str, logfile: Path, configs: S
     for cfg in configs:
         parts += ["--config", quote(cfg)]
     return " ".join(parts)
-
-
 
 
 def load_sessions_from_json(config_path: Path) -> Optional[list[dict]]:
@@ -73,7 +73,9 @@ def launch_tmux(session: str, cmd: str, logger) -> bool:
         has = subprocess.run(["tmux", "has-session", "-t", session], capture_output=True)
         if has.returncode == 0:
             subprocess.run(["tmux", "kill-session", "-t", session], capture_output=True)
-        result = subprocess.run(["tmux", "new-session", "-d", "-s", session, cmd], capture_output=True)
+        result = subprocess.run(
+            ["tmux", "new-session", "-d", "-s", session, cmd], capture_output=True
+        )
         if result.returncode == 0:
             logger.info(f"🧰 tmux 会话已启动: {session}")
             return True
@@ -87,11 +89,15 @@ def launch_tmux(session: str, cmd: str, logger) -> bool:
 def launch_powershell(session: str, cmd: str, logger) -> bool:
     """在 Windows 上启动一个新的 PowerShell 窗口执行命令。"""
     try:
-        # $Host.UI.RawUI.WindowTitle 用于设置窗口标题
-        # -NoExit 保持窗口打开，方便查看日志
-        # 使用 Start-Process 启动新的窗口
-        pwsh_cmd = f"Start-Process powershell -ArgumentList '-NoExit', '-Command', \"$Host.UI.RawUI.WindowTitle = '{session}'; {cmd}\""
-        subprocess.run(["powershell", "-Command", pwsh_cmd], check=True)
+        # 在 PowerShell 内部设置标题并执行命令
+        full_cmd = f"$Host.UI.RawUI.WindowTitle = '{session}'; {cmd}"
+
+        # 使用 subprocess.CREATE_NEW_CONSOLE 在 Windows 上创建新窗口
+        # 这比 Start-Process 更稳健，避免了多层引号嵌套转义问题
+        subprocess.Popen(
+            ["powershell", "-NoExit", "-Command", full_cmd],
+            creationflags=subprocess.CREATE_NEW_CONSOLE if IS_WINDOWS else 0
+        )
         logger.info(f"🧰 PowerShell 窗口已启动: {session}")
         return True
     except Exception as exc:
@@ -102,22 +108,23 @@ def launch_powershell(session: str, cmd: str, logger) -> bool:
 def launch_ocr_service(logger) -> bool:
     """启动 OCR Docker 服务（2小时后自动停止）。"""
     session_name = "ocr_service"
-    image = "ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlex/paddlex:paddlex3.3.11-paddlepaddle3.2.0-cpu"
-    
+    image = (
+        "ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlex/paddlex:paddlex3.3.11-paddlepaddle3.2.0-cpu"
+    )
+
     if IS_WINDOWS:
+        # Windows 上的 Docker 不支持 --network=host 达到 localhost 访问的效果，改用 -p 端口映射
+        # 同时使用 $pwd 确保路径正确，并先删除旧容器确保配置更新
         docker_cmd = (
             f"Write-Host '🚀 Starting OCR Service (Docker)...'; "
-            f"if (docker ps -a --format '{{{{.Names}}}}' | Select-String -Pattern '^paddlex$') {{ "
-            f"  docker start paddlex; "
-            f"}} else {{ "
-            f"  docker run -d --name paddlex "
-            f"  -v \"${{PWD}}:/paddle\" "
-            f"  -v \"paddlex_data:/root\" "
-            f"  --shm-size=8g "
-            f"  --network=host "
-            f"  {image} "
-            f"  sh -lc \"paddlex --install serving && rm -f OCR.yaml && paddlex --get_pipeline_config OCR --save_path . && sed -i 's/_server_/_mobile_/g' OCR.yaml && paddlex --serve --pipeline OCR.yaml\"; "
-            f"}}; "
+            f"docker rm -f paddlex 2>$null; "
+            f"docker run -d --name paddlex "
+            f' -v "${{pwd}}:/paddle" '
+            f' -v "paddlex_data:/root" '
+            f" --shm-size=8g "
+            f" -p 8080:8080 "
+            f" {image} "
+            f" sh -lc \"paddlex --install serving && rm -f OCR.yaml && paddlex --get_pipeline_config OCR --save_path . && sed -i 's/_server_/_mobile_/g' OCR.yaml && paddlex --serve --pipeline OCR.yaml\"; "
             f"Write-Host '✅ OCR Service is running. Waiting for 2 hours...'; "
             f"Start-Sleep -Seconds 7200; "
             f"Write-Host '🛑 Time is up. Stopping and Removing OCR Service...'; "
@@ -132,8 +139,8 @@ def launch_ocr_service(logger) -> bool:
             f"  docker start paddlex; "
             f"else "
             f"  docker run -d --name paddlex "
-            f"  -v \"$PWD:/paddle\" "
-            f"  -v \"paddlex_data:/root\" "
+            f'  -v "$PWD:/paddle" '
+            f'  -v "paddlex_data:/root" '
             f"  --shm-size=8g "
             f"  --network=host "
             f"  {image} "
@@ -184,6 +191,7 @@ def main() -> int:
         logger.info(f"🔧 {name}: 配置[{details}] @ {emulator}")
         if isinstance(configs, list) and len(configs) > 0:
             cmd = build_cmd_for_configs(name, emulator, logfile, configs)
+            logger.info(f"🖥️  启动命令行: {cmd}")
         else:
             logger.error(f"❌ 会话 {name} 未提供有效的 configs 列表，已跳过")
             all_ok = False
