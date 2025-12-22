@@ -5,18 +5,20 @@
 用于方便选择OCR识别区域
 """
 
-import sys
-import os
-import cv2
-import tempfile
-import numpy as np
 import argparse
+import os
+import sys
+import tempfile
 from typing import Optional
+
+import cv2
+import numpy as np
+from airtest.core.api import auto_setup, connect_device, snapshot
 from PIL import Image, ImageDraw, ImageFont
-from airtest.core.api import connect_device, auto_setup, snapshot
-from ocr_helper import OCRHelper
+
 from emulator_manager import EmulatorManager
 from logger_config import setup_logger_from_config
+from ocr_helper import OCRHelper
 
 # 添加父目录到路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -45,9 +47,7 @@ def _get_connection_string(emulator_name: Optional[str] = None) -> str:
             logger.info(f"   可用设备: {list(devices.keys()) if devices else '无'}")
             raise RuntimeError(f"模拟器 {emulator_name} 不可用")
 
-        connection_string = emulator_manager.get_emulator_connection_string(
-            emulator_name
-        )
+        connection_string = emulator_manager.get_emulator_connection_string(emulator_name)
         logger.info(f"📱 连接到模拟器: {emulator_name}")
         logger.info(f"   连接字符串: {connection_string}")
     else:
@@ -109,9 +109,7 @@ def draw_regions(image):
             thickness = 5
 
             # 获取文字大小
-            (text_width, text_height), baseline = cv2.getTextSize(
-                text, font, font_scale, thickness
-            )
+            (text_width, text_height), baseline = cv2.getTextSize(text, font, font_scale, thickness)
 
             # 计算文字位置（居中）
             text_x = center_x - text_width // 2
@@ -283,11 +281,11 @@ def put_chinese_text(img, text, position, font_size, color=(0, 255, 0)):
 
     # 尝试加载中文字体
     font_paths = [
-        "C:/Windows/Fonts/msyh.ttc",              # Windows 微软雅黑
-        "C:/Windows/Fonts/simhei.ttf",            # Windows 黑体
-        "/System/Library/Fonts/PingFang.ttc",     # macOS 苹方
-        "/System/Library/Fonts/STHeiti Light.ttc", # macOS 华文细黑
-        "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf", # Linux Droid Sans
+        "C:/Windows/Fonts/msyh.ttc",  # Windows 微软雅黑
+        "C:/Windows/Fonts/simhei.ttf",  # Windows 黑体
+        "/System/Library/Fonts/PingFang.ttc",  # macOS 苹方
+        "/System/Library/Fonts/STHeiti Light.ttc",  # macOS 华文细黑
+        "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",  # Linux Droid Sans
     ]
 
     font = None
@@ -371,9 +369,7 @@ def recognize_and_overlay_text(image, ocr_helper):
                 text_y = max(0, min(text_y, height - font_size))
 
                 # 使用 PIL 绘制中文文字
-                result = put_chinese_text(
-                    result, text, (text_x, text_y), font_size, (0, 255, 0)
-                )
+                result = put_chinese_text(result, text, (text_x, text_y), font_size, (0, 255, 0))
 
                 # 在文字框上方显示置信度（如果低于95%）
                 if confidence < 0.95:
