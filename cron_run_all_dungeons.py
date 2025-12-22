@@ -12,6 +12,7 @@ import os
 import subprocess
 import sys
 import time
+import platform
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Sequence
@@ -20,7 +21,9 @@ from logger_config import setup_logger
 
 
 SCRIPT_DIR = Path(__file__).parent
-os.environ["PATH"] = f"/opt/homebrew/bin:{os.environ.get('PATH', '')}"
+IS_WINDOWS = platform.system() == "Windows"
+if not IS_WINDOWS:
+    os.environ["PATH"] = f"/opt/homebrew/bin:{os.environ.get('PATH', '')}"
 
 
 def ensure_log_dir() -> None:
@@ -81,38 +84,68 @@ def launch_tmux(session: str, cmd: str, logger) -> bool:
     return False
 
 
+def launch_powershell(session: str, cmd: str, logger) -> bool:
+    """在 Windows 上启动一个新的 PowerShell 窗口执行命令。"""
+    try:
+        # $Host.UI.RawUI.WindowTitle 用于设置窗口标题
+        # -NoExit 保持窗口打开，方便查看日志
+        # 使用 Start-Process 启动新的窗口
+        pwsh_cmd = f"Start-Process powershell -ArgumentList '-NoExit', '-Command', \"$Host.UI.RawUI.WindowTitle = '{session}'; {cmd}\""
+        subprocess.run(["powershell", "-Command", pwsh_cmd], check=True)
+        logger.info(f"🧰 PowerShell 窗口已启动: {session}")
+        return True
+    except Exception as exc:
+        logger.error(f"❌ 启动 PowerShell 失败: {exc}")
+    return False
+
+
 def launch_ocr_service(logger) -> bool:
     """启动 OCR Docker 服务（2小时后自动停止）。"""
     session_name = "ocr_service"
     image = "ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlex/paddlex:paddlex3.3.11-paddlepaddle3.2.0-cpu"
     
-    # 逻辑：
-    # 1. 尝试启动现有容器
-    # 2. 如果启动失败（容器不存在），则创建并运行新容器
-    # 3. 等待2小时
-    # 4. 停止容器
-    
-    docker_cmd = (
-        f"echo '🚀 Starting OCR Service (Docker)...'; "
-        f"if docker ps -a --format '{{{{.Names}}}}' | grep -q '^paddlex$'; then "
-        f"  docker start paddlex; "
-        f"else "
-        f"  docker run -d --name paddlex "
-        f"  -v \"$PWD:/paddle\" "
-        f"  -v \"paddlex_data:/root\" "
-        f"  --shm-size=8g "
-        f"  --network=host "
-        f"  {image} "
-        f"  sh -lc \"paddlex --install serving && rm -f OCR.yaml && paddlex --get_pipeline_config OCR --save_path . && sed -i 's/_server_/_mobile_/g' OCR.yaml && paddlex --serve --pipeline OCR.yaml\"; "
-        f"fi; "
-        f"echo '✅ OCR Service is running. Waiting for 2 hours...'; "
-        f"sleep 7200; "
-        f"echo '🛑 Time is up. Stopping and Removing OCR Service...'; "
-        f"docker rm -f paddlex; "
-        f"echo '👋 Bye!'"
-    )
-
-    return launch_tmux(session_name, docker_cmd, logger)
+    if IS_WINDOWS:
+        docker_cmd = (
+            f"Write-Host '🚀 Starting OCR Service (Docker)...'; "
+            f"if (docker ps -a --format '{{{{.Names}}}}' | Select-String -Pattern '^paddlex$') {{ "
+            f"  docker start paddlex; "
+            f"}} else {{ "
+            f"  docker run -d --name paddlex "
+            f"  -v \"${{PWD}}:/paddle\" "
+            f"  -v \"paddlex_data:/root\" "
+            f"  --shm-size=8g "
+            f"  --network=host "
+            f"  {image} "
+            f"  sh -lc \"paddlex --install serving && rm -f OCR.yaml && paddlex --get_pipeline_config OCR --save_path . && sed -i 's/_server_/_mobile_/g' OCR.yaml && paddlex --serve --pipeline OCR.yaml\"; "
+            f"}}; "
+            f"Write-Host '✅ OCR Service is running. Waiting for 2 hours...'; "
+            f"Start-Sleep -Seconds 7200; "
+            f"Write-Host '🛑 Time is up. Stopping and Removing OCR Service...'; "
+            f"docker rm -f paddlex; "
+            f"Write-Host '👋 Bye!'"
+        )
+        return launch_powershell(session_name, docker_cmd, logger)
+    else:
+        docker_cmd = (
+            f"echo '🚀 Starting OCR Service (Docker)...'; "
+            f"if docker ps -a --format '{{{{.Names}}}}' | grep -q '^paddlex$'; then "
+            f"  docker start paddlex; "
+            f"else "
+            f"  docker run -d --name paddlex "
+            f"  -v \"$PWD:/paddle\" "
+            f"  -v \"paddlex_data:/root\" "
+            f"  --shm-size=8g "
+            f"  --network=host "
+            f"  {image} "
+            f"  sh -lc \"paddlex --install serving && rm -f OCR.yaml && paddlex --get_pipeline_config OCR --save_path . && sed -i 's/_server_/_mobile_/g' OCR.yaml && paddlex --serve --pipeline OCR.yaml\"; "
+            f"fi; "
+            f"echo '✅ OCR Service is running. Waiting for 2 hours...'; "
+            f"sleep 7200; "
+            f"echo '🛑 Time is up. Stopping and Removing OCR Service...'; "
+            f"docker rm -f paddlex; "
+            f"echo '👋 Bye!'"
+        )
+        return launch_tmux(session_name, docker_cmd, logger)
 
 
 def main() -> int:
@@ -125,20 +158,20 @@ def main() -> int:
         logger.error("❌ emulators.json 未找到或格式错误，无法继续")
         return 2
 
+    launcher_name = "PowerShell 窗口" if IS_WINDOWS else "tmux 会话"
     logger.info("=" * 50)
-    logger.info("🚀 启动 tmux 会话（JSON 驱动）")
+    logger.info(f"🚀 启动 {launcher_name}（JSON 驱动）")
     logger.info(f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info("=" * 50)
 
     # 1. 优先启动 OCR 服务
     logger.info("🔧 启动 OCR 服务 (PaddleX Docker)...")
     if launch_ocr_service(logger):
-        logger.info("✅ OCR 服务会话已启动 (将在2小时后自动关闭)")
+        logger.info(f"✅ OCR 服务{launcher_name}已启动 (将在2小时后自动关闭)")
         logger.info("⏳ 等待 30 秒以确保 OCR 服务完全就绪...")
         time.sleep(30)
     else:
         logger.error("❌ OCR 服务启动失败，后续任务可能会受影响")
-        # 这里选择不中断，因为可能已有服务在运行，或者 OCR 不是强制依赖（取决于配置）
 
     all_ok = True
     for idx, sess in enumerate(sessions, start=1):
@@ -156,12 +189,15 @@ def main() -> int:
             all_ok = False
             continue
 
-        ok = launch_tmux(name, cmd, logger)
+        if IS_WINDOWS:
+            ok = launch_powershell(name, cmd, logger)
+        else:
+            ok = launch_tmux(name, cmd, logger)
         all_ok = all_ok and ok
         time.sleep(1)
 
     if all_ok:
-        logger.info("✅ 已并行启动所有 tmux 会话")
+        logger.info(f"✅ 已并行启动所有 {launcher_name}")
         return 0
     logger.error("❌ 部分会话启动失败，请检查配置与环境")
     return 1
