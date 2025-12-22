@@ -7,7 +7,6 @@ OCR Helper Class - 基于PaddleOCR的文字识别和定位工具类
 import base64
 import json
 import os
-import shutil
 import sqlite3
 import time
 import uuid
@@ -17,7 +16,6 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import cv2
 import imagehash
 import requests
-from airtest.aircv.cal_confidence import cal_ccoeff_confidence
 from airtest.core.api import snapshot, touch
 from PIL import Image
 
@@ -82,8 +80,8 @@ class OCRHelper:
         # 需要先初始化，因为缓存加载时会用到
         self.logger = setup_logger_from_config(use_color=True)
 
-        # 初始化缓存
-        # 格式: [(image_path, json_file_path), ...]
+        # 初始化缓存（仅保留兼容属性，不再保存图片路径）
+        # 旧版格式: [(image_path, json_file_path), ...]
         self.ocr_cache = []
 
         # 缓存相似度阈值（95%以上认为是同一张图）
@@ -93,8 +91,7 @@ class OCRHelper:
         self.cache_db_path = os.path.join(self.cache_dir, "cache.db")
         self._init_cache_db()
 
-        # 加载已有的缓存（需要在 logger 初始化之后）
-        self._load_existing_cache()
+        # 仅使用 SQLite 存储缓存，避免落盘图片文件
 
     def _init_cache_db(self):
         """
@@ -103,12 +100,10 @@ class OCRHelper:
         try:
             with sqlite3.connect(self.cache_db_path) as conn:
                 cursor = conn.cursor()
-                # 创建缓存表
+                # 创建缓存表（仅保存哈希与 JSON 数据，不落盘图片）
                 cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS cache_entries (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        image_path TEXT UNIQUE NOT NULL,
-                        json_path TEXT NOT NULL,
+                    CREATE TABLE IF NOT EXISTS ocr_cache (
+                        image_hash TEXT PRIMARY KEY,
                         phash TEXT,
                         dhash TEXT,
                         ahash TEXT,
@@ -117,18 +112,18 @@ class OCRHelper:
                         hit_count INTEGER DEFAULT 0,
                         last_access_time REAL,
                         created_time REAL,
-                        image_size INTEGER,  -- 图片文件大小
-                        image_hash TEXT  -- MD5 hash for exact duplicate detection
+                        image_size INTEGER,  -- 图片字节大小
+                        json_data TEXT NOT NULL  -- OCR 结果 JSON
                     )
                 """)
                 # 创建索引以加速查询
-                cursor.execute("CREATE INDEX IF NOT EXISTS idx_phash ON cache_entries(phash)")
-                cursor.execute("CREATE INDEX IF NOT EXISTS idx_dhash ON cache_entries(dhash)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_ocr_cache_phash ON ocr_cache(phash)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_ocr_cache_dhash ON ocr_cache(dhash)")
                 cursor.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_last_access ON cache_entries(last_access_time)"
+                    "CREATE INDEX IF NOT EXISTS idx_ocr_cache_last_access ON ocr_cache(last_access_time)"
                 )
                 cursor.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_image_hash ON cache_entries(image_hash)"
+                    "CREATE INDEX IF NOT EXISTS idx_ocr_cache_image_hash ON ocr_cache(image_hash)"
                 )
                 conn.commit()
             self.logger.debug(f"✅ 缓存数据库初始化成功: {self.cache_db_path}")
@@ -137,13 +132,17 @@ class OCRHelper:
             raise
 
     def _compute_image_hash(
-        self, image_path: str, hash_type: Optional[str] = None
+        self,
+        image_path: Optional[str] = None,
+        image: Optional[Any] = None,
+        hash_type: Optional[str] = None,
     ) -> Optional[str]:
         """
         计算图像的感知哈希值
 
         Args:
             image_path: 图像路径
+            image: OpenCV 图像对象
             hash_type: 哈希类型 ("phash", "dhash", "ahash", "whash")
 
         Returns:
@@ -153,43 +152,105 @@ class OCRHelper:
             hash_type = self.hash_type
 
         try:
-            with Image.open(image_path) as img:
-                if hash_type == "phash":
-                    hash_obj = imagehash.phash(img)
-                elif hash_type == "dhash":
-                    hash_obj = imagehash.dhash(img)
-                elif hash_type == "ahash":
-                    hash_obj = imagehash.average_hash(img)
-                elif hash_type == "whash":
-                    hash_obj = imagehash.whash(img)
-                else:
-                    self.logger.warning(f"未知的哈希类型: {hash_type}，使用默认 dhash")
-                    hash_obj = imagehash.dhash(img)
-                return str(hash_obj)
+            pil_img = self._to_pil_image(image_path=image_path, image=image)
+            if pil_img is None:
+                return None
+            if hash_type == "phash":
+                hash_obj = imagehash.phash(pil_img)
+            elif hash_type == "dhash":
+                hash_obj = imagehash.dhash(pil_img)
+            elif hash_type == "ahash":
+                hash_obj = imagehash.average_hash(pil_img)
+            elif hash_type == "whash":
+                hash_obj = imagehash.whash(pil_img)
+            else:
+                self.logger.warning(f"未知的哈希类型: {hash_type}，使用默认 dhash")
+                hash_obj = imagehash.dhash(pil_img)
+            return str(hash_obj)
         except Exception as e:
-            self.logger.debug(f"计算图像哈希失败 ({image_path}): {e}")
+            self.logger.debug(f"计算图像哈希失败: {e}")
             return None
 
-    def _compute_all_hashes(self, image_path: str) -> Dict[str, str]:
+    def _compute_all_hashes(
+        self, image_path: Optional[str] = None, image: Optional[Any] = None
+    ) -> Dict[str, str]:
         """
         计算图像的所有哈希值
 
         Args:
             image_path: 图像路径
+            image: OpenCV 图像对象
 
         Returns:
             包含所有哈希值的字典
         """
         hashes = {}
         try:
-            with Image.open(image_path) as img:
-                hashes["phash"] = str(imagehash.phash(img))
-                hashes["dhash"] = str(imagehash.dhash(img))
-                hashes["ahash"] = str(imagehash.average_hash(img))
-                hashes["whash"] = str(imagehash.whash(img))
+            pil_img = self._to_pil_image(image_path=image_path, image=image)
+            if pil_img is None:
+                return hashes
+            hashes["phash"] = str(imagehash.phash(pil_img))
+            hashes["dhash"] = str(imagehash.dhash(pil_img))
+            hashes["ahash"] = str(imagehash.average_hash(pil_img))
+            hashes["whash"] = str(imagehash.whash(pil_img))
         except Exception as e:
-            self.logger.debug(f"计算图像哈希失败 ({image_path}): {e}")
+            self.logger.debug(f"计算图像哈希失败: {e}")
         return hashes
+
+    def _to_pil_image(
+        self, image_path: Optional[str] = None, image: Optional[Any] = None
+    ) -> Optional[Image.Image]:
+        """
+        将输入转换为 PIL Image
+        """
+        try:
+            if image is not None:
+                if len(image.shape) == 2:
+                    return Image.fromarray(image)
+                rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                return Image.fromarray(rgb)
+            if image_path:
+                with Image.open(image_path) as img:
+                    return img.copy()
+        except Exception as e:
+            self.logger.debug(f"转换 PIL 图片失败: {e}")
+        return None
+
+    def _get_image_bytes(
+        self, image_path: Optional[str] = None, image: Optional[Any] = None
+    ) -> Optional[bytes]:
+        """
+        获取图像字节数据，用于计算精确哈希
+        """
+        try:
+            if image is not None:
+                success, buffer = cv2.imencode(".png", image)
+                if not success:
+                    return None
+                return buffer.tobytes()
+            if image_path:
+                with open(image_path, "rb") as f:
+                    return f.read()
+        except Exception as e:
+            self.logger.debug(f"读取图像字节失败: {e}")
+        return None
+
+    def _compute_image_md5(
+        self, image_path: Optional[str] = None, image: Optional[Any] = None
+    ) -> Optional[str]:
+        """
+        计算图像字节的 MD5 哈希
+        """
+        try:
+            image_bytes = self._get_image_bytes(image_path=image_path, image=image)
+            if image_bytes is None:
+                return None
+            import hashlib
+
+            return hashlib.md5(image_bytes).hexdigest()
+        except Exception as e:
+            self.logger.debug(f"计算 MD5 失败: {e}")
+            return None
 
     def _calculate_hamming_distance(self, hash1: str, hash2: str) -> int:
         """
@@ -228,94 +289,115 @@ class OCRHelper:
         return image_path
 
     def _find_similar_in_cache(
-        self, image_path: str, regions: Optional[List[int]] = None
-    ) -> Optional[str]:
+        self,
+        image_path: Optional[str] = None,
+        image: Optional[Any] = None,
+        regions: Optional[List[int]] = None,
+    ) -> Optional[Dict[str, Any]]:
         """
         在缓存中查找相似的图像
 
         Args:
-            image_path: 要查找的图像路径
+            image_path: 图像路径
+            image: OpenCV 图像对象
             regions: 区域列表（如果有的话）
 
         Returns:
-            找到的JSON文件路径，没找到返回None
+            OCR 结果字典，没找到返回None
         """
         try:
+            image_bytes = self._get_image_bytes(image_path=image_path, image=image)
+            if image_bytes is None:
+                return None
+
             # 计算当前图像的哈希值
-            current_hashes = self._compute_all_hashes(image_path)
+            current_hashes = self._compute_all_hashes(image_path=image_path, image=image)
             if not current_hashes.get(self.hash_type):
                 return None
+
+            image_hash = self._compute_image_md5(image_path=image_path, image=image)
+            if not image_hash:
+                return None
+
+            regions_json = json.dumps(sorted(regions)) if regions else None
 
             # 连接数据库
             with sqlite3.connect(self.cache_db_path) as conn:
                 cursor = conn.cursor()
 
                 # 首先检查是否有完全相同的图像（通过文件哈希）
-                import hashlib
-
-                with open(image_path, "rb") as f:
-                    file_hash = hashlib.md5(f.read()).hexdigest()
-
-                cursor.execute(
-                    "SELECT json_path FROM cache_entries WHERE image_hash = ?",
-                    (file_hash,),
-                )
+                if regions_json is None:
+                    cursor.execute(
+                        "SELECT json_data FROM ocr_cache WHERE image_hash = ?",
+                        (image_hash,),
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT json_data FROM ocr_cache WHERE image_hash = ? AND regions = ?",
+                        (image_hash, regions_json),
+                    )
                 result = cursor.fetchone()
-                if result:
-                    self.logger.debug(f"💾 缓存命中（完全相同）: {result[0]}")
+                if result and result[0]:
+                    self.logger.debug("?? 缓存命中（完全相同）")
                     # 更新访问信息
                     cursor.execute(
-                        "UPDATE cache_entries SET hit_count = hit_count + 1, last_access_time = ? WHERE image_hash = ?",
-                        (time.time(), file_hash),
+                        "UPDATE ocr_cache SET hit_count = hit_count + 1, last_access_time = ? WHERE image_hash = ?",
+                        (time.time(), image_hash),
                     )
                     conn.commit()
-                    return result[0]
+                    return json.loads(result[0])
 
                 # 查找相似的图像（基于感知哈希）
-                # 使用主要哈希类型进行查找
                 primary_hash = current_hashes[self.hash_type]
 
-                # 构建查询 - 查找汉明距离小于阈值的条目
-                # 注意：SQLite没有内置的汉明距离函数，所以我们获取所有记录并在Python中计算
-                cursor.execute(f"""
-                    SELECT image_path, json_path, {self.hash_type}, hit_count, last_access_time
-                    FROM cache_entries
-                    WHERE {self.hash_type} IS NOT NULL
-                    ORDER BY last_access_time DESC
-                    LIMIT 100
-                """)
+                if regions_json is None:
+                    cursor.execute(
+                        f"""
+                        SELECT image_hash, json_data, {self.hash_type}
+                        FROM ocr_cache
+                        WHERE {self.hash_type} IS NOT NULL
+                        ORDER BY last_access_time DESC
+                        LIMIT 100
+                    """
+                    )
+                else:
+                    cursor.execute(
+                        f"""
+                        SELECT image_hash, json_data, {self.hash_type}
+                        FROM ocr_cache
+                        WHERE {self.hash_type} IS NOT NULL AND regions = ?
+                        ORDER BY last_access_time DESC
+                        LIMIT 100
+                    """,
+                        (regions_json,),
+                    )
 
                 candidates = cursor.fetchall()
                 best_match = None
                 best_distance = 999
 
-                for (
-                    img_path,
-                    json_path,
-                    cached_hash,
-                    hit_count,
-                    last_access,
-                ) in candidates:
+                for cached_image_hash, json_data, cached_hash in candidates:
                     if not cached_hash:
                         continue
 
                     distance = self._calculate_hamming_distance(primary_hash, cached_hash)
                     if distance < best_distance and distance <= self.hash_threshold:
                         best_distance = distance
-                        best_match = (json_path, distance, hit_count)
+                        best_match = (cached_image_hash, json_data, distance)
 
                 if best_match:
-                    json_path, distance, hit_count = best_match
-                    self.logger.debug(f"💾 缓存命中（哈希相似，距离={distance}）: {json_path}")
+                    cached_image_hash, json_data, distance = best_match
+                    self.logger.debug(f"?? 缓存命中（哈希相似，距离={distance}）")
 
                     # 更新访问信息
                     cursor.execute(
-                        "UPDATE cache_entries SET hit_count = hit_count + 1, last_access_time = ? WHERE json_path = ?",
-                        (time.time(), json_path),
+                        "UPDATE ocr_cache SET hit_count = hit_count + 1, last_access_time = ? WHERE image_hash = ?",
+                        (time.time(), cached_image_hash),
                     )
                     conn.commit()
 
-                    return json_path
+                    if json_data:
+                        return json.loads(json_data)
 
             return None
         except Exception as e:
@@ -331,42 +413,19 @@ class OCRHelper:
                 cursor = conn.cursor()
 
                 # 获取当前缓存条目数
-                cursor.execute("SELECT COUNT(*) FROM cache_entries")
+                cursor.execute("SELECT COUNT(*) FROM ocr_cache")
                 count = cursor.fetchone()[0]
 
                 if count > self.max_cache_size:
                     # 计算需要删除的条目数
                     to_delete = count - self.max_cache_size + 10  # 多删除一些，避免频繁操作
 
-                    # 获取最久未访问的条目
+                    # 删除最久未访问的条目
                     cursor.execute(
                         """
-                        SELECT image_path, json_path
-                        FROM cache_entries
-                        ORDER BY last_access_time ASC
-                        LIMIT ?
-                    """,
-                        (to_delete,),
-                    )
-
-                    to_evict = cursor.fetchall()
-
-                    # 删除文件和数据库记录
-                    for img_path, json_path in to_evict:
-                        try:
-                            if os.path.exists(img_path):
-                                os.remove(img_path)
-                            if os.path.exists(json_path):
-                                os.remove(json_path)
-                        except Exception:
-                            pass
-
-                    # 从数据库删除记录
-                    cursor.execute(
-                        """
-                        DELETE FROM cache_entries
-                        WHERE id IN (
-                            SELECT id FROM cache_entries
+                        DELETE FROM ocr_cache
+                        WHERE image_hash IN (
+                            SELECT image_hash FROM ocr_cache
                             ORDER BY last_access_time ASC
                             LIMIT ?
                         )
@@ -375,36 +434,49 @@ class OCRHelper:
                     )
 
                     conn.commit()
-                    self.logger.debug(f"🗑️ 淘汰了 {to_delete} 个缓存条目")
+                    self.logger.debug(f"?? 淘汰了 {to_delete} 个缓存条目")
         except Exception as e:
             self.logger.error(f"淘汰缓存失败: {e}")
 
     def _save_to_cache_db(
-        self, image_path: str, json_path: str, regions: Optional[List[int]] = None
+        self,
+        image_path: Optional[str] = None,
+        ocr_result: Optional[Dict[str, Any]] = None,
+        regions: Optional[List[int]] = None,
+        image: Optional[Any] = None,
     ):
         """
         保存缓存条目到数据库
 
         Args:
             image_path: 图像路径
-            json_path: JSON文件路径
+            ocr_result: OCR 结果字典
             regions: 区域列表
+            image: OpenCV 图像对象
         """
         try:
+            if ocr_result is None:
+                return
+
+            image_bytes = self._get_image_bytes(image_path=image_path, image=image)
+            if image_bytes is None:
+                return
+
             # 计算所有哈希值
-            hashes = self._compute_all_hashes(image_path)
+            hashes = self._compute_all_hashes(image_path=image_path, image=image)
 
             # 计算文件哈希
-            import hashlib
-
-            with open(image_path, "rb") as f:
-                file_hash = hashlib.md5(f.read()).hexdigest()
+            image_hash = self._compute_image_md5(image_path=image_path, image=image)
+            if not image_hash:
+                return
 
             # 获取文件大小
-            image_size = os.path.getsize(image_path)
+            image_size = len(image_bytes)
 
             # 准备区域信息
             regions_json = json.dumps(sorted(regions)) if regions else None
+
+            json_data = json.dumps(ocr_result, ensure_ascii=False)
 
             with sqlite3.connect(self.cache_db_path) as conn:
                 cursor = conn.cursor()
@@ -412,14 +484,13 @@ class OCRHelper:
                 # 插入或更新记录
                 cursor.execute(
                     """
-                    INSERT OR REPLACE INTO cache_entries
-                    (image_path, json_path, phash, dhash, ahash, whash, regions,
-                     hit_count, last_access_time, created_time, image_size, image_hash)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+                    INSERT OR REPLACE INTO ocr_cache
+                    (image_hash, phash, dhash, ahash, whash, regions,
+                     hit_count, last_access_time, created_time, image_size, json_data)
+                    VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
                 """,
                     (
-                        image_path,
-                        json_path,
+                        image_hash,
                         hashes.get("phash"),
                         hashes.get("dhash"),
                         hashes.get("ahash"),
@@ -428,7 +499,7 @@ class OCRHelper:
                         time.time(),
                         time.time(),
                         image_size,
-                        file_hash,
+                        json_data,
                     ),
                 )
 
@@ -623,82 +694,34 @@ class OCRHelper:
             regions (List[int], optional): 区域列表
 
         Returns:
-            str: 缓存的 JSON 文件路径，如果没有找到则返回 None
+            dict: 缓存的 OCR 结果，如果没有找到则返回 None
         """
-        # 首先尝试使用新的哈希索引系统
-        cached_json = self._find_similar_in_cache(current_image_path, regions)
-        if cached_json:
-            return cached_json
-
-        # 如果新系统没找到，回退到旧系统（兼容性）
         try:
-            current_img = cv2.imread(current_image_path)
-            if current_img is None:
-                return None
-
-            # 遍历缓存，查找相似图片
-            for cached_img_path, cached_json_path in self.ocr_cache:
-                if not os.path.exists(cached_img_path) or not os.path.exists(cached_json_path):
-                    continue
-
-                cached_img = cv2.imread(cached_img_path)
-                if cached_img is None:
-                    continue
-
-                # 调整图片尺寸一致以便比较
-                if current_img.shape != cached_img.shape:
-                    cached_img = cv2.resize(
-                        cached_img, (current_img.shape[1], current_img.shape[0])
-                    )
-
-                # 计算相似度
-                similarity = cal_ccoeff_confidence(current_img, cached_img)
-
-                if similarity >= self.cache_similarity_threshold:
-                    self.logger.debug(
-                        f"💾 找到相似缓存图片（旧系统）(相似度: {similarity * 100:.1f}%)"
-                    )
-                    return cached_json_path
-
-            return None
+            return self._find_similar_in_cache(
+                image_path=current_image_path, regions=regions
+            )
         except Exception as e:
             self.logger.error(f"查找相似缓存图片失败: {e}")
             return None
 
-    def _save_to_cache(self, image_path, json_file, regions: Optional[List[int]] = None):
+    def _save_to_cache(
+        self,
+        image_path: str,
+        ocr_result: Dict[str, Any],
+        regions: Optional[List[int]] = None,
+    ):
         """
-        保存图片和 OCR 结果到缓存（使用新的 SQLite 系统）
+        保存 OCR 结果到缓存（仅写入 SQLite）
 
         Args:
             image_path (str): 图片路径
-            json_file (str): JSON 文件路径
+            ocr_result (dict): OCR 结果
             regions (List[int], optional): 区域列表
         """
         try:
-            # 为缓存创建唯一的文件名
-            cache_id = len(self.ocr_cache)
-            cache_image_name = f"cache_{cache_id}.png"
-            cache_json_name = f"cache_{cache_id}_res.json"
-
-            cache_image_path = os.path.join(self.cache_dir, cache_image_name)
-            cache_json_path = os.path.join(self.cache_dir, cache_json_name)
-
-            # 复制图片到缓存目录
-            shutil.copy2(image_path, cache_image_path)
-
-            # 复制 JSON 到缓存目录
-            if os.path.exists(json_file):
-                shutil.copy2(json_file, cache_json_path)
-                # 保存缓存记录到旧系统（兼容性）
-                self.ocr_cache.append((cache_image_path, cache_json_path))
-                self.logger.debug(
-                    f"💾 缓存已保存 (图片数: {len(self.ocr_cache)}, JSON: {cache_json_name})"
-                )
-
-                # 保存到新的 SQLite 系统
-                self._save_to_cache_db(cache_image_path, cache_json_path, regions)
-            else:
-                self.logger.error(f"JSON 文件不存在，无法缓存: {json_file}")
+            if not ocr_result:
+                return
+            self._save_to_cache_db(image_path=image_path, ocr_result=ocr_result, regions=regions)
         except Exception as e:
             self.logger.error(f"保存缓存失败: {e}")
 
@@ -886,34 +909,23 @@ class OCRHelper:
             regions (List[int], optional): 区域列表
 
         Returns:
-            str: JSON 文件路径
+            dict: OCR 结果
         """
         # 如果启用缓存，检查缓存中是否有相似图片
         if use_cache:
-            cached_json = self._find_similar_cached_image(image_path, regions)
-            if cached_json:
-                return cached_json
+            cached_result = self._find_similar_cached_image(image_path, regions)
+            if cached_result:
+                return cached_result
 
         # 缓存未命中或禁用缓存，执行 OCR 识别
         result = self._predict_with_timing(image_path)
 
         if result:
-            # 使用完整的文件路径保存到 cache 目录
-            json_filename = os.path.basename(image_path).replace(".png", "_res.json")
-            json_path = os.path.join(self.cache_dir, json_filename)
-
-            # 保存 JSON
-            with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(result, f, ensure_ascii=False)
-
-            # 获取 JSON 文件路径
-            json_file = json_path
-
             # 如果启用缓存，同时保存到缓存
-            if use_cache and os.path.exists(json_file):
-                self._save_to_cache(image_path, json_file, regions)
+            if use_cache:
+                self._save_to_cache(image_path, result, regions)
 
-            return json_file
+            return result
 
         return None
 
@@ -967,11 +979,11 @@ class OCRHelper:
                 )
 
             # 获取或创建 OCR 结果（带缓存）
-            json_file = self._get_or_create_ocr_result(
+            ocr_data = self._get_or_create_ocr_result(
                 image_path, use_cache=use_cache, regions=regions
             )
 
-            if not json_file:
+            if not ocr_data:
                 self.logger.warning(f"OCR识别结果为空: {image_path}")
                 return {
                     "found": False,
@@ -983,8 +995,13 @@ class OCRHelper:
                     "selected_index": 0,
                 }
 
-            # 从 JSON 中查找目标文字
-            return self._find_text_in_json(json_file, target_text, confidence_threshold, occurrence)
+            # 从 OCR 结果中查找目标文字
+            result = self._find_text_in_json(
+                ocr_data, target_text, confidence_threshold, occurrence
+            )
+            if isinstance(result, dict):
+                result["ocr_data"] = ocr_data
+            return result
 
         except Exception as e:
             self.logger.error(f"图像OCR识别出错: {e}")
@@ -1040,12 +1057,6 @@ class OCRHelper:
             region_desc = self._get_region_description(regions)
             self.logger.debug(f"🔍 在{region_desc}搜索文字: '{target_text}'")
 
-            # 为区域图像生成缓存键
-            region_key = self._get_cache_key(image_path, regions)
-            region_cache_path = os.path.join(
-                self.cache_dir, f"region_{hash(region_key) % 1000000}.png"
-            )
-
             # 初始化结果
             result = None
             cache_used = False
@@ -1053,41 +1064,38 @@ class OCRHelper:
 
             # 只有在使用缓存时才尝试从缓存读取
             if use_cache:
-                # 保存区域图像以供缓存
-                cv2.imwrite(region_cache_path, region_img)
-
-                # 尝试从缓存获取OCR结果
-                cached_json = self._find_similar_in_cache(region_cache_path, regions)
-                if cached_json and os.path.exists(cached_json):
-                    self.logger.debug(f"💾 区域缓存命中: {region_desc}")
-                    # 从缓存的JSON读取结果
-                    with open(cached_json, "r", encoding="utf-8") as f:
-                        ocr_data = json.load(f)
-                    # 转换格式以兼容现有代码
-                    result = [ocr_data] if isinstance(ocr_data, dict) else ocr_data
+                cached_result = self._find_similar_in_cache(image=region_img, regions=regions)
+                if cached_result:
+                    self.logger.debug(f"?? 区域缓存命中: {region_desc}")
+                    result = [cached_result]
                     cache_used = True
 
             # 如果没有命中缓存或不使用缓存，进行OCR识别
             if result is None:
-                # 确保区域图片已保存（Remote OCR 需要文件）
-                if not os.path.exists(region_cache_path):
-                    cv2.imwrite(region_cache_path, region_img)
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                unique_id = str(uuid.uuid4())[:8]
+                temp_region_path = os.path.join(
+                    self.temp_dir, f"region_{timestamp}_{unique_id}.png"
+                )
+                cv2.imwrite(temp_region_path, region_img)
 
                 # 对区域进行OCR识别 (Remote)
-                ocr_dict = self._predict_with_timing(region_cache_path)
-                
+                ocr_dict = self._predict_with_timing(temp_region_path)
+
+                if temp_region_path and os.path.exists(temp_region_path):
+                    try:
+                        os.remove(temp_region_path)
+                    except Exception:
+                        pass
+
                 if ocr_dict:
-                    result = [ocr_dict] # 包装成列表以兼容后续逻辑
+                    result = [ocr_dict]  # 包装成列表以兼容后续逻辑
 
                     # 保存OCR结果到缓存（仅在使用缓存时）
                     if use_cache:
-                        region_json_path = region_cache_path.replace(".png", "_res.json")
-                        
-                        with open(region_json_path, "w", encoding="utf-8") as f:
-                            json.dump(ocr_dict, f, ensure_ascii=False)
-
-                        # 更新缓存数据库
-                        self._save_to_cache_db(region_cache_path, region_json_path, regions)
+                        self._save_to_cache_db(
+                            image=region_img, ocr_result=ocr_dict, regions=regions
+                        )
                 else:
                     result = []
 
@@ -1326,11 +1334,10 @@ class OCRHelper:
 
                 # 如果实时识别成功，刷新缓存
                 if fallback_result and fallback_result.get("found") and regions is None:
-                    base_name, _ = os.path.splitext(os.path.basename(fallback_path))
-                    json_file = os.path.join(self.cache_dir, f"{base_name}_res.json")
-                    if os.path.exists(json_file):
+                    ocr_data = fallback_result.get("ocr_data")
+                    if ocr_data:
                         try:
-                            self._save_to_cache(fallback_path, json_file, regions)
+                            self._save_to_cache(fallback_path, ocr_data, regions)
                             self.logger.debug("实时截图结果已刷新缓存")
                         except Exception as cache_err:
                             self.logger.warning(f"刷新缓存失败: {cache_err}")
@@ -1405,10 +1412,10 @@ class OCRHelper:
         self, json_file_path, target_text, confidence_threshold=0.5, occurrence=1
     ):
         """
-        从PaddleOCR输出的JSON文件中查找目标文字
+        从OCR结果中查找目标文字
 
         Args:
-            json_file_path (str): JSON文件路径
+            json_file_path (str | dict): JSON文件路径或OCR结果字典
             target_text (str): 要查找的目标文字
             confidence_threshold (float): 置信度阈值 (0-1)
             occurrence (int): 指定返回第几个出现的文字 (1-based)，默认为1
@@ -1417,9 +1424,12 @@ class OCRHelper:
             dict: 查找结果字典
         """
         try:
-            # 读取JSON文件
-            with open(json_file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
+            # 读取JSON文件或直接使用结果字典
+            if isinstance(json_file_path, dict):
+                data = json_file_path
+            else:
+                with open(json_file_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
 
             # 获取识别的文字列表和对应的坐标框
             rec_texts = data.get("rec_texts", [])

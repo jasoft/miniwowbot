@@ -9,7 +9,9 @@ import os
 import tempfile
 import shutil
 import json
+import sqlite3
 import pytest
+from PIL import Image
 
 from project_paths import resolve_project_path
 
@@ -31,6 +33,12 @@ def temp_output_dir():
     # 清理
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)
+
+
+def create_dummy_image(path):
+    """创建简单测试图片"""
+    img = Image.new("RGB", (10, 10), color=(255, 255, 255))
+    img.save(path)
 
 
 class TestOCRHelperBasic:
@@ -64,6 +72,7 @@ class TestOCRHelperBasic:
         ocr = OCRHelper(output_dir=temp_output_dir)
         assert isinstance(ocr.ocr_cache, list)
         assert len(ocr.ocr_cache) == 0  # 初始为空
+        assert os.path.exists(ocr.cache_db_path)
 
 
 class TestOCRCacheLoading:
@@ -72,17 +81,41 @@ class TestOCRCacheLoading:
     def test_empty_cache_loading(self, temp_output_dir):
         """测试加载空缓存"""
         ocr = OCRHelper(output_dir=temp_output_dir)
-        assert len(ocr.ocr_cache) == 0
+        with sqlite3.connect(ocr.cache_db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM ocr_cache")
+            assert cursor.fetchone()[0] == 0
 
-    def test_cache_persistence(self, temp_output_dir):
+    def test_cache_persistence(self, temp_output_dir, monkeypatch):
         """测试缓存持久化"""
         # 第一次初始化
         ocr1 = OCRHelper(output_dir=temp_output_dir)
-        initial_cache_count = len(ocr1.ocr_cache)
+        image_path = os.path.join(temp_output_dir, "dummy.png")
+        create_dummy_image(image_path)
+
+        dummy_result = {
+            "rec_texts": ["测试"],
+            "rec_scores": [0.99],
+            "dt_polys": [[[0, 0], [1, 0], [1, 1], [0, 1]]],
+        }
+
+        def fake_predict(self, path):
+            return dummy_result
+
+        monkeypatch.setattr(OCRHelper, "_predict_with_timing", fake_predict)
+
+        ocr1._get_or_create_ocr_result(image_path, use_cache=True)
+        with sqlite3.connect(ocr1.cache_db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM ocr_cache")
+            initial_cache_count = cursor.fetchone()[0]
 
         # 第二次初始化（应该加载之前的缓存）
         ocr2 = OCRHelper(output_dir=temp_output_dir)
-        assert len(ocr2.ocr_cache) == initial_cache_count
+        with sqlite3.connect(ocr2.cache_db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM ocr_cache")
+            assert cursor.fetchone()[0] == initial_cache_count
 
     def test_cache_directory_structure(self, temp_output_dir):
         """测试缓存目录结构"""
@@ -127,10 +160,10 @@ class TestOCRMethods:
         assert callable(ocr.find_and_click_text)
 
     def test_has_ocr_method(self, temp_output_dir):
-        """测试是否有 OCR 方法"""
+        """测试是否配置了 OCR 服务地址"""
         ocr = OCRHelper(output_dir=temp_output_dir)
-        assert hasattr(ocr, "ocr")
-        assert ocr.ocr is not None
+        assert hasattr(ocr, "ocr_url")
+        assert ocr.ocr_url
 
 
 class TestOCRCacheManagement:
@@ -149,6 +182,38 @@ class TestOCRCacheManagement:
             assert isinstance(cache_item[0], str)
             # 第二个元素是 JSON 路径
             assert isinstance(cache_item[1], str)
+
+    def test_cache_store_db_only(self, temp_output_dir, monkeypatch):
+        """缓存仅写入数据库，不落盘图片或 JSON 文件"""
+        ocr = OCRHelper(output_dir=temp_output_dir)
+        image_path = os.path.join(temp_output_dir, "dummy.png")
+        create_dummy_image(image_path)
+
+        dummy_result = {
+            "rec_texts": ["缓存测试"],
+            "rec_scores": [0.99],
+            "dt_polys": [[[0, 0], [1, 0], [1, 1], [0, 1]]],
+        }
+
+        monkeypatch.setattr(OCRHelper, "_predict_with_timing", lambda self, p: dummy_result)
+        ocr._get_or_create_ocr_result(image_path, use_cache=True)
+
+        cache_files = [
+            name
+            for name in os.listdir(ocr.cache_dir)
+            if os.path.isfile(os.path.join(ocr.cache_dir, name))
+        ]
+
+        assert "cache.db" in cache_files
+        assert not any(name.endswith(".png") for name in cache_files)
+        assert not any(name.endswith("_res.json") for name in cache_files)
+
+        with sqlite3.connect(ocr.cache_db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT json_data FROM ocr_cache")
+            row = cursor.fetchone()
+            assert row is not None
+            assert json.loads(row[0])["rec_texts"] == ["缓存测试"]
 
 
 class TestOCRIntegration:
@@ -202,11 +267,6 @@ class TestCaptureAndFindTextCacheFallback:
             if use_cache:
                 return self._empty_result()
 
-            base_name, _ = os.path.splitext(os.path.basename(image_path))
-            json_path = os.path.join(self.cache_dir, f"{base_name}_res.json")
-            with open(json_path, "w", encoding="utf-8") as f:
-                json.dump({"rec_texts": [target_text]}, f)
-
             return {
                 "found": True,
                 "center": (10, 10),
@@ -215,12 +275,17 @@ class TestCaptureAndFindTextCacheFallback:
                 "bbox": [[0, 0], [20, 0], [20, 20], [0, 20]],
                 "total_matches": 1,
                 "selected_index": 1,
+                "ocr_data": {
+                    "rec_texts": [target_text],
+                    "rec_scores": [0.99],
+                    "dt_polys": [[[0, 0], [20, 0], [20, 20], [0, 20]]],
+                },
             }
 
         cache_updates = []
 
-        def fake_save_to_cache(self, image_path, json_file, regions):
-            cache_updates.append((image_path, json_file, regions))
+        def fake_save_to_cache(self, image_path, ocr_result, regions):
+            cache_updates.append((image_path, ocr_result, regions))
 
         monkeypatch.setattr(ocr_helper, "snapshot", fake_snapshot)
         monkeypatch.setattr(OCRHelper, "find_text_in_image", fake_find)
@@ -234,6 +299,7 @@ class TestCaptureAndFindTextCacheFallback:
         assert len(cache_updates) == 1
         # 第二次截图结果应该写入缓存
         assert cache_updates[0][0] == snapshot_calls[-1]
+        assert cache_updates[0][1]["rec_texts"] == ["测试文字"]
 
 
 if __name__ == "__main__":
