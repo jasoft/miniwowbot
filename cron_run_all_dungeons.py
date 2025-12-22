@@ -101,7 +101,8 @@ def launch_powershell(session: str, cmd: str, logger) -> bool:
     """在 Windows 上启动一个新的 PowerShell 窗口执行命令。"""
     try:
         # 在 PowerShell 内部设置标题并执行命令
-        full_cmd = f"$Host.UI.RawUI.WindowTitle = '{session}'; Set-Location '{SCRIPT_DIR}'; {cmd}"
+        # 如果命令成功($LASTEXITCODE == 0)，则退出窗口；否则保持打开(-NoExit)以便查看错误
+        full_cmd = f"$Host.UI.RawUI.WindowTitle = '{session}'; Set-Location '{SCRIPT_DIR}'; {cmd}; if ($LASTEXITCODE -eq 0) {{ exit }}"
 
         # 使用 subprocess.CREATE_NEW_CONSOLE 在 Windows 上创建新窗口
         # 这比 Start-Process 更稳健，避免了多层引号嵌套转义问题
