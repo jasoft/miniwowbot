@@ -119,10 +119,10 @@ def launch_powershell(session: str, cmd: str, logger) -> bool:
 
 def check_ocr_health(logger) -> bool:
     """检查 OCR 服务健康状态。"""
-    url = "http://localhost:8080/health"
+    url = os.getenv("OCR_HEALTH_URL", "http://localhost:8081/health")
     try:
         # 尝试连接服务，超时设置为 2 秒
-        with urllib.request.urlopen(url, timeout=2) as response:
+        with urllib.request.urlopen(url, timeout=30) as response:
             if response.status == 200:
                 return True
     except Exception:
@@ -132,60 +132,48 @@ def check_ocr_health(logger) -> bool:
 
 
 def launch_ocr_service(logger) -> bool:
-    """启动 OCR Docker 服务（2小时后自动停止）。"""
+    """启动 OCR Docker 服务（如果未就绪）。"""
     # 1. 优先进行健康检查
     if check_ocr_health(logger):
         logger.info("✅ OCR 服务 (/health) 响应正常，跳过启动")
         return True
 
-    session_name = "ocr_service"
-    # 使用已验证存在的 PaddleX 3.0 GPU 镜像标签
-    image = "ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlex/paddlex:paddlex3.0.1-paddlepaddle3.0.0-gpu-cuda11.8-cudnn8.9-trt8.6"
+    logger.info("🔧 OCR 服务未就绪，尝试调用脚本启动...")
+    script_dir = SCRIPT_DIR / "scripts"
+    
+    try:
+        if IS_WINDOWS:
+            script_path = script_dir / "start_ocr_docker.ps1"
+            # 使用 pwsh 执行 ps1 脚本
+            cmd = ["pwsh", "-File", str(script_path)]
+        else:
+            script_path = script_dir / "start_ocr_docker.sh"
+            # 使用 bash 执行 sh 脚本
+            cmd = ["bash", str(script_path)]
 
-    if IS_WINDOWS:
-        # Windows 上的 Docker 不支持 --network=host 达到 localhost 访问的效果，改用 -p 端口映射
-        # 同时添加 --gpus all 以支持 GPU 加速
-        docker_cmd = (
-            f"Write-Host '🚀 Starting OCR Service (GPU Docker)...'; "
-            f"docker rm -f paddlex 2>$null; "
-            f"docker run -d --name paddlex "
-            f" --gpus all "
-            f' -v "${{pwd}}:/paddle" '
-            f' -v "paddlex_data:/root" '
-            f" --shm-size=8g "
-            f" -p 8080:8080 "
-            f" {image} "
-            f" sh -lc \"paddlex --install serving && rm -f OCR.yaml && paddlex --get_pipeline_config OCR --save_path . && sed -i 's/_server_/_mobile_/g' OCR.yaml && paddlex --serve --pipeline OCR.yaml\"; "
-            f"Write-Host '✅ OCR GPU Service is running. Waiting for 2 hours...'; "
-            f"Start-Sleep -Seconds 7200; "
-            f"Write-Host '🛑 Time is up. Stopping and Removing OCR Service...'; "
-            f"docker rm -f paddlex; "
-            f"Write-Host '👋 Bye!'"
+        if not script_path.exists():
+            logger.error(f"❌ 启动脚本不存在: {script_path}")
+            return False
+
+        # 直接执行脚本，无需新窗口，因为脚本内是 docker run -d
+        logger.info(f"🚀 执行脚本: {script_path}")
+        result = subprocess.run(
+            cmd, 
+            capture_output=True, 
+            text=True, 
+            cwd=str(SCRIPT_DIR)
         )
-        return launch_powershell(session_name, docker_cmd, logger)
-    else:
-        # 非 Windows 环境也同步更新为 GPU 镜像并添加 --gpus all
-        docker_cmd = (
-            f"echo '🚀 Starting OCR Service (GPU Docker)...'; "
-            f"if docker ps -a --format '{{{{.Names}}}}' | grep -q '^paddlex$'; then "
-            f"  docker start paddlex; "
-            f"else "
-            f"  docker run -d --name paddlex "
-            f"  --gpus all "
-            f'  -v "$PWD:/paddle" '
-            f'  -v "paddlex_data:/root" '
-            f"  --shm-size=8g "
-            f"  --network=host "
-            f"  {image} "
-            f"  sh -lc \"paddlex --install serving && rm -f OCR.yaml && paddlex --get_pipeline_config OCR --save_path . && sed -i 's/_server_/_mobile_/g' OCR.yaml && paddlex --serve --pipeline OCR.yaml\"; "
-            f"fi; "
-            f"echo '✅ OCR GPU Service is running. Waiting for 2 hours...'; "
-            f"sleep 7200; "
-            f"echo '🛑 Time is up. Stopping and Removing OCR Service...'; "
-            f"docker rm -f paddlex; "
-            f"echo '👋 Bye!'"
-        )
-        return launch_tmux(session_name, docker_cmd, logger)
+        
+        if result.returncode == 0:
+            logger.info(f"✅ 启动脚本执行成功\n{result.stdout.strip()}")
+            return True
+        else:
+            logger.error(f"❌ 启动脚本失败 (Exit {result.returncode}):\nStdout: {result.stdout}\nStderr: {result.stderr}")
+            return False
+
+    except Exception as e:
+        logger.error(f"❌ 启动 OCR 服务异常: {e}")
+        return False
 
 
 def main() -> int:
@@ -206,12 +194,12 @@ def main() -> int:
 
     # 1. 优先启动 OCR 服务
     logger.info("🔧 启动 OCR 服务 (PaddleX Docker)...")
-    
+
     # 先检查是否已经健康，如果已经健康则无需后续的等待
     is_already_healthy = check_ocr_health(logger)
 
     if launch_ocr_service(logger):
-        logger.info(f"✅ OCR 服务{launcher_name}已启动 (将在2小时后自动关闭)")
+        logger.info(f"✅ OCR 服务{launcher_name}已启动")
         
         if is_already_healthy:
             logger.info("⚡ OCR 服务 (/health) 已正常，跳过等待")
