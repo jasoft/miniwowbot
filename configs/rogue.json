@@ -71,7 +71,7 @@
             { "name": "潮汐宫殿", "selected": false },
             { "name": "黑暗监狱", "selected": false },
             { "name": "泰坦密室", "selected": false },
-            { "name": "大地神殿", "selected": true },
+            { "name": "大地神殿", "selected": false },
             { "name": "失落之城", "selected": false },
             { "name": "天空之城", "selected": true },
             { "name": "黑石熔炉", "selected": false }
@@ -87,7 +87,7 @@
             { "name": "古代王国", "selected": false },
             { "name": "巨魔要塞", "selected": false },
             { "name": "峡湾城堡", "selected": false },
-            { "name": "蓝龙巢穴", "selected": true }
+            { "name": "蓝龙巢穴", "selected": false }
         ],
         "虚空领域": [
             { "name": "魔法之井", "selected": false },
