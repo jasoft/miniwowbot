@@ -139,9 +139,6 @@ def _normalize_emulator_name(name: Optional[str]) -> Optional[str]:
     return name
 
 
-
-
-
 def check_stop_signal():
     """
     检查是否存在停止信号文件
@@ -1330,6 +1327,12 @@ class DailyCollectManager:
                 sleep(0.2)
                 touch((359, 879))  # 不满 10 个点击一次最后的打开
             back_to_main()
+
+            find_text_and_click("宝库", regions=[9])
+            find_text_and_click(chest_name, regions=[4, 5, 6, 7, 8])
+            touch((359, 879))  # 不满 10 个点击一次最后的打开
+            back_to_main()
+
             self.logger.info("✅ 打开宝箱成功")
         except Exception as e:
             self.logger.warning(f"⚠️ 未找到宝箱: {e}")
