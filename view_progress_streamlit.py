@@ -111,7 +111,7 @@ def _render_today_records(records, selected_configs):
         }
         for record in filtered
     ]
-    st.dataframe(pd.DataFrame(table), hide_index=True, use_container_width=True)
+    st.dataframe(pd.DataFrame(table), hide_index=True, width='stretch')
 
 
 def _render_config_details(config_progress, selected_configs):

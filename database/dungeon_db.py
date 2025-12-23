@@ -75,9 +75,19 @@ class DungeonProgressDB:
         logger.info(f"📊 数据库初始化完成: {self.db_path}")
         logger.info(f"🎮 当前配置: {self.config_name}")
 
+    def _get_logic_date(self):
+        """
+        获取基于逻辑判断的日期对象
+        以每天 6:00 AM 为界限，6:00 AM 之前算昨天，6:00 AM 之后算今天
+        """
+        now = datetime.now()
+        if now.hour < 6:
+            return now.date() - timedelta(days=1)
+        return now.date()
+
     def get_today_date(self):
         """获取今天的日期字符串"""
-        return date.today().isoformat()
+        return self._get_logic_date().isoformat()
 
     def is_dungeon_completed(self, zone_name, dungeon_name):
         """检查副本今天是否已通关"""
@@ -178,7 +188,7 @@ class DungeonProgressDB:
 
     def cleanup_old_records(self, days_to_keep=7):
         """清理旧记录，只保留最近N天的数据"""
-        cutoff_date = (date.today() - timedelta(days=days_to_keep)).isoformat()
+        cutoff_date = (self._get_logic_date() - timedelta(days=days_to_keep)).isoformat()
 
         deleted_count = (
             DungeonProgress.delete().where(DungeonProgress.date < cutoff_date).execute()
@@ -205,7 +215,7 @@ class DungeonProgressDB:
         """获取最近N天的统计"""
         stats = []
         for i in range(days):
-            target_date = (date.today() - timedelta(days=i)).isoformat()
+            target_date = (self._get_logic_date() - timedelta(days=i)).isoformat()
             count = (
                 DungeonProgress.select()
                 .where(self._build_completed_query(target_date, include_special))
