@@ -192,7 +192,7 @@ def dungeon_handler(_):
         touch(CONFIRM_DUNGEON_TEMPLATE)
         sleep(0.5)
 
-        while True:
+        for i in range(5):
             arrow_pos = exists(ARROW_TEMPLATE)
             if arrow_pos:
                 print(arrow_pos)
@@ -207,9 +207,11 @@ def dungeon_handler(_):
                     sleep(3)
                     sell_trash()
                     touch((357, 1209))
-                break
+                return
+        raise Exception("error entering dungeon")
     except Exception:
-        print("error entering dungeon")
+        click_back()
+        print("error entering dungeon, back to main world")
 
 
 def build_template_job(
@@ -244,9 +246,7 @@ def build_ocr_job(
             print(f"点击 {text}")
             touch(result["center"])
 
-    return DetectionJob(
-        name=name, detector=detector, handler=handler or default_handler
-    )
+    return DetectionJob(name=name, detector=detector, handler=handler or default_handler)
 
 
 async def main_loop():
@@ -261,11 +261,12 @@ async def main_loop():
             build_template_job("in_dungeon", IN_DUNGEON_TEMPLATE, skill_handler),
             build_template_job("next_dungeon", NEXT_DUNGEON_TEMPLATE, dungeon_handler),
             build_ocr_job("equip_item", "装备", [1]),
+            build_ocr_job("level_reached", "等级达到", [1]),
         ]
-        await detect_first_match(jobs)
-        # if not matched:
-        #     next_area_handler(None)
-        #     await asyncio.sleep(0.2)
+        matched = await detect_first_match(jobs)
+        if not matched:
+            dungeon_handler(None)
+            await asyncio.sleep(0.2)
 
 
 # 初始化最后一次完成任务的时间
