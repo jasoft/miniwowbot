@@ -2,6 +2,7 @@
 """
 游戏操作动作模块
 封装了基于 OCR 的查找、点击等操作，提供声明式 API
+所有查找逻辑均基于 find_all() 的集合操作实现
 """
 
 import logging
@@ -44,7 +45,6 @@ def timer_decorator(func):
 class GameElement(dict):
     """
     表示一个游戏元素（基于 OCR 识别结果）
-    继承自 dict 以保持向后兼容
     """
 
     def __init__(self, data: Dict[str, Any], action_context: "GameActions"):
@@ -100,19 +100,19 @@ class GameElementCollection(list):
         self.action_context = action_context
 
     def filter(self, predicate: Callable[[GameElement], bool]) -> "GameElementCollection":
-        """过滤元素"""
+        """通用过滤"""
         return GameElementCollection([e for e in self if predicate(e)], self.action_context)
 
     def contains(self, text: str) -> "GameElementCollection":
-        """过滤包含指定文本的元素"""
+        """保留文本包含指定内容的元素"""
         return self.filter(lambda e: text in (e.text or ""))
 
     def equals(self, text: str) -> "GameElementCollection":
-        """过滤等于指定文本的元素"""
+        """保留文本完全匹配的元素"""
         return self.filter(lambda e: e.text == text)
 
     def min_confidence(self, threshold: float) -> "GameElementCollection":
-        """过滤置信度"""
+        """保留置信度大于阈值的元素"""
         return self.filter(lambda e: e.confidence >= threshold)
 
     def first(self) -> Optional[GameElement]:
@@ -124,17 +124,17 @@ class GameElementCollection(list):
         return self[-1] if self else None
 
     def get(self, index: int) -> Optional[GameElement]:
-        """获取指定索引的元素"""
+        """获取指定索引的元素 (0-based)"""
         if 0 <= index < len(self):
             return self[index]
         return None
 
     def map(self, func: Callable[[GameElement], Any]) -> List[Any]:
-        """对每个元素应用函数并返回结果列表"""
+        """对每个元素应用函数"""
         return [func(e) for e in self]
 
     def each(self, func: Callable[[GameElement], None]) -> "GameElementCollection":
-        """对每个元素执行操作（副作用），返回集合本身以支持链式调用"""
+        """执行副作用操作"""
         for e in self:
             func(e)
         return self
@@ -155,6 +155,7 @@ class GameElementCollection(list):
 class GameActions:
     """
     封装游戏内的查找和操作逻辑
+    所有高级查找功能均基于 find_all() 实现
     """
 
     def __init__(self, ocr_helper, click_interval=1):
@@ -180,6 +181,26 @@ class GameActions:
         touch(pos)
 
     @timer_decorator
+    def find_all(
+        self,
+        use_cache: bool = True,
+        regions: Optional[List[int]] = None,
+    ) -> GameElementCollection:
+        """
+        声明式 API 入口：获取当前屏幕所有文字元素
+        这是唯一直接调用 OCRHelper 截图识别的函数
+        """
+        if self.ocr_helper is None:
+            logger.error("❌ OCR助手未初始化")
+            return GameElementCollection([], self)
+
+        results = self.ocr_helper.capture_and_get_all_texts(
+            use_cache=use_cache,
+            regions=regions,
+        )
+
+        return GameElementCollection(results, self)
+
     def find(
         self,
         text: str,
@@ -191,31 +212,24 @@ class GameActions:
         raise_exception: bool = True,
     ) -> Optional[GameElement]:
         """
-        查找单个文本（带等待重试）
+        基于 find_all 实现的 find
         """
-        if self.ocr_helper is None:
-            msg = "❌ OCR助手未初始化"
-            logger.error(msg)
-            if raise_exception:
-                raise RuntimeError(msg)
-            return None
-
         start_time = time.time()
         region_desc = f" [区域{regions}]" if regions else ""
         logger.info(f"🔍 查找: {text}{region_desc} (等待 {timeout}s)")
 
         while time.time() - start_time < timeout:
-            result = self.ocr_helper.capture_and_find_text(
-                text,
-                confidence_threshold=similarity_threshold,
-                occurrence=occurrence,
-                use_cache=use_cache,
-                regions=regions,
+            # 使用集合操作查找匹配项
+            el = (
+                self.find_all(use_cache=use_cache, regions=regions)
+                .contains(text)
+                .min_confidence(similarity_threshold)
+                .get(occurrence - 1)
             )
 
-            if result and result.get("found"):
-                logger.info(f"✅ 找到: {text}{region_desc}")
-                return GameElement(result, self)
+            if el:
+                logger.info(f"✅ 找到: {text}{region_desc} at {el.center}")
+                return el
 
             time.sleep(0.1)
 
@@ -225,61 +239,6 @@ class GameActions:
             raise TimeoutError(msg)
         return None
 
-    @timer_decorator
-    def find_all(
-        self,
-        use_cache: bool = True,
-        regions: Optional[List[int]] = None,
-    ) -> GameElementCollection:
-        """
-        获取当前屏幕（或区域）内所有的文字元素。
-        返回支持链式调用的 GameElementCollection。
-        """
-        if self.ocr_helper is None:
-            logger.error("❌ OCR助手未初始化")
-            return GameElementCollection([], self)
-
-        region_desc = f" [区域{regions}]" if regions else ""
-        logger.info(f"🔍 扫描所有文字{region_desc}")
-
-        results = self.ocr_helper.capture_and_get_all_texts(
-            use_cache=use_cache,
-            regions=regions,
-        )
-
-        return GameElementCollection(results, self)
-
-    # --- 兼容旧 API / 快捷方式 ---
-
-    def find_text(self, *args, **kwargs) -> Optional[GameElement]:
-        """find 的别名，保持兼容性"""
-        return self.find(*args, **kwargs)
-
-    def find_all_texts(self, *args, **kwargs) -> List[Dict[str, Any]]:
-        """find_all 的原始数据版本兼容"""
-        # 注意：这里可能会因为参数变化而破坏一些调用，
-        # 但既然要重构为声明式，旧的传参 find_all(text) 应该被废弃。
-        # 如果需要保持完全兼容，可以判断第一个参数是否为 str。
-        if args and isinstance(args[0], str):
-            # 旧版 find_all(text, ...) 逻辑
-            text = args[0]
-            similarity_threshold = kwargs.get("similarity_threshold", 0.7)
-            use_cache = kwargs.get("use_cache", True)
-            regions = kwargs.get("regions", None)
-            
-            logger.info(f"⚠️ 使用旧版 find_all(text='{text}') 兼容模式")
-            results = self.ocr_helper.capture_and_find_all_texts(
-                text,
-                confidence_threshold=similarity_threshold,
-                use_cache=use_cache,
-                regions=regions,
-            )
-            return results
-        
-        # 新版 find_all() 逻辑
-        collection = self.find_all(**kwargs)
-        return list(collection)
-
     def text_exists(
         self,
         texts: Union[str, List[str]],
@@ -288,7 +247,7 @@ class GameActions:
         regions: Optional[List[int]] = None,
     ) -> Optional[GameElement]:
         """
-        检查文本是否存在
+        基于 find_all 实现的 text_exists
         """
         if self.ocr_helper is None:
             return None
@@ -298,21 +257,37 @@ class GameActions:
         if not texts_to_check:
             return None
 
-        # 回退到循环检查以保持原来的高性能批量逻辑(虽然底层未完全优化，但逻辑上是找第一个命中的)
+        # 获取一次全集，然后在内存中匹配
+        collection = self.find_all(use_cache=use_cache, regions=regions).min_confidence(
+            similarity_threshold
+        )
+
         for text in texts_to_check:
-            res = self.ocr_helper.capture_and_find_text(
-                text,
-                confidence_threshold=similarity_threshold,
-                use_cache=use_cache,
-                regions=regions,
-            )
-            if res and res.get("found"):
-                logger.info(f"✅ text_exists 找到: {text}")
-                return GameElement(res, self)
+            el = collection.contains(text).first()
+            if el:
+                logger.info(f"✅ text_exists 找到: {text} at {el.center}")
+                return el
 
         return None
 
-    def find_text_and_click(self, text: str, **kwargs) -> GameElement:
+    # --- 快捷方法 ---
+
+    def find_text(self, *args, **kwargs) -> Optional[GameElement]:
+        """find 的别名"""
+        return self.find(*args, **kwargs)
+
+    def find_all_texts(self, *args, **kwargs) -> List[Dict[str, Any]]:
+        """向后兼容的原始列表返回版本"""
+        # 如果调用者传递了 text 参数（旧版 API），特殊处理
+        if args and isinstance(args[0], str):
+            text = args[0]
+            kwargs.pop("similarity_threshold", None)  # 移除无关参数
+            collection = self.find_all(**kwargs).contains(text)
+            return list(collection)
+
+        return list(self.find_all(**kwargs))
+
+    def find_text_and_click(self, text: str, **kwargs) -> Optional[GameElement]:
         """查找并点击"""
         el = self.find(text, **kwargs)
         if el:
