@@ -52,8 +52,10 @@ class GameElement(dict):
         self.action_context = action_context
 
     @property
-    def center(self) -> Optional[Tuple[int, int]]:
-        return self.get("center")
+    def center(self) -> Tuple[int, int]:
+        if self.get("center"):
+            return tuple(self["center"])
+        return (0, 0)
 
     @property
     def text(self):
@@ -204,7 +206,7 @@ class GameActions:
     def find(
         self,
         text: str,
-        timeout: float = 10,
+        timeout: float = 1,
         similarity_threshold: float = 0.7,
         occurrence: int = 1,
         use_cache: bool = True,

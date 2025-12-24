@@ -20,8 +20,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from game_actions import GameActions
 from ocr_helper import OCRHelper
 
-airtest_logger = logging.getLogger("airtest")
-airtest_logger.setLevel(logging.INFO)
+logger = logging.getLogger("airtest")
+logger.setLevel(logging.INFO)
 
 # Initialize OCR Helper
 ocr = OCRHelper()
@@ -102,8 +102,10 @@ def check_task_timeout(last_task_time):
     elapsed_time = current_time - last_task_time
     if elapsed_time > TASK_TIMEOUT:
         minutes = int(elapsed_time / 60)
+        follow_task_to_next_place()
         send_bark_notification(
-            "魔兽世界挂机异常", f"已经{minutes}分钟没有完成任务，可能遇到问题，请检查！"
+            "魔兽世界挂机异常",
+            f"已经{minutes}分钟没有完成任务，尝试去下一个地点，可能遇到问题，请检查！",
         )
         return True
     return False
@@ -159,14 +161,24 @@ def request_task_handler(_):
         sleep(0.5)
         touch((358, 865))  # 接受任务
 
+    logger.info("开始领取任务")
+
     button = actions.find("领取任务", regions=[1])
     if button:
+        if button.center[1] > 290:  # 3个任务不满
+            return None
         button.click()
         for i in range(4):
-            actions.find_all().contains("支线").each(lambda x: accept_task(x))
+            actions.find_all(use_cache=False).contains("支线").each(lambda x: accept_task(x))
             swipe((360, 900), (360, 300))
 
         click_back()
+
+
+def follow_task_to_next_place():
+    logger.info("开始跟随任务去下一个地点")
+    touch((65, 188))  # 点击第一个支线任务
+    goto_next_place()
 
 
 def task_completion_handler(first_match):
@@ -205,17 +217,13 @@ def skill_handler(_):
         sleep(0.5)
 
 
-def dungeon_handler(_):
-    """自动选择下一个副本或者区域."""
-    touch((160, 112))
+def goto_next_place():
     try:
-        touch(CONFIRM_DUNGEON_TEMPLATE)
-        sleep(0.5)
-
+        logger.info("开始前往下一个地点")
+        actions.find_text_and_click("前往")
         for i in range(5):
             arrow_pos = exists(ARROW_TEMPLATE)
             if arrow_pos:
-                print(arrow_pos)
                 touch((arrow_pos[0], arrow_pos[1] + 100))
                 sleep(0.5)  # 点击了大箭头
 
@@ -231,7 +239,14 @@ def dungeon_handler(_):
         raise Exception("error entering dungeon")
     except Exception:
         click_back()
-        print("error entering dungeon, back to main world")
+        logger.error("error entering dungeon/place, back to main world")
+
+
+def dungeon_handler(_):
+    """自动选择下一个副本或者区域."""
+    logger.info("开始选择下一个副本或者区域")
+    touch((160, 112))
+    goto_next_place()
 
 
 def build_template_job(
@@ -261,15 +276,14 @@ def build_ocr_job(
         loop = asyncio.get_event_loop()
         # regions=[1] corresponds to top-left area
         # Pass raise_exception=False to avoid crashing on timeout
-        res = await loop.run_in_executor(
-            None, actions.find, text, 0.5, 0.8, 1, True, regions, False
-        )
-        if res and res.get("found"):
+        # Increase timeout to 2s to allow OCR processing
+        res = await loop.run_in_executor(None, actions.find, text, 2, 0.8, 1, True, regions, False)
+        if res:
             return res
         return None
 
     def default_handler(result):
-        if result and result.get("found"):
+        if result:
             print(f"点击 {text}")
             touch(result["center"])
 
@@ -292,6 +306,7 @@ async def main_loop():
             build_ocr_job("request_task", "领取任务", [1], handler=request_task_handler),
         ]
         matched = await detect_first_match(jobs)
+        logger.info(f"found first matched: {matched}")
         if not matched:
             dungeon_handler(None)
         await asyncio.sleep(0.2)
