@@ -29,16 +29,12 @@ class OCRHelper:
     def __init__(
         self,
         output_dir="output",
-        use_doc_orientation_classify=False,
-        use_doc_unwarping=False,
-        use_textline_orientation=False,
         resize_image=True,
         max_width=960,
         delete_temp_screenshots=True,
         max_cache_size=200,
         hash_type="dhash",  # 可选: "phash", "dhash", "ahash", "whash"
         hash_threshold=10,  # hash 汉明距离阈值
-        cpu_threads: Optional[int] = None,
     ):
         """
         初始化OCR Helper
@@ -699,9 +695,7 @@ class OCRHelper:
             dict: 缓存的 OCR 结果，如果没有找到则返回 None
         """
         try:
-            return self._find_similar_in_cache(
-                image_path=current_image_path, regions=regions
-            )
+            return self._find_similar_in_cache(image_path=current_image_path, regions=regions)
         except Exception as e:
             self.logger.error(f"查找相似缓存图片失败: {e}")
             return None
@@ -728,7 +722,6 @@ class OCRHelper:
             self.logger.error(f"保存缓存失败: {e}")
 
     def _resize_image_for_ocr(self, image_path):
-
         """
 
         调整图片大小以加速 OCR 识别
@@ -748,46 +741,28 @@ class OCRHelper:
         """
 
         if not self.resize_image:
-
             return image_path, 1.0
 
-
-
         try:
-
             img = cv2.imread(image_path)
 
             if img is None:
-
                 return image_path, 1.0
 
-
-
             height, width = img.shape[:2]
-
-
 
             # 如果图片宽度大于最大宽度，进行缩放
 
             if width > self.max_width:
-
                 scale = self.max_width / width
 
                 new_width = self.max_width
 
                 new_height = int(height * scale)
 
-
-
                 # 缩小图片
 
-                resized_img = cv2.resize(
-
-                    img, (new_width, new_height), interpolation=cv2.INTER_AREA
-
-                )
-
-
+                resized_img = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_AREA)
 
                 # 保存到临时文件
 
@@ -795,27 +770,18 @@ class OCRHelper:
 
                 cv2.imwrite(temp_path, resized_img)
 
-
-
                 self.logger.debug(
-
                     f"🔧 图片已缩小: {width}x{height} -> {new_width}x{new_height} (scale={scale:.2f})"
-
                 )
 
                 return temp_path, scale
 
-
-
             return image_path, 1.0
 
         except Exception as e:
-
             self.logger.warning(f"图片缩放失败: {e}，使用原图")
 
             return image_path, 1.0
-
-
 
     def _predict_with_timing(self, image_path):
         """
@@ -844,7 +810,7 @@ class OCRHelper:
                 "fileType": 1,
                 "useDocOrientationClassify": False,
                 "useDocUnwarping": False,
-                "useTextlineOrientation": False
+                "useTextlineOrientation": False,
             }
 
             # 3. 发送请求 (默认端口 8080)
@@ -859,7 +825,7 @@ class OCRHelper:
                     pruned = ocr_results[0].get("prunedResult", {})
 
                     dt_polys = pruned.get("dt_polys", [])
-                    
+
                     # 如果进行了缩放，需要还原坐标
                     if scale != 1.0 and dt_polys:
                         restored_polys = []
@@ -1657,7 +1623,7 @@ class OCRHelper:
             # 保存识别结果到JSON
             json_filename = os.path.basename(image_path).replace(".png", "_res.json")
             json_file = os.path.join(self.output_dir, json_filename)
-            
+
             with open(json_file, "w", encoding="utf-8") as f:
                 json.dump(result, f, ensure_ascii=False, indent=2)
 

@@ -2,13 +2,24 @@
 __author__ = "soj"
 
 import asyncio
+import os
+import sys
 import time
+from collections.abc import Coroutine
 from dataclasses import dataclass
-from typing import Awaitable, Callable, Iterable, Optional
+from typing import Callable, Iterable, Optional
 
 import requests
 from airtest.core.api import Template, auto_setup, exists, sleep, touch
 from airtest.core.settings import Settings as ST
+
+# Add parent directory to sys.path to import modules from project root
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from ocr_helper import OCRHelper
+
+# Initialize OCR Helper
+ocr = OCRHelper()
 
 auto_setup(__file__)
 
@@ -25,12 +36,13 @@ TASK_COMPLETE_TEMPLATE = Template(
     record_pos=(-0.281, -0.411),
     resolution=(720, 1280),
 )
-SKILL_READY_TEMPLATE = Template(
+IN_DUNGEON_TEMPLATE = Template(
     r"tpl1761362182198.png",
     record_pos=(-0.422, -0.406),
     resolution=(720, 1280),
     threshold=0.9,
 )
+# 经验条已满
 NEXT_DUNGEON_TEMPLATE = Template(
     r"tpl1761376402373.png",
     record_pos=(-0.003, -0.306),
@@ -43,7 +55,7 @@ CONFIRM_DUNGEON_TEMPLATE = Template(
     resolution=(720, 1280),
 )
 ARROW_TEMPLATE = Template(
-    r"tpl1765982947272.png", 
+    r"tpl1765982947272.png",
     resolution=(720, 1280),
     rgb=True,
     threshold=0.4,
@@ -61,7 +73,7 @@ class DetectionJob:
     """封装一次图片检测与后续动作的任务."""
 
     name: str
-    detector: Callable[[], Awaitable[object]]
+    detector: Callable[[], Coroutine]
     handler: Callable[[object], None]
 
 
@@ -117,9 +129,7 @@ async def detect_first_match(
 
     try:
         while task_map:
-            done, pending = await asyncio.wait(
-                task_map.keys(), return_when=asyncio.FIRST_COMPLETED
-            )
+            done, pending = await asyncio.wait(task_map.keys(), return_when=asyncio.FIRST_COMPLETED)
             for finished in done:
                 job = task_map.pop(finished)
                 result = finished.result()
@@ -153,7 +163,7 @@ def task_completion_handler(first_match):
                     r"tpl1761359681084.png",
                     record_pos=(-0.004, 0.319),
                     resolution=(720, 1280),
-                )
+                )  # 接受任务
             )
         except Exception:
             pass
@@ -192,16 +202,32 @@ def dungeon_handler(_):
         print("error entering dungeon")
 
 
+def next_area_handler(_):
+    """自动选择下一个区域."""
+    touch((160, 112))
+    try:
+        touch(CONFIRM_DUNGEON_TEMPLATE)
+        sleep(0.5)
+
+        while True:
+            arrow_pos = exists(ARROW_TEMPLATE)
+            if arrow_pos:
+                print(arrow_pos)
+                touch((arrow_pos[0], arrow_pos[1] + 100))
+                sleep(1)
+                touch((360, 771))  # 前往按钮
+                break
+    except Exception:
+        print("error entering dungeon")
+
+
 def build_template_job(
     name: str, template: Template, handler: Callable[[object], None]
 ) -> DetectionJob:
-    async def _exists():
+    async def detector():
         # asyncio.to_thread 在低版本缺失, 用 run_in_executor 兼容
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, exists, template)
-
-    async def detector():
-        return await _exists()
 
     return DetectionJob(name=name, detector=detector, handler=handler)
 
@@ -215,11 +241,12 @@ async def main_loop():
 
         jobs = [
             build_template_job("task_completion", TASK_COMPLETE_TEMPLATE, task_completion_handler),
-            build_template_job("skill_ready", SKILL_READY_TEMPLATE, skill_handler),
+            build_template_job("in_dungeon", IN_DUNGEON_TEMPLATE, skill_handler),
             build_template_job("next_dungeon", NEXT_DUNGEON_TEMPLATE, dungeon_handler),
         ]
         matched = await detect_first_match(jobs)
         if not matched:
+            next_area_handler(None)
             await asyncio.sleep(0.2)
 
 
@@ -233,4 +260,3 @@ if __name__ == "__main__":
     else:
         loop = asyncio.get_event_loop()
         loop.run_until_complete(main_loop())
-
