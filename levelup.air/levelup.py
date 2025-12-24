@@ -181,7 +181,7 @@ def skill_handler(_):
 
 
 def dungeon_handler(_):
-    """自动选择下一个副本."""
+    """自动选择下一个副本或者区域."""
     touch((160, 112))
     try:
         touch(CONFIRM_DUNGEON_TEMPLATE)
@@ -192,30 +192,14 @@ def dungeon_handler(_):
             if arrow_pos:
                 print(arrow_pos)
                 touch((arrow_pos[0], arrow_pos[1] + 100))
-                sleep(0.5)
-                touch(ENTER_DUNGEON_TEMPLATE)
-                sleep(3)
-                sell_trash()
-                touch((357, 1209))
-                break
-    except Exception:
-        print("error entering dungeon")
-
-
-def next_area_handler(_):
-    """自动选择下一个区域."""
-    touch((160, 112))
-    try:
-        touch(CONFIRM_DUNGEON_TEMPLATE)
-        sleep(0.5)
-
-        while True:
-            arrow_pos = exists(ARROW_TEMPLATE)
-            if arrow_pos:
-                print(arrow_pos)
-                touch((arrow_pos[0], arrow_pos[1] + 100))
-                sleep(1)
-                touch((360, 771))  # 前往按钮
+                sleep(0.5)  # 点击了大箭头
+                if ocr.capture_and_find_text("声望商店"):  # 这是区域
+                    touch((355, 780))  # 点击前往
+                else:
+                    touch(ENTER_DUNGEON_TEMPLATE)
+                    sleep(3)
+                    sell_trash()
+                    touch((357, 1209))
                 break
     except Exception:
         print("error entering dungeon")
@@ -245,9 +229,9 @@ async def main_loop():
             build_template_job("next_dungeon", NEXT_DUNGEON_TEMPLATE, dungeon_handler),
         ]
         matched = await detect_first_match(jobs)
-        if not matched:
-            next_area_handler(None)
-            await asyncio.sleep(0.2)
+        # if not matched:
+        #     next_area_handler(None)
+        #     await asyncio.sleep(0.2)
 
 
 # 初始化最后一次完成任务的时间

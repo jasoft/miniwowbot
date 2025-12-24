@@ -17,10 +17,15 @@ import cv2
 import imagehash
 import requests
 from airtest.core.api import snapshot, touch
+from dotenv import load_dotenv
 from PIL import Image
 
 from logger_config import apply_logging_slice, setup_logger_from_config
 from project_paths import ensure_project_path
+
+# 加载环境变量
+load_dotenv()
+
 
 
 class OCRHelper:
