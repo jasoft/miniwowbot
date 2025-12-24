@@ -96,21 +96,6 @@ def send_bark_notification(title, content):
         print(f"Bark通知发送异常: {e}")
 
 
-def check_task_timeout(last_task_time):
-    """检查是否超过10分钟没有完成任务"""
-    current_time = time.time()
-    elapsed_time = current_time - last_task_time
-    if elapsed_time > TASK_TIMEOUT:
-        minutes = int(elapsed_time / 60)
-        follow_task_to_next_place()
-        send_bark_notification(
-            "魔兽世界挂机异常",
-            f"已经{minutes}分钟没有完成任务，尝试去下一个地点，可能遇到问题，请检查！",
-        )
-        return True
-    return False
-
-
 def click_back(n=3):
     """点击返回按钮若干次"""
     for _ in range(n):
@@ -290,14 +275,38 @@ def build_ocr_job(
     return DetectionJob(name=name, detector=detector, handler=handler or default_handler)
 
 
+def build_timeout_job() -> DetectionJob:
+    async def detector():
+        global last_task_time
+        while True:
+            current_time = time.time()
+            elapsed = current_time - last_task_time
+            if elapsed > TASK_TIMEOUT:
+                return True
+            remaining = TASK_TIMEOUT - elapsed
+            await asyncio.sleep(min(remaining, 5))
+
+    def handler(_):
+        global last_task_time
+        elapsed_time = time.time() - last_task_time
+        minutes = int(elapsed_time / 60)
+        logger.warning(f"检测到任务超时 ({minutes} 分钟)，执行补救措施")
+        follow_task_to_next_place()
+        send_bark_notification(
+            "魔兽世界挂机异常",
+            f"已经{minutes}分钟没有完成任务，尝试去下一个地点，可能遇到问题，请检查！",
+        )
+        last_task_time = time.time()
+
+    return DetectionJob(name="task_timeout", detector=detector, handler=handler)
+
+
 async def main_loop():
     global last_task_time
     sell_trash()
     while True:
-        if check_task_timeout(last_task_time):
-            last_task_time = time.time()
-
         jobs = [
+            build_timeout_job(),
             build_template_job("task_completion", TASK_COMPLETE_TEMPLATE, task_completion_handler),
             build_template_job("in_dungeon", IN_DUNGEON_TEMPLATE, skill_handler),
             build_template_job("next_dungeon", NEXT_DUNGEON_TEMPLATE, dungeon_handler),
