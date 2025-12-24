@@ -185,14 +185,28 @@ def find_text_and_click_safe(*args, **kwargs):
 
 
 def click_back():
-    if game_actions:
-        return game_actions.click_back()
-    return False
+    """点击返回按钮（左上角）"""
+    try:
+        touch(BACK_BUTTON)
+        sleep(CLICK_INTERVAL)  # 等待界面刷新
+        logger.info("🔙 点击返回按钮")
+        return True
+    except Exception as e:
+        logger.error(f"❌ 返回失败: {e}")
+        return False
 
 
 def click_free_button():
-    if game_actions:
-        return game_actions.click_free_button()
+    """点击免费按钮"""
+    free_words = ["免费"]
+
+    for word in free_words:
+        if find_text_and_click_safe(word, timeout=3, use_cache=False, regions=[8]):
+            logger.info(f"💰 点击了免费按钮: {word}")
+
+            return True
+
+    logger.warning("⚠️ 未找到免费按钮")
     return False
 
 
@@ -1717,17 +1731,19 @@ def initialize_device_and_ocr(emulator_name: Optional[str] = None, low_mem: bool
             raise
 
     if ocr_helper is None:
+        correction_map = config_loader.get_ocr_correction_map() if config_loader else None
         ocr_helper = OCRHelper(
             output_dir="output",
             cpu_threads=(2 if low_mem else None),
             max_cache_size=(50 if low_mem else 200),
             max_width=(640 if low_mem else 960),
             delete_temp_screenshots=True,
+            correction_map=correction_map,
         )
     
     global game_actions
     if game_actions is None:
-        game_actions = GameActions(ocr_helper, config_loader, click_interval=CLICK_INTERVAL)
+        game_actions = GameActions(ocr_helper, click_interval=CLICK_INTERVAL)
 
 
 def count_remaining_selected_dungeons(db):

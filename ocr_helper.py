@@ -40,21 +40,20 @@ class OCRHelper:
         max_cache_size=200,
         hash_type="dhash",  # 可选: "phash", "dhash", "ahash", "whash"
         hash_threshold=10,  # hash 汉明距离阈值
+        correction_map: Optional[Dict[str, str]] = None,
     ):
         """
         初始化OCR Helper
 
         Args:
             output_dir (str): 输出目录路径
-            use_doc_orientation_classify (bool): 是否使用文档方向分类模型
-            use_doc_unwarping (bool): 是否使用文本图像矫正模型
-            use_textline_orientation (bool): 是否使用文本行方向分类模型
             resize_image (bool): 是否自动缩小图片以提升速度
             max_width (int): 图片最大宽度，默认960（建议在640-960之间）
             delete_temp_screenshots (bool): 是否删除临时截图文件，默认为True
             max_cache_size (int): 最大缓存条目数，默认200
             hash_type (str): 哈希算法类型，默认"dhash"（差分哈希，最快）
             hash_threshold (int): 哈希汉明距离阈值，默认10
+            correction_map (dict): OCR 纠正映射，例如 {"装各": "装备"}
         """
         resolved_output_dir = ensure_project_path(output_dir)
         self.output_dir = str(resolved_output_dir)
@@ -64,6 +63,7 @@ class OCRHelper:
         self.max_cache_size = max_cache_size
         self.hash_type = hash_type
         self.hash_threshold = hash_threshold
+        self.correction_map = correction_map or {}
 
         self.ocr_url = os.getenv("OCR_SERVER_URL", "http://localhost:8080/ocr")
 
@@ -842,9 +842,16 @@ class OCRHelper:
                             restored_polys.append(restored_poly)
                         dt_polys = restored_polys
 
+                    rec_texts = pruned.get("rec_texts", [])
+                    if self.correction_map:
+                        corrected_texts = []
+                        for t in rec_texts:
+                            corrected_texts.append(self.correction_map.get(t, t))
+                        rec_texts = corrected_texts
+
                     # 转换格式为 OCRHelper 所需的格式
                     result = {
-                        "rec_texts": pruned.get("rec_texts", []),
+                        "rec_texts": rec_texts,
                         "rec_scores": pruned.get("rec_scores", []),
                         "dt_polys": dt_polys,
                     }

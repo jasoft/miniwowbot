@@ -13,7 +13,6 @@ from functools import wraps
 from typing import Optional, List, Union, Dict, Any
 
 from airtest.core.api import snapshot, touch, sleep as airtest_sleep
-from coordinates import BACK_BUTTON
 
 logger = logging.getLogger("miniwow.game_actions")
 
@@ -27,10 +26,6 @@ def timer_decorator(func):
         start_time = time.perf_counter()
         result = func(*args, **kwargs)
         elapsed_time = time.perf_counter() - start_time
-
-        # 使用函数所在模块的 logger
-        # func_logger = logging.getLogger(func.__module__)
-        # 这里直接使用本模块 logger 或者 args[0].logger (如果是方法)
         
         log_msg = f"{func.__name__} 执行时间: {elapsed_time:.4f}秒"
         if elapsed_time < 0.01:
@@ -52,17 +47,15 @@ class GameActions:
     封装游戏内的查找和操作逻辑
     """
 
-    def __init__(self, ocr_helper, config_loader=None, click_interval=1):
+    def __init__(self, ocr_helper, click_interval=1):
         """
         初始化 GameActions
 
         Args:
             ocr_helper: OCRHelper 实例
-            config_loader: ConfigLoader 实例 (用于 OCR 纠正)
             click_interval: 点击后的等待时间 (秒)
         """
         self.ocr_helper = ocr_helper
-        self.config_loader = config_loader
         self.click_interval = click_interval
 
     def sleep(self, seconds: float, reason: str = ""):
@@ -84,7 +77,6 @@ class GameActions:
     ) -> Optional[Dict[str, Any]]:
         """
         使用 OCRHelper 查找文本
-        支持 OCR 纠正：如果找不到原文本，会尝试查找 OCR 可能识别错误的文本
 
         Args:
             text: 要查找的文本
@@ -118,40 +110,22 @@ class GameActions:
         
         start_time = time.time()
 
-        # 准备要尝试的文本列表：[原文本, OCR可能识别的错误文本]
-        texts_to_try = [text]
-
-        # 检查是否有对应的 OCR 纠正映射（反向查找）
-        if self.config_loader:
-            for ocr_text, correct_text in self.config_loader.get_ocr_correction_map().items():
-                if correct_text == text:
-                    texts_to_try.append(ocr_text)
-                    logger.debug(f"💡 将同时尝试查找 OCR 可能识别的文本: {ocr_text}")
-                    break
-
         while time.time() - start_time < timeout:
-            # 尝试所有可能的文本
-            for try_text in texts_to_try:
-                # 使用 OCRHelper 查找文本
-                result = self.ocr_helper.capture_and_find_text(
-                    try_text,
-                    confidence_threshold=similarity_threshold,
-                    occurrence=occurrence,
-                    use_cache=use_cache,
-                    regions=regions,
-                )
+            # 使用 OCRHelper 查找文本 (OCRHelper 内部已处理文本纠正)
+            result = self.ocr_helper.capture_and_find_text(
+                text,
+                confidence_threshold=similarity_threshold,
+                occurrence=occurrence,
+                use_cache=use_cache,
+                regions=regions,
+            )
 
-                if result and result.get("found"):
-                    if try_text != text:
-                        logger.info(
-                            f"✅ 通过 OCR 纠正找到文本: {text} (OCR识别为: {try_text}){region_desc}"
-                        )
-                    else:
-                        if occurrence > 1:
-                            logger.info(f"✅ 找到文本: {text} (第{occurrence}个){region_desc}")
-                        else:
-                            logger.info(f"✅ 找到文本: {text}{region_desc}")
-                    return result
+            if result and result.get("found"):
+                if occurrence > 1:
+                    logger.info(f"✅ 找到文本: {text} (第{occurrence}个){region_desc}")
+                else:
+                    logger.info(f"✅ 找到文本: {text}{region_desc}")
+                return result
 
             # 短暂休眠避免CPU占用过高
             time.sleep(0.1)
@@ -178,15 +152,6 @@ class GameActions:
     ) -> Optional[Dict[str, Any]]:
         """
         检查当前界面上给定文本列表中的任意一个是否存在。
-
-        Args:
-            texts: 文本列表（数组），按优先级从高到低排列
-            similarity_threshold: 相似度阈值 (0-1)
-            use_cache: 是否使用 OCR 缓存
-            regions: 要搜索的区域列表 (1-9)，None 表示全屏搜索
-
-        Returns:
-            如果找到任意一个文本，返回 OCR 结果字典；否则返回 None。
         """
         if self.ocr_helper is None:
             logger.error("❌ OCR助手未初始化，无法判断文本是否存在")
@@ -374,26 +339,3 @@ class GameActions:
             region_desc = f" [区域{regions}]" if regions else ""
             logger.debug(f"⚠️ 安全查找并点击失败: {text}{region_desc} - {e}")
             return default_return
-
-    def click_back(self) -> bool:
-        """点击返回按钮（左上角）"""
-        try:
-            touch(BACK_BUTTON)
-            self.sleep(self.click_interval)  # 等待界面刷新
-            logger.info("🔙 点击返回按钮")
-            return True
-        except Exception as e:
-            logger.error(f"❌ 返回失败: {e}")
-            return False
-
-    def click_free_button(self) -> bool:
-        """点击免费按钮"""
-        free_words = ["免费"]
-
-        for word in free_words:
-            if self.find_text_and_click_safe(word, timeout=3, use_cache=False, regions=[8]):
-                logger.info(f"💰 点击了免费按钮: {word}")
-                return True
-
-        logger.warning("⚠️ 未找到免费按钮")
-        return False
