@@ -36,36 +36,36 @@ BARK_URL = "https://api.day.app/LkBmavbbbYqtmjDLVvsbMR"  # 请替换为你的Bar
 TASK_TIMEOUT = 300  # 10分钟 = 600秒
 
 TASK_COMPLETE_TEMPLATE = Template(
-    r"tpl1761359506125.png",
+    r"task_complete.png",
     record_pos=(-0.281, -0.411),
     resolution=(720, 1280),
 )
 IN_DUNGEON_TEMPLATE = Template(
-    r"tpl1761362182198.png",
+    r"in_dungeon.png",
     record_pos=(-0.422, -0.406),
     resolution=(720, 1280),
     threshold=0.9,
 )
 # 经验条已满
 NEXT_DUNGEON_TEMPLATE = Template(
-    r"tpl1761376402373.png",
+    r"next_dungeon_xp_full.png",
     record_pos=(-0.003, -0.306),
     resolution=(720, 1280),
     threshold=0.9,
 )
 CONFIRM_DUNGEON_TEMPLATE = Template(
-    r"tpl1761376472172.png",
+    r"confirm_dungeon.png",
     record_pos=(0.001, 0.318),
     resolution=(720, 1280),
 )
 ARROW_TEMPLATE = Template(
-    r"tpl1765982947272.png",
+    r"arrow.png",
     resolution=(720, 1280),
     rgb=True,
     threshold=0.4,
 )
 ENTER_DUNGEON_TEMPLATE = Template(
-    r"tpl1765983180854.png",
+    r"enter_dungeon.png",
     threshold=0.92,
     rgb=True,
     resolution=(720, 1280),
@@ -164,7 +164,7 @@ def task_completion_handler(first_match):
             touch((363, 867))
             touch(
                 Template(
-                    r"tpl1761359681084.png",
+                    r"accept_task.png",
                     record_pos=(-0.004, 0.319),
                     resolution=(720, 1280),
                 )  # 接受任务
