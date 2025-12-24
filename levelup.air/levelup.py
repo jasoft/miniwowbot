@@ -261,12 +261,9 @@ async def main_loop():
             build_template_job("in_dungeon", IN_DUNGEON_TEMPLATE, skill_handler),
             build_template_job("next_dungeon", NEXT_DUNGEON_TEMPLATE, dungeon_handler),
             build_ocr_job("equip_item", "装备", [1]),
-            build_ocr_job("level_reached", "等级达到", [1]),
+            build_ocr_job("level_reached", "等级达到", [1], handler=lambda _: None),
         ]
-        matched = await detect_first_match(jobs)
-        if not matched:
-            dungeon_handler(None)
-            await asyncio.sleep(0.2)
+        await detect_first_match(jobs)
 
 
 # 初始化最后一次完成任务的时间
