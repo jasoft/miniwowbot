@@ -202,9 +202,9 @@ class TestSwitchAccountIntegration:
                 logger.warning(f"⚠️ 第 {i + 1} 次切换账号失败: {e}")
 
         # 至少应该有一次成功
-        assert success_count > 0, (
-            f"所有切换账号尝试都失败了 (成功: {success_count}/{total_attempts})"
-        )
+        assert (
+            success_count > 0
+        ), f"所有切换账号尝试都失败了 (成功: {success_count}/{total_attempts})"
         logger.info(f"📊 切换账号成功率: {success_count}/{total_attempts}")
 
 
@@ -258,9 +258,9 @@ class TestSelectCharacterIntegration:
             logger.info(f"查找'设置'文本结果: {result}")
 
             # 函数应该返回布尔值或 None
-            assert result is not None or result is False or result is True, (
-                "find_text_and_click 应该返回布尔值"
-            )
+            assert (
+                result is not None or result is False or result is True
+            ), "find_text_and_click 应该返回布尔值"
 
         except Exception as e:
             logger.warning(f"⚠️ find_text_and_click 执行过程中出现异常: {e}")
@@ -357,9 +357,9 @@ class TestMiscFunctionsIntegration:
                 time.sleep(1)
             except Exception as e:
                 logger.warning(f"⚠️ 第 {i + 1} 次 is_main_world 调用失败: {e}")
-        assert success_count > 0, (
-            f"所有 is_main_world 调用都失败了 (成功: {success_count}/{total_attempts})"
-        )
+        assert (
+            success_count > 0
+        ), f"所有 is_main_world 调用都失败了 (成功: {success_count}/{total_attempts})"
         avg_time = total_time / success_count if success_count else 0
         logger.info(
             f"📊 is_main_world 成功率: {success_count}/{total_attempts}，平均耗时: {avg_time:.2f} 秒"
@@ -377,24 +377,24 @@ class TestDailyCollectIntegration:
     def test_daily_collect_manager_class_exists(self):
         """测试 DailyCollectManager 类是否存在"""
         assert DailyCollectManager is not None, "DailyCollectManager 类应该存在"
-        assert hasattr(DailyCollectManager, "collect_daily_rewards"), (
-            "DailyCollectManager 应该有 collect_daily_rewards 方法"
-        )
-        assert hasattr(DailyCollectManager, "_collect_idle_rewards"), (
-            "DailyCollectManager 应该有 _collect_idle_rewards 方法"
-        )
-        assert hasattr(DailyCollectManager, "_collect_quick_afk"), (
-            "DailyCollectManager 应该有 _collect_quick_afk 方法"
-        )
-        assert hasattr(DailyCollectManager, "_handle_retinue_deployment"), (
-            "DailyCollectManager 应该有 _handle_retinue_deployment 方法"
-        )
-        assert hasattr(DailyCollectManager, "_collect_free_dungeons"), (
-            "DailyCollectManager 应该有 _collect_free_dungeons 方法"
-        )
-        assert hasattr(DailyCollectManager, "_sweep_tower_floor"), (
-            "DailyCollectManager 应该有 _sweep_tower_floor 方法"
-        )
+        assert hasattr(
+            DailyCollectManager, "collect_daily_rewards"
+        ), "DailyCollectManager 应该有 collect_daily_rewards 方法"
+        assert hasattr(
+            DailyCollectManager, "_collect_idle_rewards"
+        ), "DailyCollectManager 应该有 _collect_idle_rewards 方法"
+        assert hasattr(
+            DailyCollectManager, "_collect_quick_afk"
+        ), "DailyCollectManager 应该有 _collect_quick_afk 方法"
+        assert hasattr(
+            DailyCollectManager, "_handle_retinue_deployment"
+        ), "DailyCollectManager 应该有 _handle_retinue_deployment 方法"
+        assert hasattr(
+            DailyCollectManager, "_collect_free_dungeons"
+        ), "DailyCollectManager 应该有 _collect_free_dungeons 方法"
+        assert hasattr(
+            DailyCollectManager, "_sweep_tower_floor"
+        ), "DailyCollectManager 应该有 _sweep_tower_floor 方法"
 
     def test_daily_collect_real_device(self, setup_device):
         """
@@ -441,21 +441,6 @@ class TestDailyCollectIntegration:
     def test_click_ads(self, setup_device):
         manager = DailyCollectManager()
         manager._buy_ads_items()
-
-    def test_checkin_taptap(self, setup_device):
-        """
-        测试签到 taptap 功能 - 真机测试
-
-        前提条件：
-        - 设备已连接
-        - 游戏已打开并在主界面或任意可以访问主界面的界面
-
-        测试步骤：
-        1. 调用 checkin_taptap 函数
-        2. 验证函数能够正常执行完成（不抛出异常）
-        """
-        manager = DailyCollectManager()
-        manager._checkin_taptap()
 
     def test_demonhunter_exam(self, setup_device):
         """
@@ -543,9 +528,9 @@ class TestDailyCollectIntegration:
                 logger.warning(f"⚠️ 第 {i + 1} 次调用失败: {e}")
 
         # 至少应该有一次成功
-        assert success_count > 0, (
-            f"所有 daily_collect 调用都失败了 (成功: {success_count}/{total_attempts})"
-        )
+        assert (
+            success_count > 0
+        ), f"所有 daily_collect 调用都失败了 (成功: {success_count}/{total_attempts})"
         logger.info(f"📊 daily_collect 成功率: {success_count}/{total_attempts}")
 
     def test_daily_collect_with_different_states(self, setup_device):
@@ -681,17 +666,17 @@ class TestDailyCollectIntegration:
 
                 # 验证执行时间在合理范围内（根据不同功能设置不同阈值）
                 if method_name == "_collect_idle_rewards":
-                    assert execution_time < 30, (
-                        f"{description} 执行时间过长: {execution_time:.2f} 秒"
-                    )
+                    assert (
+                        execution_time < 30
+                    ), f"{description} 执行时间过长: {execution_time:.2f} 秒"
                 elif method_name == "_collect_free_dungeons":
-                    assert execution_time < 45, (
-                        f"{description} 执行时间过长: {execution_time:.2f} 秒"
-                    )
+                    assert (
+                        execution_time < 45
+                    ), f"{description} 执行时间过长: {execution_time:.2f} 秒"
                 else:
-                    assert execution_time < 20, (
-                        f"{description} 执行时间过长: {execution_time:.2f} 秒"
-                    )
+                    assert (
+                        execution_time < 20
+                    ), f"{description} 执行时间过长: {execution_time:.2f} 秒"
 
                 # 在不同方法之间添加延迟
                 time.sleep(2)
@@ -736,9 +721,9 @@ class TestDailyCollectIntegration:
         assert "风暴群岛" in zone_dungeons, "应该包含风暴群岛"
 
         # 验证 OCR 纠正映射
-        assert auto_dungeon.config_loader.correct_ocr_text("梦魔丛林") == "梦魇丛林", (
-            "OCR 纠正应该工作"
-        )
+        assert (
+            auto_dungeon.config_loader.correct_ocr_text("梦魔丛林") == "梦魇丛林"
+        ), "OCR 纠正应该工作"
 
         logger.info("✅ 配置加载器集成测试通过")
 
@@ -747,9 +732,9 @@ class TestDailyCollectIntegration:
         测试使用 warrior 配置的每日领取功能
         """
         # 验证配置已启用每日领取
-        assert auto_dungeon.config_loader.is_daily_collect_enabled() is True, (
-            "warrior 配置应该启用每日领取"
-        )
+        assert (
+            auto_dungeon.config_loader.is_daily_collect_enabled() is True
+        ), "warrior 配置应该启用每日领取"
 
         # 创建 DailyCollectManager 并传入配置
         manager = DailyCollectManager(config_loader=auto_dungeon.config_loader)

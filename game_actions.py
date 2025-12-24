@@ -8,7 +8,7 @@
 import logging
 import time
 from functools import wraps
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from airtest.core.api import sleep as airtest_sleep
 from airtest.core.api import touch
@@ -52,7 +52,7 @@ class GameElement(dict):
         self.action_context = action_context
 
     @property
-    def center(self):
+    def center(self) -> Optional[Tuple[int, int]]:
         return self.get("center")
 
     @property
@@ -209,7 +209,7 @@ class GameActions:
         occurrence: int = 1,
         use_cache: bool = True,
         regions: Optional[List[int]] = None,
-        raise_exception: bool = True,
+        raise_exception: bool = False,
     ) -> Optional[GameElement]:
         """
         基于 find_all 实现的 find
@@ -218,7 +218,9 @@ class GameActions:
         region_desc = f" [区域{regions}]" if regions else ""
         logger.info(f"🔍 查找: {text}{region_desc} (等待 {timeout}s)")
 
-        while time.time() - start_time < timeout:
+        first_attempt = True
+        while first_attempt or (time.time() - start_time < timeout):
+            first_attempt = False
             # 使用集合操作查找匹配项
             el = (
                 self.find_all(use_cache=use_cache, regions=regions)
@@ -231,6 +233,8 @@ class GameActions:
                 logger.info(f"✅ 找到: {text}{region_desc} at {el.center}")
                 return el
 
+            if time.time() - start_time >= timeout:
+                break
             time.sleep(0.1)
 
         msg = f"❌ 超时未找到: {text}{region_desc}"

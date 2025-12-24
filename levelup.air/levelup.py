@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Callable, Iterable, Optional
 
 import requests
-from airtest.core.api import Template, auto_setup, exists, sleep, touch
+from airtest.core.api import Template, auto_setup, exists, sleep, swipe, touch
 from airtest.core.settings import Settings as ST
 
 # Add parent directory to sys.path to import modules from project root
@@ -29,8 +29,8 @@ actions = GameActions(ocr)
 
 auto_setup(__file__)
 
-ST.FIND_TIMEOUT = 1
-ST.FIND_TIMEOUT_TMP = 1
+ST.FIND_TIMEOUT = 1.0
+ST.FIND_TIMEOUT_TMP = 1.0
 ST.THRESHOLD = 0.8
 
 # Bark通知配置
@@ -153,8 +153,20 @@ async def detect_first_match(
 
 def request_task_handler(_):
     """处理请求任务."""
-    actions.find_text_and_click("领取任务", regions=[1])
-    actions.find
+
+    def accept_task(x):
+        touch(x.center)
+        sleep(0.5)
+        touch((358, 865))  # 接受任务
+
+    button = actions.find("领取任务", regions=[1])
+    if button:
+        button.click()
+        for i in range(4):
+            actions.find_all().contains("支线").each(lambda x: accept_task(x))
+            swipe((360, 900), (360, 300))
+
+        click_back()
 
 
 def task_completion_handler(first_match):
@@ -206,8 +218,8 @@ def dungeon_handler(_):
                 print(arrow_pos)
                 touch((arrow_pos[0], arrow_pos[1] + 100))
                 sleep(0.5)  # 点击了大箭头
-                res = ocr.capture_and_find_text("声望商店")  # 这是区域
-                if res["found"]:
+
+                if actions.find("声望商店"):
                     touch((355, 780))  # 点击前往
                     sleep(30)
                 else:  # 副本
@@ -248,8 +260,9 @@ def build_ocr_job(
         await asyncio.sleep(delay)
         loop = asyncio.get_event_loop()
         # regions=[1] corresponds to top-left area
+        # Pass raise_exception=False to avoid crashing on timeout
         res = await loop.run_in_executor(
-            None, ocr.capture_and_find_text, text, 0.5, None, 1, True, regions
+            None, actions.find, text, 0.5, 0.8, 1, True, regions, False
         )
         if res and res.get("found"):
             return res
@@ -276,6 +289,7 @@ async def main_loop():
             build_template_job("next_dungeon", NEXT_DUNGEON_TEMPLATE, dungeon_handler),
             build_ocr_job("equip_item", "装备", [1]),
             build_ocr_job("level_reached", "等级达到", [1], handler=lambda _: None),
+            build_ocr_job("request_task", "领取任务", [1], handler=request_task_handler),
         ]
         matched = await detect_first_match(jobs)
         if not matched:

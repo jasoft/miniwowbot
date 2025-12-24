@@ -19,7 +19,6 @@ from airtest.core.api import (
     start_app,
     stop_app,
     swipe,
-    text,
     touch,
     wait,
 )
@@ -752,25 +751,6 @@ class DailyCollectManager:
 
         back_to_main()
         send_bark_notification("主题奖励提醒", "别忘了买碎片")
-
-    def _checkin_taptap(self):
-        """签到 taptap,领一些礼品"""
-        logger.info("签到 taptap")
-        keyevent("HOME")
-        find_text_and_click("签到", regions=[1])
-        sleep(5)
-        find_text_and_click_safe("去签到", regions=[5], timeout=20)
-        find_text_and_click_safe("立即签到", regions=[8, 9], timeout=20)
-        find_text_and_click_safe("复制", regions=[6, 9], timeout=20)
-        start_app("com.ms.ysjyzr")
-        sleep(5)
-        back_to_main()
-        switch_to("战斗")
-        send_button = find_text_and_click("发送", regions=[9])
-        touch((send_button["center"][0] - 100, send_button["center"][1]))
-        shell("input keyevent 279")
-        text("")
-        touch(send_button["center"])
 
     def _collect_idle_rewards(self):
         """

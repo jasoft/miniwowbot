@@ -633,6 +633,58 @@ class OCRHelper:
 
         return region_img, (x, y)
 
+    def _get_region_description(self, regions: Optional[List[int]]) -> str:
+        """
+        获取区域的描述文字
+
+        Args:
+            regions: 区域列表
+
+        Returns:
+            区域描述，如 "区域[1,2,3]（上部）"
+        """
+        if not regions:
+            return "全屏"
+
+        # 合并区域
+        min_row, max_row, min_col, max_col = self._merge_regions(regions)
+
+        # 生成描述
+        parts = []
+
+        # 行描述
+        if min_row == max_row:
+            row_names = ["上部", "中部", "下部"]
+            parts.append(row_names[min_row])
+        elif min_row == 0 and max_row == 2:
+            parts.append("全高")
+        else:
+            parts.append(f"第{min_row + 1}-{max_row + 1}行")
+
+        # 列描述
+        if min_col == max_col:
+            col_names = ["左侧", "中间", "右侧"]
+            parts.append(col_names[min_col])
+        elif min_col == 0 and max_col == 2:
+            parts.append("全宽")
+        else:
+            parts.append(f"第{min_col + 1}-{max_col + 1}列")
+
+        region_str = ",".join(map(str, sorted(regions)))
+        return f"区域[{region_str}]（{' '.join(parts)}）"
+
+    def _empty_result(self) -> Dict[str, Any]:
+        """返回空的查找结果"""
+        return {
+            "found": False,
+            "center": None,
+            "text": None,
+            "confidence": None,
+            "bbox": None,
+            "total_matches": 0,
+            "selected_index": 0,
+        }
+
     def _adjust_coordinates_to_full_image(
         self, bbox: List[List[int]], offset: Tuple[int, int]
     ) -> List[List[int]]:
