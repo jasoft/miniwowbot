@@ -1241,6 +1241,57 @@ class OCRHelper:
             self.logger.error(f"处理OCR数据时出错: {e}")
             return [] if return_all else self._empty_result()
 
+    def capture_and_get_all_texts(
+        self,
+        use_cache=True,
+        regions: Optional[List[int]] = None,
+    ):
+        """
+        截图并获取所有识别到的文字信息
+
+        Args:
+            use_cache (bool): 是否使用缓存
+            regions (List[int], optional): 要获取的区域列表
+
+        Returns:
+            list: 包含所有文字信息的列表
+        """
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        unique_id = str(uuid.uuid4())[:8]
+        screenshot_path = os.path.join(self.temp_dir, f"get_all_{timestamp}_{unique_id}.png")
+
+        try:
+            snapshot(filename=screenshot_path)
+            # 使用现有逻辑获取所有文本
+            if regions:
+                # 借用 _find_text_in_regions 逻辑，传递空字符串匹配所有
+                return self._find_text_in_regions(
+                    screenshot_path,
+                    target_text="",
+                    confidence_threshold=0.0,
+                    occurrence=1,
+                    regions=regions,
+                    use_cache=use_cache,
+                    return_all=True
+                )
+            else:
+                # 获取全屏 OCR 结果
+                ocr_data = self._get_or_create_ocr_result(
+                    screenshot_path, use_cache=use_cache, regions=None
+                )
+                if not ocr_data:
+                    return []
+                # 从数据中提取所有项
+                return self._find_text_in_json(
+                    ocr_data, target_text="", confidence_threshold=0.0, return_all=True
+                )
+        finally:
+            if self.delete_temp_screenshots and os.path.exists(screenshot_path):
+                try:
+                    os.remove(screenshot_path)
+                except Exception:
+                    pass
+
     def find_all_matching_texts(self, image_path, target_text, confidence_threshold=0.5):
         """
         查找图像中所有匹配的文字

@@ -191,6 +191,13 @@ def find_all_texts(*args, **kwargs):
     return []
 
 
+def find_all(*args, **kwargs):
+    if game_actions:
+        return game_actions.find_all(*args, **kwargs)
+    logger.error("❌ GameActions 未初始化")
+    return []
+
+
 def click_back():
     """点击返回按钮（左上角）"""
     try:

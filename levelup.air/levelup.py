@@ -153,7 +153,8 @@ async def detect_first_match(
 
 def request_task_handler(_):
     """处理请求任务."""
-    touch((363, 867))
+    actions.find_text_and_click("领取任务", regions=[1])
+    actions.find
 
 
 def task_completion_handler(first_match):
