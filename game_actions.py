@@ -313,29 +313,124 @@ class GameActions:
             logger.error(f"❌ 查找并点击文本失败: {text} - {e}")
             raise
 
-    def find_text_and_click_safe(
-        self,
-        text: str,
-        timeout: float = 10,
-        similarity_threshold: float = 0.7,
-        occurrence: int = 1,
-        use_cache: bool = True,
-        regions: Optional[List[int]] = None,
-        default_return: Any = False,
-    ) -> Any:
-        """
-        安全版本的 find_text_and_click，不会抛出异常
-        """
-        try:
-            return self.find_text_and_click(
-                text=text,
-                timeout=timeout,
-                similarity_threshold=similarity_threshold,
-                occurrence=occurrence,
-                use_cache=use_cache,
-                regions=regions,
-            )
-        except Exception as e:
+        def find_text_and_click_safe(
+
+            self,
+
+            text: str,
+
+            timeout: float = 10,
+
+            similarity_threshold: float = 0.7,
+
+            occurrence: int = 1,
+
+            use_cache: bool = True,
+
+            regions: Optional[List[int]] = None,
+
+            default_return: Any = False,
+
+        ) -> Any:
+
+            """
+
+            安全版本的 find_text_and_click，不会抛出异常
+
+            """
+
+            try:
+
+                return self.find_text_and_click(
+
+                    text=text,
+
+                    timeout=timeout,
+
+                    similarity_threshold=similarity_threshold,
+
+                    occurrence=occurrence,
+
+                    use_cache=use_cache,
+
+                    regions=regions,
+
+                )
+
+            except Exception as e:
+
+                region_desc = f" [区域{regions}]" if regions else ""
+
+                logger.debug(f"⚠️ 安全查找并点击失败: {text}{region_desc} - {e}")
+
+                return default_return
+
+    
+
+        @timer_decorator
+
+        def find_all_texts(
+
+            self,
+
+            text: str,
+
+            similarity_threshold: float = 0.7,
+
+            use_cache: bool = True,
+
+            regions: Optional[List[int]] = None,
+
+        ) -> List[Dict[str, Any]]:
+
+            """
+
+            查找当前界面上所有匹配的文本数据
+
+    
+
+            Args:
+
+                text: 要查找的文本
+
+                similarity_threshold: 相似度阈值
+
+                use_cache: 是否使用缓存
+
+                regions: 要搜索的区域列表
+
+    
+
+            Returns:
+
+                list: 包含所有找到的文字数据的列表
+
+            """
+
+            if self.ocr_helper is None:
+
+                logger.error("❌ OCR助手未初始化，无法查找文本")
+
+                return []
+
+    
+
             region_desc = f" [区域{regions}]" if regions else ""
-            logger.debug(f"⚠️ 安全查找并点击失败: {text}{region_desc} - {e}")
-            return default_return
+
+            logger.info(f"🔍 查找所有文本: {text}{region_desc}")
+
+    
+
+            return self.ocr_helper.capture_and_find_all_texts(
+
+                text,
+
+                confidence_threshold=similarity_threshold,
+
+                use_cache=use_cache,
+
+                regions=regions,
+
+            )
+
+    

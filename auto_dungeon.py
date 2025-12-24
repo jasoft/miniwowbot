@@ -184,6 +184,13 @@ def find_text_and_click_safe(*args, **kwargs):
     return kwargs.get("default_return", False)
 
 
+def find_all_texts(*args, **kwargs):
+    if game_actions:
+        return game_actions.find_all_texts(*args, **kwargs)
+    logger.error("❌ GameActions 未初始化")
+    return []
+
+
 def click_back():
     """点击返回按钮（左上角）"""
     try:
@@ -1493,7 +1500,6 @@ def handle_load_account_mode(
         max_cache_size=(50 if low_mem else 200),
         hash_type="dhash",
         hash_threshold=10,
-        cpu_threads=(2 if low_mem else None),
         max_width=(640 if low_mem else 960),
         delete_temp_screenshots=True,
     )
@@ -1734,13 +1740,12 @@ def initialize_device_and_ocr(emulator_name: Optional[str] = None, low_mem: bool
         correction_map = config_loader.get_ocr_correction_map() if config_loader else None
         ocr_helper = OCRHelper(
             output_dir="output",
-            cpu_threads=(2 if low_mem else None),
             max_cache_size=(50 if low_mem else 200),
             max_width=(640 if low_mem else 960),
             delete_temp_screenshots=True,
             correction_map=correction_map,
         )
-    
+
     global game_actions
     if game_actions is None:
         game_actions = GameActions(ocr_helper, click_interval=CLICK_INTERVAL)

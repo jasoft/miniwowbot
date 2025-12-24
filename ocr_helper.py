@@ -11,12 +11,12 @@ import sqlite3
 import time
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import cv2
 import imagehash
 import requests
-from airtest.core.api import snapshot, touch
+from airtest.core.api import snapshot
 from dotenv import load_dotenv
 from PIL import Image
 
@@ -25,7 +25,6 @@ from project_paths import ensure_project_path
 
 # 加载环境变量
 load_dotenv()
-
 
 
 class OCRHelper:
@@ -918,6 +917,7 @@ class OCRHelper:
         use_cache=True,
         regions: Optional[List[int]] = None,
         debug_save_path: Optional[str] = None,
+        return_all=False,
     ):
         """
         在指定图像中查找目标文字的位置
@@ -928,22 +928,13 @@ class OCRHelper:
             confidence_threshold (float): 置信度阈值 (0-1)
             occurrence (int): 指定点击第几个出现的文字 (1-based)，默认为1
             use_cache (bool): 是否使用缓存，默认为 True
-            regions (List[int], optional): 要搜索的区域列表（1-9），如果为None则搜索整个图像
-                                          区域编号如下：
-                                          1 2 3
-                                          4 5 6
-                                          7 8 9
-            debug_save_path (str, optional): 调试用，保存区域截图的路径
+            regions (List[int], optional): 要搜索的区域列表（1-9）
+            debug_save_path (str, optional): 调试用
+            return_all (bool): 是否返回所有匹配项的列表
 
         Returns:
-            dict: 包含以下信息的字典
-                - found (bool): 是否找到文字
-                - center (tuple): 文字中心坐标 (x, y)，未找到时为None
-                - text (str): 实际识别到的文字，未找到时为None
-                - confidence (float): 置信度，未找到时为None
-                - bbox (list): 文字边界框坐标，未找到时为None
-                - total_matches (int): 总共找到的匹配数量
-                - selected_index (int): 实际选择的索引 (1-based)
+            dict | list: 如果 return_all=False, 返回查找结果字典; 
+                         如果 return_all=True, 返回包含所有匹配字典的列表
         """
         try:
             # 如果指定了区域，使用区域搜索
@@ -956,44 +947,70 @@ class OCRHelper:
                     regions,
                     debug_save_path,
                     use_cache,
+                    return_all=return_all,
                 )
 
-            # 获取或创建 OCR 结果（带缓存）
+            # 获取或创建 OCR 结果
             ocr_data = self._get_or_create_ocr_result(
                 image_path, use_cache=use_cache, regions=regions
             )
 
             if not ocr_data:
-                self.logger.warning(f"OCR识别结果为空: {image_path}")
-                return {
-                    "found": False,
-                    "center": None,
-                    "text": None,
-                    "confidence": None,
-                    "bbox": None,
-                    "total_matches": 0,
-                    "selected_index": 0,
-                }
+                return [] if return_all else self._empty_result()
 
             # 从 OCR 结果中查找目标文字
-            result = self._find_text_in_json(
-                ocr_data, target_text, confidence_threshold, occurrence
+            return self._find_text_in_json(
+                ocr_data, target_text, confidence_threshold, occurrence, return_all=return_all
             )
-            if isinstance(result, dict):
-                result["ocr_data"] = ocr_data
-            return result
 
         except Exception as e:
             self.logger.error(f"图像OCR识别出错: {e}")
-            return {
-                "found": False,
-                "center": None,
-                "text": None,
-                "confidence": None,
-                "bbox": None,
-                "total_matches": 0,
-                "selected_index": 0,
-            }
+            return [] if return_all else self._empty_result()
+
+    def capture_and_find_all_texts(
+        self,
+        target_text,
+        confidence_threshold=0.5,
+        use_cache=True,
+        regions: Optional[List[int]] = None,
+    ):
+        """
+        截图并查找所有匹配的目标文字
+
+        Args:
+            target_text (str): 要查找的目标文字
+            confidence_threshold (float): 置信度阈值 (0-1)
+            use_cache (bool): 是否使用缓存，默认为 True
+            regions (List[int], optional): 要搜索的区域列表
+
+        Returns:
+            list: 包含所有匹配项信息的列表
+        """
+        # 内部复用 capture_and_find_text 的部分逻辑（截图与重试）
+        # 但传递 return_all=True
+        
+        # 为了简洁，这里直接调用 find_text_in_image 逻辑
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        unique_id = str(uuid.uuid4())[:8]
+        screenshot_path = os.path.join(self.temp_dir, f"all_texts_{timestamp}_{unique_id}.png")
+        
+        try:
+            snapshot(filename=screenshot_path)
+            results = self.find_text_in_image(
+                screenshot_path,
+                target_text,
+                confidence_threshold,
+                use_cache=use_cache,
+                regions=regions,
+                return_all=True
+            )
+            return results
+        finally:
+            if self.delete_temp_screenshots and os.path.exists(screenshot_path):
+                try:
+                    os.remove(screenshot_path)
+                except Exception:
+                    pass
 
     def _find_text_in_regions(
         self,
@@ -1004,34 +1021,23 @@ class OCRHelper:
         regions: List[int],
         debug_save_path: Optional[str] = None,
         use_cache: bool = True,
-    ) -> Dict[str, Any]:
+        return_all: bool = False,
+    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
         """
         在指定区域中查找文字（内部方法）
-
-        Args:
-            image_path: 图像文件路径
-            target_text: 要查找的目标文字
-            confidence_threshold: 置信度阈值
-            occurrence: 指定第几个出现的文字
-            regions: 要搜索的区域列表（会被合并成一个连续的矩形）
-            debug_save_path: 调试用，保存区域截图的路径
-            use_cache: 是否使用缓存，默认为 True
-
-        Returns:
-            查找结果字典
         """
         try:
             # 读取图像
             image = cv2.imread(image_path)
             if image is None:
                 self.logger.error(f"无法读取图像: {image_path}")
-                return self._empty_result()
+                return [] if return_all else self._empty_result()
 
             # 提取合并后的区域
             region_img, offset = self._extract_region(image, regions, debug_save_path)
             if region_img is None:
                 self.logger.warning("未能提取区域")
-                return self._empty_result()
+                return [] if return_all else self._empty_result()
 
             # 显示区域信息
             region_desc = self._get_region_description(regions)
@@ -1080,16 +1086,13 @@ class OCRHelper:
                     result = []
 
             if not result or len(result) == 0:
-                self.logger.warning("OCR识别结果为空")
-                return self._empty_result()
+                return [] if return_all else self._empty_result()
 
             # 收集所有匹配结果
             all_matches = []
             for res in result:
-                # 使用函数级别的缓存和耗时信息
                 res_cache_used = cache_used
                 res_elapsed_time = elapsed_time
-                # 支持两种访问方式：属性访问和字典访问
                 if hasattr(res, "rec_texts"):
                     rec_texts = res.rec_texts
                     rec_scores = res.rec_scores
@@ -1099,7 +1102,6 @@ class OCRHelper:
                     rec_scores = res.get("rec_scores", [])
                     dt_polys = res.get("dt_polys", [])
                 else:
-                    # 尝试作为字典访问（OCRResult 对象）
                     try:
                         rec_texts = res["rec_texts"]
                         rec_scores = res["rec_scores"]
@@ -1136,11 +1138,12 @@ class OCRHelper:
                                 }
                             )
 
+            if return_all:
+                return all_matches
+
             # 处理匹配结果
             total_matches = len(all_matches)
-
             if total_matches == 0:
-                self.logger.debug(f"未找到匹配的文字: '{target_text}'")
                 return self._empty_result()
 
             # 选择指定的匹配项
@@ -1150,26 +1153,6 @@ class OCRHelper:
             else:
                 selected_match = all_matches[occurrence - 1]
                 selected_index = occurrence
-
-            # 输出关键信息：只输出选中的匹配
-            # 判断是否使用了缓存
-            cache_used = False
-            if "cache_used" in selected_match:
-                cache_used = selected_match["cache_used"]
-
-            # 计算耗时（如果有的话）
-            elapsed_time_str = ""
-            if "elapsed_time" in selected_match:
-                elapsed_time_str = f" 耗时:{selected_match['elapsed_time']:.3f}s"
-
-            # 输出选中的匹配信息
-            self.logger.info(
-                f"找到文字: '{selected_match['text']}' "
-                f"置信度:{selected_match['confidence']:.3f} "
-                f"位置:{selected_match['center']} "
-                f"缓存:{'是' if cache_used else '否'}"
-                f"{elapsed_time_str}"
-            )
 
             return {
                 "found": True,
@@ -1183,225 +1166,13 @@ class OCRHelper:
 
         except Exception as e:
             self.logger.error(f"区域搜索出错: {e}")
-            return self._empty_result()
-
-    def _get_region_description(self, regions: Optional[List[int]]) -> str:
-        """
-        获取区域的描述文字
-
-        Args:
-            regions: 区域列表
-
-        Returns:
-            区域描述，如 "区域[1,2,3]（上部）"
-        """
-        if not regions:
-            return "全屏"
-
-        # 合并区域
-        min_row, max_row, min_col, max_col = self._merge_regions(regions)
-
-        # 生成描述
-        parts = []
-
-        # 行描述
-        if min_row == max_row:
-            row_names = ["上部", "中部", "下部"]
-            parts.append(row_names[min_row])
-        elif min_row == 0 and max_row == 2:
-            parts.append("全高")
-        else:
-            parts.append(f"第{min_row + 1}-{max_row + 1}行")
-
-        # 列描述
-        if min_col == max_col:
-            col_names = ["左侧", "中间", "右侧"]
-            parts.append(col_names[min_col])
-        elif min_col == 0 and max_col == 2:
-            parts.append("全宽")
-        else:
-            parts.append(f"第{min_col + 1}-{max_col + 1}列")
-
-        region_str = ",".join(map(str, sorted(regions)))
-        return f"区域[{region_str}]（{' '.join(parts)}）"
-
-    def _empty_result(self) -> Dict[str, Any]:
-        """返回空的查找结果"""
-        return {
-            "found": False,
-            "center": None,
-            "text": None,
-            "confidence": None,
-            "bbox": None,
-            "total_matches": 0,
-            "selected_index": 0,
-        }
-
-    def capture_and_find_text(
-        self,
-        target_text,
-        confidence_threshold=0.5,
-        screenshot_path=None,
-        occurrence=1,
-        use_cache=True,
-        regions: Optional[List[int]] = None,
-    ):
-        """
-        截图并查找目标文字的位置
-
-        Args:
-            target_text (str): 要查找的目标文字
-            confidence_threshold (float): 置信度阈值 (0-1)
-            screenshot_path (str, optional): 截图保存路径，如果为None则使用随机临时文件名
-            occurrence (int): 指定点击第几个出现的文字 (1-based)，默认为1
-            use_cache (bool): 是否使用缓存，默认为 True
-            regions (List[int], optional): 要搜索的区域列表（1-9），如果为None则搜索整个图像
-
-        Returns:
-            dict: 包含查找结果的字典，格式同find_text_in_image
-        """
-        temp_screenshot_paths: Set[str] = set()
-
-        def _create_temp_screenshot_path() -> str:
-            """生成并记录临时截图路径"""
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            unique_id = str(uuid.uuid4())[:8]
-            temp_path = os.path.join(self.temp_dir, f"screenshot_{timestamp}_{unique_id}.png")
-            temp_screenshot_paths.add(temp_path)
-            return temp_path
-
-        user_provided_path = screenshot_path is not None
-
-        try:
-            if not user_provided_path:
-                screenshot_path = _create_temp_screenshot_path()
-
-            # 首次截图
-            snapshot(filename=screenshot_path)
-            self.logger.debug(f"截图保存到: {screenshot_path}")
-
-            # 在截图中查找文字
-            result = self.find_text_in_image(
-                screenshot_path,
-                target_text,
-                confidence_threshold,
-                occurrence,
-                use_cache,
-                regions,
-            )
-
-            # 如果使用缓存但未找到，进行实时截图重试
-            if use_cache and (not result or not result.get("found")):
-                self.logger.info("缓存 OCR 未找到目标文字，尝试实时截图重试")
-                fallback_path = (
-                    screenshot_path if user_provided_path else _create_temp_screenshot_path()
-                )
-
-                snapshot(filename=fallback_path)
-                self.logger.debug(f"实时截图保存到: {fallback_path}")
-
-                fallback_result = self.find_text_in_image(
-                    fallback_path,
-                    target_text,
-                    confidence_threshold,
-                    occurrence,
-                    use_cache=False,
-                    regions=regions,
-                )
-
-                if fallback_result:
-                    result = fallback_result
-
-                # 如果实时识别成功，刷新缓存
-                if fallback_result and fallback_result.get("found") and regions is None:
-                    ocr_data = fallback_result.get("ocr_data")
-                    if ocr_data:
-                        try:
-                            self._save_to_cache(fallback_path, ocr_data, regions)
-                            self.logger.debug("实时截图结果已刷新缓存")
-                        except Exception as cache_err:
-                            self.logger.warning(f"刷新缓存失败: {cache_err}")
-
-            return result
-
-        except Exception as e:
-            self.logger.error(f"截图和识别过程出错: {e}")
-            return {
-                "found": False,
-                "center": None,
-                "text": None,
-                "confidence": None,
-                "bbox": None,
-                "total_matches": 0,
-                "selected_index": 0,
-            }
-        finally:
-            if self.delete_temp_screenshots:
-                for temp_file in list(temp_screenshot_paths):
-                    if not temp_file:
-                        continue
-                    try:
-                        if os.path.exists(temp_file):
-                            os.remove(temp_file)
-                            self.logger.debug(f"已删除临时截图: {temp_file}")
-                    except Exception as cleanup_error:
-                        self.logger.warning(f"删除临时截图失败: {cleanup_error}")
-
-    def find_and_click_text(
-        self,
-        target_text,
-        confidence_threshold=0.5,
-        screenshot_path=None,
-        occurrence=1,
-        use_cache=True,
-        regions: Optional[List[int]] = None,
-    ):
-        """
-        截图、查找文字并点击其中心点
-
-        Args:
-            target_text (str): 要查找的目标文字
-            confidence_threshold (float): 置信度阈值 (0-1)
-            screenshot_path (str, optional): 截图保存路径，如果为None则使用随机临时文件名
-            occurrence (int): 指定点击第几个出现的文字 (1-based)，默认为1
-            use_cache (bool): 是否使用缓存，默认为 True
-            regions (List[int], optional): 要搜索的区域列表（1-9），如果为None则搜索整个图像
-
-        Returns:
-            bool: 是否成功找到并点击
-        """
-        result = self.capture_and_find_text(
-            target_text,
-            confidence_threshold,
-            screenshot_path,
-            occurrence,
-            use_cache,
-            regions,
-        )
-
-        if result["found"]:
-            center = result["center"]
-            self.logger.debug(f"点击位置: {center}")
-            touch(center)
-            return True
-        else:
-            self.logger.warning(f"无法点击，未找到文字: '{target_text}'")
-            return False
+            return [] if return_all else self._empty_result()
 
     def _find_text_in_json(
-        self, json_file_path, target_text, confidence_threshold=0.5, occurrence=1
+        self, json_file_path, target_text, confidence_threshold=0.5, occurrence=1, return_all=False
     ):
         """
         从OCR结果中查找目标文字
-
-        Args:
-            json_file_path (str | dict): JSON文件路径或OCR结果字典
-            target_text (str): 要查找的目标文字
-            confidence_threshold (float): 置信度阈值 (0-1)
-            occurrence (int): 指定返回第几个出现的文字 (1-based)，默认为1
-
-        Returns:
-            dict: 查找结果字典
         """
         try:
             # 读取JSON文件或直接使用结果字典
@@ -1416,14 +1187,9 @@ class OCRHelper:
             rec_scores = data.get("rec_scores", [])
             dt_polys = data.get("dt_polys", [])  # 检测框坐标
 
-            self.logger.debug(f"在JSON中查找文字: '{target_text}' (第{occurrence}个)")
-            self.logger.debug(f"总共识别到 {len(rec_texts)} 个文字")
-
             # 收集所有匹配的文字
             matches = []
             for i, (text, score) in enumerate(zip(rec_texts, rec_scores)):
-                self.logger.debug(f"  {i + 1:2d}. '{text}' (置信度: {score:.3f})")
-
                 # 检查置信度和文字匹配（识别出的文字包含目标文字）
                 if score >= confidence_threshold and target_text in text:
                     # 获取对应的坐标框
@@ -1431,7 +1197,6 @@ class OCRHelper:
                         poly = dt_polys[i]
 
                         # 计算中心点坐标
-                        # poly 格式: [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
                         x_coords = [point[0] for point in poly]
                         y_coords = [point[1] for point in poly]
                         center_x = int(sum(x_coords) / len(x_coords))
@@ -1447,42 +1212,20 @@ class OCRHelper:
                             }
                         )
 
+            if return_all:
+                return matches
+
             total_matches = len(matches)
-            # 不在这里输出匹配数量，改为在选择后输出
-
             if total_matches == 0:
-                self.logger.warning(f"未找到匹配的文字: '{target_text}'")
-                return {
-                    "found": False,
-                    "center": None,
-                    "text": None,
-                    "confidence": None,
-                    "bbox": None,
-                    "total_matches": 0,
-                    "selected_index": 0,
-                }
-
-            # 显示所有匹配的文字
-            # 不再输出所有匹配，只输出选中的
+                return self._empty_result()
 
             # 选择指定的匹配项
             if occurrence > total_matches:
-                self.logger.warning(
-                    f"请求第{occurrence}个匹配，但只找到{total_matches}个，使用最后一个"
-                )
                 selected_match = matches[-1]
                 selected_index = total_matches
             else:
                 selected_match = matches[occurrence - 1]
                 selected_index = occurrence
-
-            # 输出选中的匹配信息
-            self.logger.info(
-                f"找到文字: '{selected_match['text']}' "
-                f"置信度:{selected_match['confidence']:.3f} "
-                f"位置:{selected_match['center']} "
-                f"缓存:是"
-            )
 
             return {
                 "found": True,
@@ -1494,39 +1237,9 @@ class OCRHelper:
                 "selected_index": selected_index,
             }
 
-        except FileNotFoundError:
-            self.logger.error(f"JSON文件不存在: {json_file_path}")
-            return {
-                "found": False,
-                "center": None,
-                "text": None,
-                "confidence": None,
-                "bbox": None,
-                "total_matches": 0,
-                "selected_index": 0,
-            }
-        except json.JSONDecodeError:
-            self.logger.error(f"JSON文件格式错误: {json_file_path}")
-            return {
-                "found": False,
-                "center": None,
-                "text": None,
-                "confidence": None,
-                "bbox": None,
-                "total_matches": 0,
-                "selected_index": 0,
-            }
         except Exception as e:
-            self.logger.error(f"处理JSON文件时出错: {e}")
-            return {
-                "found": False,
-                "center": None,
-                "text": None,
-                "confidence": None,
-                "bbox": None,
-                "total_matches": 0,
-                "selected_index": 0,
-            }
+            self.logger.error(f"处理OCR数据时出错: {e}")
+            return [] if return_all else self._empty_result()
 
     def find_all_matching_texts(self, image_path, target_text, confidence_threshold=0.5):
         """

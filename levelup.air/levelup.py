@@ -17,6 +17,7 @@ from airtest.core.settings import Settings as ST
 # Add parent directory to sys.path to import modules from project root
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from game_actions import GameActions
 from ocr_helper import OCRHelper
 
 airtest_logger = logging.getLogger("airtest")
@@ -24,6 +25,7 @@ airtest_logger.setLevel(logging.INFO)
 
 # Initialize OCR Helper
 ocr = OCRHelper()
+actions = GameActions(ocr)
 
 auto_setup(__file__)
 
@@ -149,6 +151,11 @@ async def detect_first_match(
     return None
 
 
+def request_task_handler(_):
+    """处理请求任务."""
+    touch((363, 867))
+
+
 def task_completion_handler(first_match):
     """处理任务完成, 补全所有可完成的任务."""
     global last_task_time
@@ -252,9 +259,7 @@ def build_ocr_job(
             print(f"点击 {text}")
             touch(result["center"])
 
-    return DetectionJob(
-        name=name, detector=detector, handler=handler or default_handler
-    )
+    return DetectionJob(name=name, detector=detector, handler=handler or default_handler)
 
 
 async def main_loop():
