@@ -27,6 +27,9 @@ logger.setLevel(logging.INFO)
 ocr = OCRHelper()
 actions = GameActions(ocr)
 
+# game states
+failed_in_dungeon = False
+
 auto_setup(__file__)
 
 ST.FIND_TIMEOUT = 1  # type: ignore
@@ -205,7 +208,8 @@ def skill_handler(_):
 def goto_next_place():
     try:
         logger.info("开始前往下一个地点")
-        actions.find_text_and_click("前往")
+        actions.find_text_and_click("前往", use_cache=False)
+        sleep(0.5)
         for i in range(5):
             arrow_pos = exists(ARROW_TEMPLATE)
             if arrow_pos:
@@ -216,10 +220,18 @@ def goto_next_place():
                     touch((355, 780))  # 点击前往
                     sleep(30)
                 else:  # 副本
-                    touch(ENTER_DUNGEON_TEMPLATE)
-                    sleep(3)
-                    sell_trash()
-                    touch((357, 1209))
+                    try:
+                        touch(ENTER_DUNGEON_TEMPLATE)
+                        sleep(3)
+                        sell_trash()
+                        touch((357, 1209))
+                    except Exception:
+                        global failed_in_dungeon
+                        failed_in_dungeon = True
+                        send_bark_notification(
+                            "魔兽世界挂机异常",
+                            "副本失败，放弃自动推进",
+                        )
                 return
         raise Exception("error entering dungeon")
     except Exception:
@@ -231,6 +243,7 @@ def dungeon_handler(_):
     """自动选择下一个副本或者区域."""
     logger.info("开始选择下一个副本或者区域")
     touch((160, 112))
+    sleep(1)
     goto_next_place()
 
 
@@ -270,7 +283,7 @@ def build_ocr_job(
     def default_handler(result):
         if result:
             print(f"点击 {text}")
-            touch(result["center"])
+            result.click()
 
     return DetectionJob(name=name, detector=detector, handler=handler or default_handler)
 
@@ -312,9 +325,19 @@ async def main_loop():
             build_ocr_job("request_task", "领取任务", [1], handler=request_task_handler),
         ]
         matched = await detect_first_match(jobs)
-        logger.info(f"found first matched: {matched}")
-        if not matched:
+
+        # 记录匹配结果，提高可读性
+        if matched:
+            logger.info(f"检测到匹配任务: {matched.name}")
+        else:
+            logger.debug("未检测到任何匹配任务")
+
+        # 当没有匹配且未在副本失败时，执行副本处理
+        # 这提供了一个兜底机制，确保游戏状态持续推进
+        if not matched and not failed_in_dungeon:
+            logger.debug("无匹配任务且副本未失败，执行副本处理")
             dungeon_handler(None)
+
         await asyncio.sleep(0.2)
 
 
