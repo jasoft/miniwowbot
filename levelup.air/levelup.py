@@ -278,13 +278,10 @@ def build_ocr_job(
 def build_timeout_job() -> DetectionJob:
     async def detector():
         global last_task_time
-        while True:
-            current_time = time.time()
-            elapsed = current_time - last_task_time
-            if elapsed > TASK_TIMEOUT:
-                return True
-            remaining = TASK_TIMEOUT - elapsed
-            await asyncio.sleep(min(remaining, 5))
+        # 只进行一次性检查，未超时则立即返回 None，避免阻塞 detect_first_match
+        if time.time() - last_task_time > TASK_TIMEOUT:
+            return True
+        return None
 
     def handler(_):
         global last_task_time
