@@ -35,7 +35,7 @@ ST.THRESHOLD = 0.8
 
 # Bark通知配置
 BARK_URL = "https://api.day.app/LkBmavbbbYqtmjDLVvsbMR"  # 请替换为你的Bark推送地址
-TASK_TIMEOUT = 300  # 10分钟 = 600秒
+TASK_TIMEOUT = 120  # 10分钟 = 600秒
 
 TASK_COMPLETE_TEMPLATE = Template(
     r"task_complete.png",
@@ -177,7 +177,7 @@ def request_task_handler(_):
 
 def follow_task_to_next_place():
     logger.info("开始跟随任务去下一个地点")
-    touch((65, 188))  # 点击第一个支线任务
+    touch((65, 265))  # 点击第一个支线任务
     goto_next_place()
 
 
