@@ -2,6 +2,7 @@
 __author__ = "soj"
 
 import asyncio
+import logging
 import os
 import sys
 import time
@@ -17,6 +18,9 @@ from airtest.core.settings import Settings as ST
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ocr_helper import OCRHelper
+
+airtest_logger = logging.getLogger("airtest")
+airtest_logger.setLevel(logging.INFO)
 
 # Initialize OCR Helper
 ocr = OCRHelper()
@@ -62,7 +66,7 @@ ARROW_TEMPLATE = Template(
 )
 ENTER_DUNGEON_TEMPLATE = Template(
     r"tpl1765983180854.png",
-    threshold=0.94,
+    threshold=0.92,
     rgb=True,
     resolution=(720, 1280),
 )
@@ -165,7 +169,8 @@ def task_completion_handler(first_match):
                     resolution=(720, 1280),
                 )  # 接受任务
             )
-        except Exception:
+        except Exception as e:
+            print(e)
             pass
         res = exists(TASK_COMPLETE_TEMPLATE)
 
@@ -193,9 +198,11 @@ def dungeon_handler(_):
                 print(arrow_pos)
                 touch((arrow_pos[0], arrow_pos[1] + 100))
                 sleep(0.5)  # 点击了大箭头
-                if ocr.capture_and_find_text("声望商店"):  # 这是区域
+                res = ocr.capture_and_find_text("声望商店")  # 这是区域
+                if res["found"]:
                     touch((355, 780))  # 点击前往
-                else:
+                    sleep(30)
+                else:  # 副本
                     touch(ENTER_DUNGEON_TEMPLATE)
                     sleep(3)
                     sell_trash()
@@ -216,6 +223,32 @@ def build_template_job(
     return DetectionJob(name=name, detector=detector, handler=handler)
 
 
+def build_ocr_job(
+    name: str,
+    text: str,
+    regions: list[int],
+    handler: Optional[Callable[[object], None]] = None,
+) -> DetectionJob:
+    async def detector():
+        loop = asyncio.get_event_loop()
+        # regions=[1] corresponds to top-left area
+        res = await loop.run_in_executor(
+            None, ocr.capture_and_find_text, text, 0.5, None, 1, True, regions
+        )
+        if res and res.get("found"):
+            return res
+        return None
+
+    def default_handler(result):
+        if result and result.get("found"):
+            print(f"点击 {text}")
+            touch(result["center"])
+
+    return DetectionJob(
+        name=name, detector=detector, handler=handler or default_handler
+    )
+
+
 async def main_loop():
     global last_task_time
     sell_trash()
@@ -227,8 +260,9 @@ async def main_loop():
             build_template_job("task_completion", TASK_COMPLETE_TEMPLATE, task_completion_handler),
             build_template_job("in_dungeon", IN_DUNGEON_TEMPLATE, skill_handler),
             build_template_job("next_dungeon", NEXT_DUNGEON_TEMPLATE, dungeon_handler),
+            build_ocr_job("equip_item", "装备", [1]),
         ]
-        matched = await detect_first_match(jobs)
+        await detect_first_match(jobs)
         # if not matched:
         #     next_area_handler(None)
         #     await asyncio.sleep(0.2)
