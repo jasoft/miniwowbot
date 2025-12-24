@@ -148,7 +148,7 @@ class GameElementCollection(list):
     def is_empty(self) -> bool:
         return len(self) == 0
 
-    def count(self) -> int:
+    def size(self) -> int:
         return len(self)
 
 

@@ -1145,23 +1145,16 @@ class OCRHelper:
             for res in result:
                 res_cache_used = cache_used
                 res_elapsed_time = elapsed_time
-                if hasattr(res, "rec_texts"):
-                    rec_texts = res.rec_texts
-                    rec_scores = res.rec_scores
-                    dt_polys = res.dt_polys
-                elif isinstance(res, dict):
+                
+                # 安全地获取字段，兼容 dict 和 object
+                if isinstance(res, dict):
                     rec_texts = res.get("rec_texts", [])
                     rec_scores = res.get("rec_scores", [])
                     dt_polys = res.get("dt_polys", [])
                 else:
-                    try:
-                        rec_texts = res["rec_texts"]
-                        rec_scores = res["rec_scores"]
-                        dt_polys = res["dt_polys"]
-                    except (KeyError, TypeError):
-                        rec_texts = []
-                        rec_scores = []
-                        dt_polys = []
+                    rec_texts = getattr(res, "rec_texts", [])
+                    rec_scores = getattr(res, "rec_scores", [])
+                    dt_polys = getattr(res, "dt_polys", [])
 
                 # 查找匹配的文字
                 for i, (text, score) in enumerate(zip(rec_texts, rec_scores)):

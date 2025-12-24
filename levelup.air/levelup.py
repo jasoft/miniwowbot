@@ -29,8 +29,8 @@ actions = GameActions(ocr)
 
 auto_setup(__file__)
 
-ST.FIND_TIMEOUT = 1.0
-ST.FIND_TIMEOUT_TMP = 1.0
+ST.FIND_TIMEOUT = 1  # type: ignore
+ST.FIND_TIMEOUT_TMP = 1  # type: ignore
 ST.THRESHOLD = 0.8
 
 # Bark通知配置
