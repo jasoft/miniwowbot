@@ -215,9 +215,13 @@ def dungeon_handler(_):
 
 
 def build_template_job(
-    name: str, template: Template, handler: Callable[[object], None]
+    name: str,
+    template: Template,
+    handler: Callable[[object], None],
+    delay: float = 0.2,
 ) -> DetectionJob:
     async def detector():
+        await asyncio.sleep(delay)
         # asyncio.to_thread 在低版本缺失, 用 run_in_executor 兼容
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, exists, template)
@@ -230,8 +234,10 @@ def build_ocr_job(
     text: str,
     regions: list[int],
     handler: Optional[Callable[[object], None]] = None,
+    delay: float = 0.2,
 ) -> DetectionJob:
     async def detector():
+        await asyncio.sleep(delay)
         loop = asyncio.get_event_loop()
         # regions=[1] corresponds to top-left area
         res = await loop.run_in_executor(
@@ -246,7 +252,9 @@ def build_ocr_job(
             print(f"点击 {text}")
             touch(result["center"])
 
-    return DetectionJob(name=name, detector=detector, handler=handler or default_handler)
+    return DetectionJob(
+        name=name, detector=detector, handler=handler or default_handler
+    )
 
 
 async def main_loop():
@@ -263,7 +271,10 @@ async def main_loop():
             build_ocr_job("equip_item", "装备", [1]),
             build_ocr_job("level_reached", "等级达到", [1], handler=lambda _: None),
         ]
-        await detect_first_match(jobs)
+        matched = await detect_first_match(jobs)
+        if not matched:
+            dungeon_handler(None)
+        await asyncio.sleep(0.2)
 
 
 # 初始化最后一次完成任务的时间
