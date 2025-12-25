@@ -13,7 +13,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from airtest.core.api import sleep as airtest_sleep
 from airtest.core.api import touch
 
-logger = logging.getLogger("miniwow.game_actions")
+logger = logging.getLogger("bottools.game_actions")
 
 
 def timer_decorator(func):
@@ -134,13 +134,13 @@ class GameElementCollection(list):
         """
         if not self:
             return None
-        
+
         if index >= len(self):
             return self[-1]
-            
+
         if 0 <= index < len(self):
             return self[index]
-            
+
         return None
 
     def map(self, func: Callable[[GameElement], Any]) -> List[Any]:
@@ -212,6 +212,9 @@ class GameActions:
             use_cache=use_cache,
             regions=regions,
         )
+        
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"📊 find_all 识别到 {len(results)} 个文字元素")
 
         return GameElementCollection(results, self)
 

@@ -80,14 +80,20 @@ class LoggerConfig:
         """
         import sys
 
+        # 优先使用环境变量
+        env_level = os.environ.get("LOG_LEVEL", level).upper()
+
         # 使用默认的模块名
         if logger_name is None:
             logger_name = "root"
 
         logger = logging.getLogger(logger_name)
 
-        # 如果已经配置过，直接返回
+        # 如果已经配置过，更新级别并返回
         if logger_name in cls._configured_loggers:
+            logger.setLevel(logging.DEBUG)
+            for h in logger.handlers:
+                h.setLevel(getattr(logging, env_level))
             return logger
 
         logger.setLevel(logging.DEBUG)
@@ -112,7 +118,7 @@ class LoggerConfig:
         if use_color and coloredlogs:
             try:
                 handler = logging.StreamHandler(stream=sys.stdout)
-                handler.setLevel(getattr(logging, level.upper()))
+                handler.setLevel(getattr(logging, env_level))
                 formatter = coloredlogs.ColoredFormatter(
                     fmt=log_format,
                     datefmt=date_format,
@@ -130,14 +136,14 @@ class LoggerConfig:
             except Exception:
                 # 彩色失败时降级为标准处理器
                 handler = logging.StreamHandler(stream=sys.stdout)
-                handler.setLevel(getattr(logging, level.upper()))
+                handler.setLevel(getattr(logging, env_level))
                 formatter = logging.Formatter(log_format, date_format)
                 handler.setFormatter(formatter)
                 handler.addFilter(_ContextFilter())
                 logger.addHandler(handler)
         else:
             handler = logging.StreamHandler(stream=sys.stdout)
-            handler.setLevel(getattr(logging, level.upper()))
+            handler.setLevel(getattr(logging, env_level))
             formatter = logging.Formatter(log_format, date_format)
             handler.setFormatter(formatter)
             handler.addFilter(_ContextFilter())
