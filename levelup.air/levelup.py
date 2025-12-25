@@ -27,6 +27,7 @@ from ocr_helper import OCRHelper
 # 配置日志
 logger = logging.getLogger("levelup")
 logger.setLevel(logging.INFO)
+logging.getLogger("airtest").setLevel(logging.CRITICAL)
 
 # Bark通知配置
 BARK_URL = "https://api.day.app/LkBmavbbbYqtmjDLVvsbMR"
@@ -75,6 +76,7 @@ class LevelUpEngine:
         event = GameEvent(priority, name, handler, data)
         logger.debug(f"📤 推送事件: {name} (P{priority})")
         self.queue.put(event)
+        logger.debug(self.queue)
 
     def send_notification(self, title, content):
         """发送通知"""
@@ -152,10 +154,8 @@ class LevelUpEngine:
         while self.running:
             try:
                 if not self.queue.empty():
+                    logger.debug(self.queue)
                     event = self.queue.get()
-                    if time.time() - event.timestamp > 15:  # 丢弃太久的事件
-                        self.queue.task_done()
-                        continue
 
                     logger.info(f"⚡ 执行: {event.name} (P{event.priority})")
                     loop = asyncio.get_event_loop()
@@ -169,12 +169,13 @@ class LevelUpEngine:
     # --- 处理函数 (Actions) ---
 
     def handle_task_completion(self, pos):
+        """处理任务完成事件"""
         touch(pos)
         self.last_task_time = time.time()
-        sleep(0.5)
+        sleep(1)
         touch((363, 867))  # 完成任务
-        sleep(0.5)
-        touch(self.templates["accept_task"])  # 尝试接下一个
+        sleep(1)
+        touch((363, 867))  # 接下一个
 
     def handle_request_task(self, el):
         if el.center[1] > 290:
@@ -232,6 +233,8 @@ class LevelUpEngine:
                         except:
                             self.failed_in_dungeon = True
                             self.send_notification("异常", "副本推进失败")
+                            self.click_back()
+                            raise Exception("副本推进失败")
                     return
         except Exception as e:
             logger.error(f"导航异常: {e}")
