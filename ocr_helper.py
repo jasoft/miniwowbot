@@ -40,6 +40,7 @@ class OCRHelper:
         hash_type="dhash",  # 可选: "phash", "dhash", "ahash", "whash"
         hash_threshold=10,  # hash 汉明距离阈值
         correction_map: Optional[Dict[str, str]] = None,
+        snapshot_func: Optional[callable] = None,
     ):
         """
         初始化OCR Helper
@@ -53,6 +54,7 @@ class OCRHelper:
             hash_type (str): 哈希算法类型，默认"dhash"（差分哈希，最快）
             hash_threshold (int): 哈希汉明距离阈值，默认10
             correction_map (dict): OCR 纠正映射，例如 {"装各": "装备"}
+            snapshot_func (callable): 自定义截图函数，默认为 airtest.core.api.snapshot
         """
         resolved_output_dir = ensure_project_path(output_dir)
         self.output_dir = str(resolved_output_dir)
@@ -63,6 +65,7 @@ class OCRHelper:
         self.hash_type = hash_type
         self.hash_threshold = hash_threshold
         self.correction_map = correction_map or {}
+        self.snapshot_func = snapshot_func or snapshot
 
         self.ocr_url = os.getenv("OCR_SERVER_URL", "http://localhost:8080/ocr")
 
@@ -1048,7 +1051,7 @@ class OCRHelper:
         screenshot_path = os.path.join(self.temp_dir, f"all_texts_{timestamp}_{unique_id}.png")
 
         try:
-            snapshot(filename=screenshot_path)
+            self.snapshot_func(filename=screenshot_path)
             results = self.find_text_in_image(
                 screenshot_path,
                 target_text,
@@ -1307,7 +1310,7 @@ class OCRHelper:
         screenshot_path = os.path.join(self.temp_dir, f"get_all_{timestamp}_{unique_id}.png")
 
         try:
-            snapshot(filename=screenshot_path)
+            self.snapshot_func(filename=screenshot_path)
             # 使用现有逻辑获取所有文本
             if regions:
                 # 借用 _find_text_in_regions 逻辑，传递空字符串匹配所有
