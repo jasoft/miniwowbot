@@ -212,9 +212,11 @@ class GameActions:
             use_cache=use_cache,
             regions=regions,
         )
-        
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(f"📊 find_all 识别到 {len(results)} 个文字元素")
+
+        logger.debug(f"📊 find_all 识别到 {len(results)} 个文字元素")
+        # log all texts and positions
+        for idx, result in enumerate(results):
+            logger.debug(f"  [{idx}] {result['text']} at {result['center']}")
 
         return GameElementCollection(results, self)
 

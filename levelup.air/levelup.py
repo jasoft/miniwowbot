@@ -1,354 +1,263 @@
 # -*- encoding=utf8 -*-
-__author__ = "soj"
+"""
+LevelUp 重构版：生产者-消费者架构
+1. Producer: 并发检测屏幕（OCR/Template/Status）。
+2. PriorityQueue: 事件分发中心，按优先级排序。
+3. Consumer: 顺序动作执行，互不干扰。
+"""
 
 import asyncio
 import logging
 import os
 import sys
 import time
-from collections.abc import Coroutine
-from dataclasses import dataclass
-from typing import Callable, Iterable, Optional
+from dataclasses import dataclass, field
+from queue import PriorityQueue
+from typing import Any, Callable
 
 import requests
 from airtest.core.api import Template, auto_setup, exists, sleep, swipe, touch
-from airtest.core.settings import Settings as ST
 
-# Add parent directory to sys.path to import modules from project root
+# 添加父目录到路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from game_actions import GameActions
 from ocr_helper import OCRHelper
 
-logger = logging.getLogger("airtest")
+# 配置日志
+logger = logging.getLogger("levelup")
 logger.setLevel(logging.INFO)
 
-# Initialize OCR Helper
-ocr = OCRHelper()
-actions = GameActions(ocr)
-
-# game states
-failed_in_dungeon = False
-
-auto_setup(__file__)
-
-ST.FIND_TIMEOUT = 1  # type: ignore
-ST.FIND_TIMEOUT_TMP = 1  # type: ignore
-ST.THRESHOLD = 0.8
-
 # Bark通知配置
-BARK_URL = "https://api.day.app/LkBmavbbbYqtmjDLVvsbMR"  # 请替换为你的Bark推送地址
-TASK_TIMEOUT = 120  # 10分钟 = 600秒
-
-TASK_COMPLETE_TEMPLATE = Template(
-    r"task_complete.png",
-    record_pos=(-0.281, -0.411),
-    resolution=(720, 1280),
-)
-IN_DUNGEON_TEMPLATE = Template(
-    r"in_dungeon.png",
-    record_pos=(-0.422, -0.406),
-    resolution=(720, 1280),
-    threshold=0.9,
-)
-# 经验条已满
-NEXT_DUNGEON_TEMPLATE = Template(
-    r"next_dungeon_xp_full.png",
-    record_pos=(-0.003, -0.306),
-    resolution=(720, 1280),
-    threshold=0.9,
-)
-CONFIRM_DUNGEON_TEMPLATE = Template(
-    r"confirm_dungeon.png",
-    record_pos=(0.001, 0.318),
-    resolution=(720, 1280),
-)
-ARROW_TEMPLATE = Template(
-    r"arrow.png",
-    resolution=(720, 1280),
-    rgb=True,
-    threshold=0.4,
-)
-ENTER_DUNGEON_TEMPLATE = Template(
-    r"enter_dungeon.png",
-    threshold=0.92,
-    rgb=True,
-    resolution=(720, 1280),
-)
+BARK_URL = "https://api.day.app/LkBmavbbbYqtmjDLVvsbMR"
+TASK_TIMEOUT = 120
 
 
-@dataclass
-class DetectionJob:
-    """封装一次图片检测与后续动作的任务."""
+@dataclass(order=True)
+class GameEvent:
+    """游戏事件，支持优先级排序 (priority 越小优先级越高)"""
 
-    name: str
-    detector: Callable[[], Coroutine]
-    handler: Callable[[object], None]
-
-
-def send_bark_notification(title, content):
-    """发送Bark通知"""
-    try:
-        url = f"{BARK_URL}/{title}/{content}"
-        response = requests.get(url, timeout=5)
-        if response.status_code == 200:
-            print(f"Bark通知发送成功: {title}")
-        else:
-            print(f"Bark通知发送失败: {response.status_code}")
-    except Exception as e:
-        print(f"Bark通知发送异常: {e}")
+    priority: int
+    name: str = field(compare=False)
+    handler: Callable[[Any], Any] = field(compare=False)
+    data: Any = field(default=None, compare=False)
+    timestamp: float = field(default_factory=time.time, compare=False)
 
 
-def click_back(n=3):
-    """点击返回按钮若干次"""
-    for _ in range(n):
-        touch((719, 1))
+class LevelUpEngine:
+    def __init__(self):
+        self.ocr = OCRHelper()
+        self.actions = GameActions(self.ocr)
+        self.queue = PriorityQueue()
+        self.running = True
+        self.last_task_time = time.time()
+        self.failed_in_dungeon = False
 
+        # 模板定义
+        self.templates = {
+            "task_complete": Template(r"task_complete.png", resolution=(720, 1280)),
+            "in_dungeon": Template(r"in_dungeon.png", resolution=(720, 1280), threshold=0.9),
+            "xp_full": Template(r"next_dungeon_xp_full.png", resolution=(720, 1280), threshold=0.9),
+            "enter_dungeon": Template(
+                r"enter_dungeon.png", resolution=(720, 1280), threshold=0.92, rgb=True
+            ),
+            "arrow": Template(r"arrow.png", resolution=(720, 1280), rgb=True, threshold=0.4),
+            "accept_task": Template(r"accept_task.png", resolution=(720, 1280)),
+        }
 
-def sell_trash():
-    """售卖背包垃圾物品"""
-    touch((226, 1213))
-    sleep(0.5)
-    touch((446, 1108))
-    sleep(0.5)
-    touch((469, 954))
-    click_back()
-
-
-async def detect_first_match(
-    jobs: Iterable[DetectionJob],
-) -> Optional[DetectionJob]:
-    """并发检测多张图片, 任意检测成功立即执行对应后续."""
-    task_map = {asyncio.create_task(job.detector()): job for job in jobs}
-    if not task_map:
-        return None
-
-    try:
-        while task_map:
-            done, pending = await asyncio.wait(task_map.keys(), return_when=asyncio.FIRST_COMPLETED)
-            for finished in done:
-                job = task_map.pop(finished)
-                result = finished.result()
-                if result:
-                    for other in pending:
-                        other.cancel()
-                    job.handler(result)
-                    return job
-            task_map = {task: task_map[task] for task in pending}
-    finally:
-        for task in task_map:
-            task.cancel()
-    return None
-
-
-def request_task_handler(_):
-    """处理请求任务."""
-
-    def accept_task(x):
-        touch(x.center)
-        sleep(0.5)
-        touch((358, 865))  # 接受任务
-
-    logger.info("开始领取任务")
-
-    button = actions.find("领取任务", regions=[1])
-    if button:
-        if button.center[1] > 290:  # 3个任务不满
-            return None
-        button.click()
-        for i in range(4):
-            actions.find_all(use_cache=False).contains("支线").each(lambda x: accept_task(x))
-            swipe((360, 900), (360, 300))
-
-        click_back()
-
-
-def follow_task_to_next_place():
-    logger.info("开始跟随任务去下一个地点")
-    touch((65, 265))  # 点击第一个支线任务
-    goto_next_place()
-
-
-def task_completion_handler(first_match):
-    """处理任务完成, 补全所有可完成的任务."""
-    global last_task_time
-    res = first_match
-    while res:
-        try:
-            touch(res)  # 点击完成任务那个感叹号
-            last_task_time = time.time()
-            print(
-                f"任务完成，更新时间: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(last_task_time))}"
-            )
-
-            touch((363, 867))
-            touch(
-                Template(
-                    r"accept_task.png",
-                    record_pos=(-0.004, 0.319),
-                    resolution=(720, 1280),
-                )  # 接受任务
-            )
-        except Exception as e:
-            print(e)
-            pass
-        res = exists(TASK_COMPLETE_TEMPLATE)
-
-
-def skill_handler(_):
-    """自动释放技能."""
-    # 前面四个技能是有cd的,第五个没cd
-    for i in range(4):
-        touch((105 + i * 130, 560))
-    for _ in range(10):
-        touch((615, 560))
-        sleep(0.5)
-
-
-def goto_next_place():
-    try:
-        logger.info("开始前往下一个地点")
-        actions.find_text_and_click("前往", use_cache=False)
-        sleep(0.5)
-        for i in range(5):
-            arrow_pos = exists(ARROW_TEMPLATE)
-            if arrow_pos:
-                touch((arrow_pos[0], arrow_pos[1] + 100))
-                sleep(0.5)  # 点击了大箭头
-
-                if actions.find("声望商店"):
-                    touch((355, 780))  # 点击前往
-                    sleep(30)
-                else:  # 副本
-                    try:
-                        touch(ENTER_DUNGEON_TEMPLATE)
-                        sleep(3)
-                        sell_trash()
-                        touch((357, 1209))
-                    except Exception:
-                        global failed_in_dungeon
-                        failed_in_dungeon = True
-                        send_bark_notification(
-                            "魔兽世界挂机异常",
-                            "副本失败，放弃自动推进",
-                        )
-                        raise
+    def push_event(self, priority: int, name: str, handler: Callable, data: Any = None):
+        """推送事件到队列"""
+        # 简单去重：如果队列里已经有同名事件，不再重复推送（除非是紧急事件）
+        if priority > 10:
+            if any(e.name == name for e in list(self.queue.queue)):
                 return
-        raise Exception("error entering dungeon")
-    except Exception:
-        click_back()
-        logger.error("error entering dungeon/place, back to main world")
 
+        event = GameEvent(priority, name, handler, data)
+        logger.debug(f"📤 推送事件: {name} (P{priority})")
+        self.queue.put(event)
 
-def dungeon_handler(_):
-    """自动选择下一个副本或者区域."""
-    logger.info("开始选择下一个副本或者区域")
-    touch((160, 112))
-    sleep(1)
-    goto_next_place()
+    def send_notification(self, title, content):
+        """发送通知"""
+        try:
+            requests.get(f"{BARK_URL}/{title}/{content}", timeout=5)
+        except Exception as e:
+            logger.error(f"Bark通知失败: {e}")
 
+    # --- 生产者 (检测器) ---
 
-def build_template_job(
-    name: str,
-    template: Template,
-    handler: Callable[[object], None],
-    delay: float = 0.2,
-) -> DetectionJob:
-    async def detector():
-        await asyncio.sleep(delay)
-        # asyncio.to_thread 在低版本缺失, 用 run_in_executor 兼容
+    async def producer_loop(self):
+        logger.info("🚀 生产者主循环启动")
+        while self.running:
+            try:
+                # 触发一次 OCR 识别，后续并行任务会命中 OCR 缓存
+                # 这里不直接存图片，让 GameActions 自己管截图和缓存哈希
+                await asyncio.gather(
+                    self.detect_workflow(),
+                    self.detect_combat(),
+                    self.check_status(),
+                )
+                await asyncio.sleep(0.5)
+            except Exception as e:
+                logger.error(f"生产者循环异常: {e}")
+                await asyncio.sleep(1)
+
+    async def detect_workflow(self):
+        """流程类检测 (P20-P50)"""
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, exists, template)
 
-    return DetectionJob(name=name, detector=detector, handler=handler)
+        # 1. 任务完成感叹号
+        res_complete = await loop.run_in_executor(None, exists, self.templates["task_complete"])
+        if res_complete:
+            self.push_event(20, "task_completion", self.handle_task_completion, res_complete)
 
-
-def build_ocr_job(
-    name: str,
-    text: str,
-    regions: list[int],
-    handler: Optional[Callable[[object], None]] = None,
-    delay: float = 0.2,
-) -> DetectionJob:
-    async def detector():
-        await asyncio.sleep(delay)
-        loop = asyncio.get_event_loop()
-        # regions=[1] corresponds to top-left area
-        # Pass raise_exception=False to avoid crashing on timeout
-        # Increase timeout to 2s to allow OCR processing
-        res = await loop.run_in_executor(None, actions.find, text, 2, 0.8, 1, True, regions, False)
-        if res:
-            return res
-        return None
-
-    def default_handler(result):
-        if result:
-            print(f"点击 {text}")
-            result.click()
-
-    return DetectionJob(name=name, detector=detector, handler=handler or default_handler)
-
-
-def build_timeout_job() -> DetectionJob:
-    async def detector():
-        global last_task_time
-        # 只进行一次性检查，未超时则立即返回 None，避免阻塞 detect_first_match
-        if time.time() - last_task_time > TASK_TIMEOUT:
-            return True
-        return None
-
-    def handler(_):
-        global last_task_time
-        elapsed_time = time.time() - last_task_time
-        minutes = int(elapsed_time / 60)
-        logger.warning(f"检测到任务超时 ({minutes} 分钟)，执行补救措施")
-        follow_task_to_next_place()
-        send_bark_notification(
-            "魔兽世界挂机异常",
-            f"已经{minutes}分钟没有完成任务，尝试去下一个地点，可能遇到问题，请检查！",
+        # 2. OCR 检测：领取任务
+        res_task = await loop.run_in_executor(
+            None, self.actions.find, "领取任务", 0.5, 0.8, 1, True, [1]
         )
-        last_task_time = time.time()
+        if res_task:
+            self.push_event(40, "request_task", self.handle_request_task, res_task)
 
-    return DetectionJob(name="task_timeout", detector=detector, handler=handler)
+        # 3. 经验满切换副本
+        res_xp = await loop.run_in_executor(None, exists, self.templates["xp_full"])
+        if res_xp:
+            self.push_event(45, "next_dungeon", self.handle_dungeon_transition)
+
+        # 4. 穿装备
+        res_equip = await loop.run_in_executor(
+            None, self.actions.find, "装备", 0.5, 0.8, 1, True, [1]
+        )
+        if res_equip:
+            self.push_event(60, "equip_item", lambda el: el.click(), res_equip)
+
+    async def detect_combat(self):
+        """战斗检测 (P80)"""
+        loop = asyncio.get_event_loop()
+        if await loop.run_in_executor(None, exists, self.templates["in_dungeon"]):
+            self.push_event(80, "in_combat", self.handle_combat)
+
+    async def check_status(self):
+        """状态检查与补救 (P15, P100)"""
+        # 超时补救
+        if time.time() - self.last_task_time > TASK_TIMEOUT:
+            self.push_event(15, "task_timeout", self.handle_timeout_recovery)
+
+        # 如果队列为空，且没在战斗，也没报错，执行推进逻辑 (P100)
+        if self.queue.empty() and not self.failed_in_dungeon:
+            self.push_event(100, "idle_push", lambda _: self.handle_dungeon_transition(None))
+
+    # --- 消费者 (动作执行) ---
+
+    async def consumer_loop(self):
+        logger.info("🛠️ 消费者动作线程启动")
+        while self.running:
+            try:
+                if not self.queue.empty():
+                    event = self.queue.get()
+                    if time.time() - event.timestamp > 15:  # 丢弃太久的事件
+                        self.queue.task_done()
+                        continue
+
+                    logger.info(f"⚡ 执行: {event.name} (P{event.priority})")
+                    loop = asyncio.get_event_loop()
+                    await loop.run_in_executor(None, event.handler, event.data)
+                    self.queue.task_done()
+            except Exception as e:
+                logger.error(f"消费者执行异常: {e}")
+
+            await asyncio.sleep(0.1)
+
+    # --- 处理函数 (Actions) ---
+
+    def handle_task_completion(self, pos):
+        touch(pos)
+        self.last_task_time = time.time()
+        sleep(0.5)
+        touch((363, 867))  # 完成任务
+        sleep(0.5)
+        touch(self.templates["accept_task"])  # 尝试接下一个
+
+    def handle_request_task(self, el):
+        if el.center[1] > 290:
+            return  # 3个任务不满
+        el.click()
+        for _ in range(3):
+            self.actions.find_all(use_cache=False).contains("支线").each(
+                lambda x: touch(x.center) or sleep(0.5) or touch((358, 865))
+            )
+            swipe((360, 900), (360, 300))
+        self.click_back()
+
+    def handle_combat(self, _):
+        for i in range(4):
+            touch((105 + i * 130, 560))
+        for _ in range(5):
+            touch((615, 560))
+            sleep(0.3)
+
+    def handle_dungeon_transition(self, _):
+        logger.info("推进副本/区域流程")
+        touch((160, 112))  # 地图
+        sleep(1)
+        self.goto_next_place()
+
+    def handle_timeout_recovery(self, _):
+        logger.warning("任务超时，执行补救强制导航")
+        touch((65, 265))  # 第一个任务位
+        self.goto_next_place()
+        self.last_task_time = time.time()
+
+    def goto_next_place(self):
+        try:
+            next_btn = self.actions.find_all(use_cache=False).equals("前往").first()
+            if next_btn:
+                next_btn.click()
+            else:
+                return
+
+            sleep(0.5)
+            for _ in range(5):
+                arrow = exists(self.templates["arrow"])
+                if arrow:
+                    touch((arrow[0], arrow[1] + 100))
+                    sleep(0.5)
+                    if self.actions.find("声望商店"):
+                        touch((355, 780))
+                        sleep(30)
+                    else:
+                        try:
+                            touch(self.templates["enter_dungeon"])
+                            sleep(3)
+                            self.sell_trash()
+                            touch((357, 1209))
+                        except:
+                            self.failed_in_dungeon = True
+                            self.send_notification("异常", "副本推进失败")
+                    return
+        except Exception as e:
+            logger.error(f"导航异常: {e}")
+            self.click_back()
+
+    def sell_trash(self):
+        touch((226, 1213))
+        sleep(0.5)
+        touch((446, 1108))
+        sleep(0.5)
+        touch((469, 954))
+        self.click_back()
+
+    def click_back(self, n=2):
+        for _ in range(n):
+            touch((719, 1))
 
 
-async def main_loop():
-    global last_task_time
-    sell_trash()
-    while True:
-        jobs = [
-            build_timeout_job(),
-            build_template_job("task_completion", TASK_COMPLETE_TEMPLATE, task_completion_handler),
-            build_template_job("in_dungeon", IN_DUNGEON_TEMPLATE, skill_handler),
-            build_template_job("next_dungeon", NEXT_DUNGEON_TEMPLATE, dungeon_handler),
-            build_ocr_job("equip_item", "装备", [1]),
-            build_ocr_job("level_reached", "等级达到", [1], handler=lambda _: None),
-            build_ocr_job("request_task", "领取任务", [1], handler=request_task_handler),
-        ]
-        matched = await detect_first_match(jobs)
-
-        # 记录匹配结果，提高可读性
-        if matched:
-            logger.info(f"检测到匹配任务: {matched.name}")
-        else:
-            logger.debug("未检测到任何匹配任务")
-
-        # 当没有匹配且未在副本失败时，执行副本处理
-        # 这提供了一个兜底机制，确保游戏状态持续推进
-        if not matched and not failed_in_dungeon:
-            logger.debug("无匹配任务且副本未失败，执行副本处理")
-            dungeon_handler(None)
-
-        await asyncio.sleep(0.2)
-
-
-# 初始化最后一次完成任务的时间
-last_task_time = time.time()
+async def main():
+    auto_setup(__file__)
+    engine = LevelUpEngine()
+    await asyncio.gather(engine.producer_loop(), engine.consumer_loop())
 
 
 if __name__ == "__main__":
-    if hasattr(asyncio, "run"):
-        asyncio.run(main_loop())
-    else:
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(main_loop())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass

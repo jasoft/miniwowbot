@@ -906,13 +906,7 @@ class OCRHelper:
                         "rec_scores": pruned.get("rec_scores", []),
                         "dt_polys": dt_polys,
                     }
-                    
-                    # 增加详细日志，帮助调试
-                    if self.logger.isEnabledFor(logging.DEBUG):
-                        texts_preview = ", ".join(rec_texts[:20])
-                        if len(rec_texts) > 20:
-                            texts_preview += f" ... (共 {len(rec_texts)} 个)"
-                        self.logger.debug(f"🔍 OCR 识别到文字: [{texts_preview}]")
+
                 else:
                     self.logger.warning("OCR Server returned empty ocrResults")
             else:
