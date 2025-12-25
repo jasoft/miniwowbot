@@ -232,6 +232,7 @@ def goto_next_place():
                             "魔兽世界挂机异常",
                             "副本失败，放弃自动推进",
                         )
+                        raise
                 return
         raise Exception("error entering dungeon")
     except Exception:

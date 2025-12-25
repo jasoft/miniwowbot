@@ -870,7 +870,7 @@ class OCRHelper:
             }
 
             # 3. 发送请求 (默认端口 8080)
-            response = requests.post(self.ocr_url, json=payload, timeout=30)
+            response = requests.post(self.ocr_url, json=payload, timeout=60)
             response.raise_for_status()
             json_resp = response.json()
 
@@ -985,7 +985,7 @@ class OCRHelper:
             return_all (bool): 是否返回所有匹配项的列表
 
         Returns:
-            dict | list: 如果 return_all=False, 返回查找结果字典; 
+            dict | list: 如果 return_all=False, 返回查找结果字典;
                          如果 return_all=True, 返回包含所有匹配字典的列表
         """
         try:
@@ -1040,12 +1040,12 @@ class OCRHelper:
         """
         # 内部复用 capture_and_find_text 的部分逻辑（截图与重试）
         # 但传递 return_all=True
-        
+
         # 为了简洁，这里直接调用 find_text_in_image 逻辑
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         unique_id = str(uuid.uuid4())[:8]
         screenshot_path = os.path.join(self.temp_dir, f"all_texts_{timestamp}_{unique_id}.png")
-        
+
         try:
             snapshot(filename=screenshot_path)
             results = self.find_text_in_image(
@@ -1054,7 +1054,7 @@ class OCRHelper:
                 confidence_threshold,
                 use_cache=use_cache,
                 regions=regions,
-                return_all=True
+                return_all=True,
             )
             return results
         finally:
@@ -1145,7 +1145,7 @@ class OCRHelper:
             for res in result:
                 res_cache_used = cache_used
                 res_elapsed_time = elapsed_time
-                
+
                 # 安全地获取字段，兼容 dict 和 object
                 if isinstance(res, dict):
                     rec_texts = res.get("rec_texts", [])
@@ -1317,7 +1317,7 @@ class OCRHelper:
                     occurrence=1,
                     regions=regions,
                     use_cache=use_cache,
-                    return_all=True
+                    return_all=True,
                 )
             else:
                 # 获取全屏 OCR 结果

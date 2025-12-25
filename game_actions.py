@@ -50,6 +50,8 @@ class GameElement(dict):
     def __init__(self, data: Dict[str, Any], action_context: "GameActions"):
         super().__init__(data or {})
         self.action_context = action_context
+        # 兼容旧代码，确保 result.get("found") 返回 True
+        self["found"] = True
 
     @property
     def center(self) -> Tuple[int, int]:
