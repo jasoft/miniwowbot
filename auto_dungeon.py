@@ -91,6 +91,7 @@ ENTER_GAME_BUTTON_TEMPLATE = Template(
 
 CLICK_INTERVAL = 1
 STOP_FILE = str(resolve_project_path(".stop_dungeon"))  # 停止标记文件路径
+LAST_OCCURRENCE = 9999  # 用于表示查找最后一个出现的文字
 
 # 配置彩色日志（从系统配置文件加载通用日志配置）
 logger = setup_logger_from_config(use_color=True)
@@ -864,7 +865,7 @@ class DailyCollectManager:
         res = find_text(
             "招募10次",
             regions=[8, 9],
-            occurrence=9,
+            occurrence=LAST_OCCURRENCE,
             raise_exception=False,
             use_cache=False,
         )
@@ -1281,7 +1282,7 @@ def focus_and_click_dungeon(dungeon_name, zone_name, max_attempts=2):
         result = find_text_and_click_safe(
             dungeon_name,
             timeout=6,
-            occurrence=9,
+            occurrence=LAST_OCCURRENCE,
             use_cache=use_cache,
         )
         if result:
