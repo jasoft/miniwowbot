@@ -128,9 +128,19 @@ class GameElementCollection(list):
         return self[-1] if self else None
 
     def get(self, index: int) -> Optional[GameElement]:
-        """获取指定索引的元素 (0-based)"""
+        """
+        获取指定索引的元素 (0-based)
+        兼容性修改：如果 index 超过列表长度，返回最后一个元素 (Legacy OCRHelper behavior)
+        """
+        if not self:
+            return None
+        
+        if index >= len(self):
+            return self[-1]
+            
         if 0 <= index < len(self):
             return self[index]
+            
         return None
 
     def map(self, func: Callable[[GameElement], Any]) -> List[Any]:
