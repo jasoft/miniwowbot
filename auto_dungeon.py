@@ -311,7 +311,7 @@ def open_map():
 
     touch(MAP_BUTTON)
     logger.info("🗺️ 打开地图")
-    sleep(CLICK_INTERVAL)
+    sleep(2, "等待地图加载完毕, 地图是弹出来的, 坐标会变化")
 
 
 def is_on_map():
