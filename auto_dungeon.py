@@ -756,8 +756,10 @@ class DailyCollectManager:
             try:
                 if res:
                     touch(res["center"])
+                    sleep(CLICK_INTERVAL, "等待兑换碎片窗口")
                     find_text_and_click("确定", regions=[5])
                     res.offset_click(0, 125)
+                    sleep(CLICK_INTERVAL, "等待兑换碎片窗口")
                     find_text_and_click("确定", regions=[5])
                     send_bark_notification("兑换碎片成功", "兑换成功, 请立即检查")
             except Exception as e:
