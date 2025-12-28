@@ -5,8 +5,6 @@ import os
 import sys
 import time
 import urllib.parse
-import uuid
-from datetime import datetime
 from typing import Optional
 
 import requests
@@ -18,11 +16,9 @@ from airtest.core.api import (
     keyevent,
     log,
     shell,
-    snapshot,
     start_app,
     stop_app,
     swipe,
-    text,
     touch,
     wait,
 )
@@ -53,6 +49,7 @@ from coordinates import (
 from database import DungeonProgressDB
 from emulator_manager import EmulatorManager
 from error_dialog_monitor import ErrorDialogMonitor
+from game_actions import GameActions
 from logger_config import (
     GlobalLogContext,
     apply_logging_slice,
@@ -94,6 +91,7 @@ ENTER_GAME_BUTTON_TEMPLATE = Template(
 
 CLICK_INTERVAL = 1
 STOP_FILE = str(resolve_project_path(".stop_dungeon"))  # 停止标记文件路径
+LAST_OCCURRENCE = 9999  # 用于表示查找最后一个出现的文字
 
 # 配置彩色日志（从系统配置文件加载通用日志配置）
 logger = setup_logger_from_config(use_color=True)
@@ -107,6 +105,7 @@ config_loader = None
 system_config = None
 zone_dungeons = None
 ocr_helper = None
+game_actions = None  # 游戏动作助手
 emulator_manager = None
 target_emulator = None  # 目标模拟器名称
 config_name = None  # 配置文件名称（用于日志上下文标签）
@@ -159,373 +158,44 @@ def check_stop_signal():
     return False
 
 
-def timer_decorator(func):
-    """
-    装饰器：计算函数的执行时间
-
-    专门用于需要监控执行时间的函数，特别是 is_main_world() 这种频繁调用的函数
-
-    :param func: 要装饰的函数
-    :return: 包装后的函数
-    """
-    import logging
-    from functools import wraps
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        start_time = time.perf_counter()
-        result = func(*args, **kwargs)
-        elapsed_time = time.perf_counter() - start_time
-
-        # 使用函数所在模块的 logger
-        func_logger = logging.getLogger(func.__module__)
-
-        # 根据执行时间使用不同的日志级别和表情符号
-        if elapsed_time < 0.01:
-            func_logger.debug(f"⚡ {func.__name__} 执行时间: {elapsed_time:.4f}秒 (< 10ms)")
-        elif elapsed_time < 0.5:
-            func_logger.debug(f"⏱️ {func.__name__} 执行时间: {elapsed_time:.4f}秒")
-        elif elapsed_time < 1.0:
-            func_logger.warning(f"🐌 {func.__name__} 执行时间: {elapsed_time:.4f}秒 (> 500ms)")
-        else:
-            func_logger.warning(f"🐢 {func.__name__} 执行时间: {elapsed_time:.4f}秒 (> 1s)")
-
-        return result
-
-    return wrapper
-
-
-@timer_decorator
-def find_text(
-    text,
-    timeout=10,
-    similarity_threshold=0.7,
-    occurrence=1,
-    use_cache=True,
-    regions=None,
-    raise_exception=True,
-):
-    """
-    使用 OCRHelper 查找文本
-    支持 OCR 纠正：如果找不到原文本，会尝试查找 OCR 可能识别错误的文本
-
-    :param text: 要查找的文本
-    :param timeout: 超时时间（秒）
-    :param similarity_threshold: 相似度阈值
-    :param occurrence: 指定第几个出现的文字 (1-based)，默认为1
-    :param use_cache: 是否使用缓存
-    :param regions: 要搜索的区域列表 (1-9)，None表示全屏搜索
-    :param raise_exception: 超时后是否抛出异常，默认True
-    :return: OCR识别结果字典，包含 center, text, confidence 等信息
-    :raises TimeoutError: 如果超时且 raise_exception=True
-    """
-    # 检查 ocr_helper 是否已初始化
-    if ocr_helper is None:
-        error_msg = "❌ OCR助手未初始化，无法查找文本"
-        logger.error(error_msg)
-        if raise_exception:
-            raise RuntimeError(error_msg)
-        return None
-
-    region_desc = ""
-    if regions:
-        region_desc = f" [区域{regions}]"
-
-    if occurrence > 1:
-        logger.info(f"🔍 查找文本: {text} (第{occurrence}个){region_desc}")
-    else:
-        logger.info(f"🔍 查找文本: {text}{region_desc}")
-    start_time = time.time()
-
-    # 准备要尝试的文本列表：[原文本, OCR可能识别的错误文本]
-    texts_to_try = [text]
-
-    # 检查是否有对应的 OCR 纠正映射（反向查找）
-    if config_loader:
-        for ocr_text, correct_text in config_loader.get_ocr_correction_map().items():
-            if correct_text == text:
-                texts_to_try.append(ocr_text)
-                logger.debug(f"💡 将同时尝试查找 OCR 可能识别的文本: {ocr_text}")
-                break
-
-    while time.time() - start_time < timeout:
-        # 尝试所有可能的文本
-        for try_text in texts_to_try:
-            # 使用 OCRHelper 查找文本
-            result = ocr_helper.capture_and_find_text(
-                try_text,
-                confidence_threshold=similarity_threshold,
-                occurrence=occurrence,
-                use_cache=use_cache,
-                regions=regions,
-            )
-
-            if result and result.get("found"):
-                if try_text != text:
-                    logger.info(
-                        f"✅ 通过 OCR 纠正找到文本: {text} (OCR识别为: {try_text}){region_desc}"
-                    )
-                else:
-                    if occurrence > 1:
-                        logger.info(f"✅ 找到文本: {text} (第{occurrence}个){region_desc}")
-                    else:
-                        logger.info(f"✅ 找到文本: {text}{region_desc}")
-                return result
-
-        # 短暂休眠避免CPU占用过高
-        sleep(0.1)
-
-    # 超时处理
-    error_msg = f"❌ 超时未找到文本: {text}"
-    if occurrence > 1:
-        error_msg = f"❌ 超时未找到文本: {text} (第{occurrence}个)"
-
-    logger.warning(error_msg)
-
-    if raise_exception:
-        raise TimeoutError(error_msg)
-
+def find_text(*args, **kwargs):
+    if game_actions:
+        return game_actions.find_text(*args, **kwargs)
+    logger.error("❌ GameActions 未初始化")
     return None
 
 
-@timer_decorator
-def text_exists(
-    texts,
-    similarity_threshold: float = 0.7,
-    use_cache: bool = True,
-    regions=None,
-):
-    """检查当前界面上给定文本列表中的任意一个是否存在。
-
-    为了避免对同一帧画面进行多次截图和重复 OCR，这里优先尝试：
-    - 截图一次；
-    - 通过 OCRHelper 的缓存/JSON 接口一次性拿到所有文字；
-    - 在内存中对多个候选文本进行匹配；
-    - 只在无法使用该能力时，才回退到逐个调用 ``capture_and_find_text`` 的旧逻辑。
-
-    Args:
-        texts: 文本列表（数组），按优先级从高到低排列；
-               如果传入的是单个字符串，则会自动转换为只包含该字符串的列表。
-        similarity_threshold: 相似度阈值 (0-1)。
-        use_cache: 是否使用 OCR 缓存。
-        regions: 要搜索的区域列表 (1-9)，None 表示全屏搜索。
-
-    Returns:
-        dict | None: 如果找到任意一个文本，返回 OCR 结果字典（包含 center/text 等字段）；
-                      如果都未找到，返回 None。
-    """
-
-    # 检查 ocr_helper 是否已初始化
-    if ocr_helper is None:
-        logger.error("❌ OCR助手未初始化，无法判断文本是否存在")
-        return None
-
-    # 规范化输入为列表
-    if isinstance(texts, str):
-        texts_to_check = [texts]
-    else:
-        try:
-            texts_to_check = list(texts) if texts is not None else []
-        except TypeError:
-            # 不可迭代的输入，直接当作单个字符串处理
-            texts_to_check = [str(texts)]
-
-    if not texts_to_check:
-        logger.warning("⚠️ text_exists 收到空的文本列表，直接返回 None")
-        return None
-
-    region_desc = f" [区域{regions}]" if regions else ""
-    logger.debug(f"🔍 text_exists 检查文本列表: {texts_to_check}{region_desc}")
-
-    # 优先使用 OCRHelper 的批量 OCR 能力（单次截图 + 复用 JSON 结果）
-    has_bulk_ocr = hasattr(ocr_helper, "_get_or_create_ocr_result") and hasattr(
-        ocr_helper, "_get_all_texts_from_json"
-    )
-
-    screenshot_path: Optional[str] = None
-    if has_bulk_ocr:
-        try:
-            # 1) 截图一次
-            base_dir = getattr(ocr_helper, "temp_dir", os.getcwd())
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            unique_id = str(uuid.uuid4())[:8]
-            screenshot_path = os.path.join(base_dir, f"text_exists_{timestamp}_{unique_id}.png")
-
-            snapshot(filename=screenshot_path)
-            logger.debug(f"📸 text_exists 截图保存到: {screenshot_path}")
-
-            # 2) 基于缓存系统获取/创建 OCR JSON 结果
-            json_file = ocr_helper._get_or_create_ocr_result(  # type: ignore[attr-defined]
-                screenshot_path,
-                use_cache=use_cache,
-                regions=regions,
-            )
-
-            if not json_file:
-                logger.info(
-                    f"🔍 text_exists 未获取到 OCR JSON 结果, 文本: {texts_to_check}{region_desc}"
-                )
-            else:
-                # 3) 从 JSON 中加载所有识别到的文字信息
-                all_texts = ocr_helper._get_all_texts_from_json(  # type: ignore[attr-defined]
-                    json_file
-                )
-                if not all_texts:
-                    logger.info(f"🔍 text_exists OCR 结果为空: {texts_to_check}{region_desc}")
-                else:
-                    # 4) 在内存中的 OCR 结果里，按 texts_to_check 的顺序查找第一个命中的文本
-                    for candidate in texts_to_check:
-                        for info in all_texts:
-                            text_val = info.get("text") or ""
-                            conf = float(info.get("confidence") or 0.0)
-                            center = info.get("center")
-
-                            # 根据 regions 做一次坐标过滤（如果可用）
-                            in_region = True
-                            if regions and center:
-                                try:
-                                    import cv2  # type: ignore[import]
-
-                                    img = cv2.imread(screenshot_path)
-                                    if img is not None and hasattr(
-                                        ocr_helper, "_get_region_bounds"
-                                    ):
-                                        height, width = img.shape[:2]
-                                        x, y, w, h = ocr_helper._get_region_bounds(  # type: ignore[attr-defined]
-                                            (height, width), regions
-                                        )
-                                        cx, cy = center
-                                        in_region = x <= cx <= x + w and y <= cy <= y + h
-                                except Exception as region_err:  # pragma: no cover - 容错日志
-                                    logger.warning(
-                                        f"text_exists 区域过滤出错, 将退回全屏匹配: {region_err}"
-                                    )
-
-                            if conf >= similarity_threshold and candidate in text_val and in_region:
-                                logger.info(
-                                    f"✅ text_exists 找到文本: {candidate}{region_desc} at {center}"
-                                )
-                                return {
-                                    "found": True,
-                                    "center": center,
-                                    "text": text_val,
-                                    "confidence": conf,
-                                    "bbox": info.get("bbox"),
-                                    "total_matches": 1,
-                                    "selected_index": 1,
-                                }
-
-        except Exception as e:  # pragma: no cover - 容错日志
-            logger.error(f"text_exists 使用单次 OCR 批量匹配时出错, 将回退到逐个查询模式: {e}")
-        finally:
-            if screenshot_path and os.path.exists(screenshot_path):
-                try:
-                    os.remove(screenshot_path)
-                except Exception as cleanup_error:  # pragma: no cover - 容错日志
-                    logger.warning(f"text_exists 删除临时截图失败: {cleanup_error}")
-
-    # 回退方案：逐个调用 capture_and_find_text（主要用于测试或旧版本 OCRHelper）
-    for candidate in texts_to_check:
-        result = ocr_helper.capture_and_find_text(
-            candidate,
-            confidence_threshold=similarity_threshold,
-            occurrence=1,
-            use_cache=use_cache,
-            regions=regions,
-        )
-
-        if result and result.get("found"):
-            center = result.get("center")
-            logger.info(f"✅ text_exists 找到文本: {candidate}{region_desc} at {center}")
-            return result
-
-    logger.info(f"🔍 text_exists 未找到任何目标文本: {texts_to_check}{region_desc}")
+def text_exists(*args, **kwargs):
+    if game_actions:
+        return game_actions.text_exists(*args, **kwargs)
+    logger.error("❌ GameActions 未初始化")
     return None
 
 
-def find_text_and_click(
-    text,
-    timeout=10,
-    similarity_threshold=0.7,
-    occurrence=1,
-    use_cache=True,
-    regions=None,
-):
-    """
-    使用 OCRHelper 查找文本并点击
-    支持 OCR 纠正：如果找不到原文本，会尝试查找 OCR 可能识别错误的文本
-
-    :param text: 要查找的文本
-    :param timeout: 超时时间（秒）
-    :param similarity_threshold: 相似度阈值
-    :param occurrence: 指定点击第几个出现的文字 (1-based)，默认为1
-    :param use_cache: 是否使用缓存
-    :param regions: 要搜索的区域列表 (1-9)，None表示全屏搜索
-    :return: 成功返回 find_text 的结果字典
-    :raises TimeoutError: 如果超时未找到文本
-    :raises Exception: 其他错误
-    """
-    try:
-        # 调用 find_text 查找文本（抛出异常）
-        result = find_text(
-            text=text,
-            timeout=timeout,
-            similarity_threshold=similarity_threshold,
-            occurrence=occurrence,
-            use_cache=use_cache,
-            regions=regions,
-            raise_exception=True,
-        )
-
-        # 点击找到的位置
-        assert result
-        center = result["center"]
-        touch(center)
-
-        region_desc = f" [区域{regions}]" if regions else ""
-        logger.info(f"✅ 成功点击: {text}{region_desc} at {center}")
-        sleep(CLICK_INTERVAL)  # 每个点击后面停顿一下等待界面刷新
-        return result
-
-    except Exception as e:
-        logger.error(f"❌ 查找并点击文本失败: {text} - {e}")
-        raise
+def find_text_and_click(*args, **kwargs):
+    if game_actions:
+        return game_actions.find_text_and_click(*args, **kwargs)
+    raise RuntimeError("GameActions 未初始化")
 
 
-def find_text_and_click_safe(
-    text,
-    timeout=10,
-    similarity_threshold=0.7,
-    occurrence=1,
-    use_cache=True,
-    regions=None,
-    default_return=False,
-):
-    """
-    安全版本的 find_text_and_click，不会抛出异常
+def find_text_and_click_safe(*args, **kwargs):
+    if game_actions:
+        return game_actions.find_text_and_click_safe(*args, **kwargs)
+    return kwargs.get("default_return", False)
 
-    :param text: 要查找的文本
-    :param timeout: 超时时间（秒）
-    :param similarity_threshold: 相似度阈值
-    :param occurrence: 指定点击第几个出现的文字 (1-based)，默认为1
-    :param use_cache: 是否使用缓存
-    :param regions: 要搜索的区域列表 (1-9)，None表示全屏搜索
-    :param default_return: 找不到时返回的默认值（False或None）
-    :return: 成功返回 find_text 的结果字典，失败返回 default_return
-    """
-    try:
-        return find_text_and_click(
-            text=text,
-            timeout=timeout,
-            similarity_threshold=similarity_threshold,
-            occurrence=occurrence,
-            use_cache=use_cache,
-            regions=regions,
-        )
-    except Exception as e:
-        region_desc = f" [区域{regions}]" if regions else ""
-        logger.debug(f"⚠️ 安全查找并点击失败: {text}{region_desc} - {e}")
-        return default_return
+
+def find_all_texts(*args, **kwargs):
+    if game_actions:
+        return game_actions.find_all_texts(*args, **kwargs)
+    logger.error("❌ GameActions 未初始化")
+    return []
+
+
+def find_all(*args, **kwargs):
+    if game_actions:
+        return game_actions.find_all(*args, **kwargs)
+    logger.error("❌ GameActions 未初始化")
+    return []
 
 
 def click_back():
@@ -641,7 +311,7 @@ def open_map():
 
     touch(MAP_BUTTON)
     logger.info("🗺️ 打开地图")
-    sleep(CLICK_INTERVAL)
+    sleep(2, "等待地图加载完毕, 地图是弹出来的, 坐标会变化")
 
 
 def is_on_map():
@@ -1083,25 +753,6 @@ class DailyCollectManager:
         back_to_main()
         send_bark_notification("主题奖励提醒", "别忘了买碎片")
 
-    def _checkin_taptap(self):
-        """签到 taptap,领一些礼品"""
-        logger.info("签到 taptap")
-        keyevent("HOME")
-        find_text_and_click("签到", regions=[1])
-        sleep(5)
-        find_text_and_click_safe("去签到", regions=[5], timeout=20)
-        find_text_and_click_safe("立即签到", regions=[8, 9], timeout=20)
-        find_text_and_click_safe("复制", regions=[6, 9], timeout=20)
-        start_app("com.ms.ysjyzr")
-        sleep(5)
-        back_to_main()
-        switch_to("战斗")
-        send_button = find_text_and_click("发送", regions=[9])
-        touch((send_button["center"][0] - 100, send_button["center"][1]))
-        shell("input keyevent 279")
-        text("")
-        touch(send_button["center"])
-
     def _collect_idle_rewards(self):
         """
         领取每日挂机奖励
@@ -1214,7 +865,7 @@ class DailyCollectManager:
         res = find_text(
             "招募10次",
             regions=[8, 9],
-            occurrence=9,
+            occurrence=LAST_OCCURRENCE,
             raise_exception=False,
             use_cache=False,
         )
@@ -1631,7 +1282,7 @@ def focus_and_click_dungeon(dungeon_name, zone_name, max_attempts=2):
         result = find_text_and_click_safe(
             dungeon_name,
             timeout=6,
-            occurrence=9,
+            occurrence=LAST_OCCURRENCE,
             use_cache=use_cache,
         )
         if result:
@@ -1837,7 +1488,6 @@ def handle_load_account_mode(
         max_cache_size=(50 if low_mem else 200),
         hash_type="dhash",
         hash_threshold=10,
-        cpu_threads=(2 if low_mem else None),
         max_width=(640 if low_mem else 960),
         delete_temp_screenshots=True,
     )
@@ -2075,13 +1725,18 @@ def initialize_device_and_ocr(emulator_name: Optional[str] = None, low_mem: bool
             raise
 
     if ocr_helper is None:
+        correction_map = config_loader.get_ocr_correction_map() if config_loader else None
         ocr_helper = OCRHelper(
             output_dir="output",
-            cpu_threads=(2 if low_mem else None),
             max_cache_size=(50 if low_mem else 200),
             max_width=(640 if low_mem else 960),
             delete_temp_screenshots=True,
+            correction_map=correction_map,
         )
+
+    global game_actions
+    if game_actions is None:
+        game_actions = GameActions(ocr_helper, click_interval=CLICK_INTERVAL)
 
 
 def count_remaining_selected_dungeons(db):

@@ -3,24 +3,41 @@
 清理和重组缓存目录结构
 """
 
+import argparse
 import os
 import shutil
-import sqlite3
 
 
-def cleanup_output_directory():
-    """清理 output 目录，重组缓存结构"""
+def cleanup_output_directory(full_clean=False):
+    """
+    清理 output 目录，重组缓存结构
+    
+    Args:
+        full_clean (bool): 是否执行完全清理（包括删除数据库）
+    """
     print("=" * 60)
     print("清理和重组缓存目录结构")
+    if full_clean:
+        print("⚠️ 警告: 将执行完全清理，删除所有缓存数据库！")
     print("=" * 60)
 
     output_dir = "output"
     cache_dir = os.path.join(output_dir, "cache")
     temp_dir = os.path.join(output_dir, "temp")
+    db_path = os.path.join(cache_dir, "cache.db")
 
     # 确保目录存在
     os.makedirs(cache_dir, exist_ok=True)
     os.makedirs(temp_dir, exist_ok=True)
+    
+    # 0. 如果是完全清理，先删除数据库
+    if full_clean and os.path.exists(db_path):
+        try:
+            print(f"\n🧨 正在删除缓存数据库: {db_path}")
+            os.remove(db_path)
+            print("✅ 缓存数据库已删除")
+        except Exception as e:
+            print(f"❌ 删除数据库失败: {e}")
 
     # 1. 移动所有 JSON 文件到 cache 目录
     print("\n📁 移动 JSON 文件到 cache 目录...")
@@ -35,16 +52,22 @@ def cleanup_output_directory():
                 print(f"  移动: {filename}")
     print(f"✅ 移动了 {json_files_moved} 个 JSON 文件")
 
-    # 2. 清理旧的 cache 文件（保留数据库）
+    # 2. 清理旧的 cache 文件
     print("\n🗑️ 清理旧的缓存文件...")
     cache_files_removed = 0
     cache_files_failed = 0
     total_size_freed = 0
-    db_path = os.path.join(cache_dir, "cache.db")
 
-    # 读取数据库，了解哪些文件应该保留
-    files_to_keep = {"cache.db", "cache_index.json"}
-    # 删除不在数据库中的缓存文件
+    # 如果数据库被删除了（或者不存在），所有缓存文件都应该被清理
+    if not os.path.exists(db_path):
+        print("  数据库不存在，将清理所有缓存文件...")
+        files_to_keep = set()
+    else:
+        # 读取数据库，了解哪些文件应该保留
+        # 注意：现在数据库只存哈希和JSON，不存文件路径，所以理论上 cache 目录下不应该有图片文件
+        # 除非是旧版本的残留。这里我们保留 cache.db 和索引文件
+        files_to_keep = {"cache.db", "cache_index.json"}
+
     print("  扫描 cache 目录中的所有文件...")
     all_files = os.listdir(cache_dir)
     print(f"  总文件数: {len(all_files)}")
@@ -52,11 +75,11 @@ def cleanup_output_directory():
     for filename in all_files:
         filepath = os.path.join(cache_dir, filename)
 
-        # 只保留数据库和索引文件
-        if filename in ["cache.db", "cache_index.json"]:
+        # 始终保留数据库文件（如果它还没被删）
+        if filename == "cache.db":
             continue
 
-        # 如果文件不在数据库中，删除它
+        # 如果文件不在保留列表中，删除它
         if filename not in files_to_keep:
             try:
                 if os.path.isfile(filepath):
@@ -72,7 +95,7 @@ def cleanup_output_directory():
                 cache_files_failed += 1
                 print(f"  ⚠️ 删除失败: {filename} - {e}")
 
-    print(f"✅ 删除了 {cache_files_removed} 个孤立的缓存文件")
+    print(f"✅ 删除了 {cache_files_removed} 个文件")
     if cache_files_failed > 0:
         print(f"⚠️ 删除失败: {cache_files_failed} 个文件")
     if total_size_freed > 0:
@@ -82,13 +105,28 @@ def cleanup_output_directory():
     # 3. 创建 temp 目录（如果不存在）
     print("\n📁 确保临时目录存在...")
     os.makedirs(temp_dir, exist_ok=True)
-    print(f"✅ 临时目录: {temp_dir}")
+    
+    # 清理 temp 目录
+    print("🧹 清理 temp 目录...")
+    temp_removed = 0
+    for filename in os.listdir(temp_dir):
+        filepath = os.path.join(temp_dir, filename)
+        try:
+            if os.path.isfile(filepath):
+                os.remove(filepath)
+                temp_removed += 1
+            elif os.path.isdir(filepath):
+                shutil.rmtree(filepath)
+                temp_removed += 1
+        except Exception:
+            pass
+    print(f"✅ 清理了 {temp_removed} 个临时文件")
 
     # 4. 显示目录结构
     print("\n📊 新的目录结构:")
     print("output/")
     print("├── cache/        # 缓存目录（仅缓存数据库）")
-    print("├── temp/         # 临时文件（可随时删除）")
+    print("├── temp/         # 临时文件（已清空）")
 
     # 统计文件数量
     cache_files = len(os.listdir(cache_dir)) if os.path.exists(cache_dir) else 0
@@ -105,6 +143,10 @@ def cleanup_output_directory():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="清理 OCR 缓存工具")
+    parser.add_argument("-f", "--full", action="store_true", help="执行完全清理（删除缓存数据库）")
+    args = parser.parse_args()
+
     import logging
 
     # 初始化日志
@@ -118,7 +160,7 @@ if __name__ == "__main__":
         logger = logging.getLogger(__name__)
 
     try:
-        cleanup_output_directory()
+        cleanup_output_directory(full_clean=args.full)
     except Exception as e:
         import traceback
 
