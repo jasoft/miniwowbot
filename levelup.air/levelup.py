@@ -17,7 +17,7 @@ from queue import PriorityQueue
 from typing import Any, Callable
 
 import requests
-from airtest.core.api import Template, auto_setup, exists, sleep, swipe, touch
+from airtest.core.api import Template, auto_setup, exists, sleep, snapshot, swipe, touch
 from airtest.core.settings import Settings as ST
 
 # 添加父目录到路径
@@ -25,6 +25,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from game_actions import GameActions
 from ocr_helper import OCRHelper
+from color_helper import ColorHelper
 
 # 配置 Airtest 图像识别策略：优先使用模板匹配，避免 SIFT/SURF 特征点不足导致的 OpenCV 报错
 # "tpl": 模板匹配 (Template Matching)
@@ -266,7 +267,36 @@ class LevelUpEngine:
 
     def handle_request_task(self, el):
         el.click()
+        sleep(1.5)
 
+        # 1. 检查是否有区域选择弹窗 (绿色文字指示当前等级)
+        temp_path = os.path.join(self.ocr.temp_dir, "task_request.png")
+        snapshot(filename=temp_path)
+        
+        ocr_results = self.ocr.get_all_texts_from_image(temp_path)
+        green_pos = ColorHelper.find_green_text(temp_path, ocr_results)
+        
+        if green_pos:
+            logger.info(f"🟢 找到当前区域(绿色文字): {green_pos}")
+            # 点击下一个区域 (y + 50 像素偏移，约一个条目高度)
+            next_area_pos = (green_pos[0], green_pos[1] + 50)
+            logger.info(f"👆 点击下一个区域: {next_area_pos}")
+            touch(next_area_pos)
+            sleep(1)
+            
+            # 尝试点击确认按钮
+            confirm_btn = self.actions.find("切换区域", use_cache=False)
+            if confirm_btn:
+                confirm_btn.click()
+            
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            return
+
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+        # 2. 原有逻辑 (寻找支线任务)
         for _ in range(5):
             if self.actions.find_all(use_cache=False).contains("支线").first().click():
                 sleep(1)
