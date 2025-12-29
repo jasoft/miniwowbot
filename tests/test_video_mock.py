@@ -1,6 +1,5 @@
 
 import os
-import time
 import cv2
 import pytest
 from ocr_helper import OCRHelper

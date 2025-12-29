@@ -28,6 +28,11 @@ from airtest.core.settings import Settings as ST
 from tqdm import tqdm
 from transitions import Machine, MachineError
 
+# 配置 Airtest 图像识别策略：优先使用模板匹配，避免 SIFT/SURF 特征点不足导致的 OpenCV 报错
+# "tpl": 模板匹配 (Template Matching)
+# "mstpl": 多尺度模板匹配 (Multi-Scale Template Matching)
+ST.CVSTRATEGY = ["mstpl", "tpl", "sift", "brisk"]
+
 from config_loader import load_config
 from coordinates import (
     ACCOUNT_AVATAR,

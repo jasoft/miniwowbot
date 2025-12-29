@@ -17,12 +17,18 @@ from typing import Any, Callable
 
 import requests
 from airtest.core.api import Template, auto_setup, exists, sleep, swipe, touch
+from airtest.core.settings import Settings as ST
 
 # 添加父目录到路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from game_actions import GameActions
 from ocr_helper import OCRHelper
+
+# 配置 Airtest 图像识别策略：优先使用模板匹配，避免 SIFT/SURF 特征点不足导致的 OpenCV 报错
+# "tpl": 模板匹配 (Template Matching)
+# "mstpl": 多尺度模板匹配 (Multi-Scale Template Matching)
+ST.CVSTRATEGY = ["mstpl", "tpl"]
 
 # 配置日志
 logger = logging.getLogger("levelup")
@@ -56,14 +62,10 @@ class LevelUpEngine:
 
         # 模板定义
         self.templates = {
-            "task_complete": Template(r"task_complete.png", resolution=(720, 1280)),
+            "task_complete": Template(r"task_complete.png", resolution=(720, 1280), rgb=True),
             "in_dungeon": Template(r"in_dungeon.png", resolution=(720, 1280), threshold=0.9),
             "xp_full": Template(r"next_dungeon_xp_full.png", resolution=(720, 1280), threshold=0.9),
-            "enter_dungeon": Template(
-                r"enter_dungeon.png", resolution=(720, 1280), threshold=0.92, rgb=True
-            ),
             "arrow": Template(r"arrow.png", resolution=(720, 1280), rgb=True, threshold=0.4),
-            "accept_task": Template(r"accept_task.png", resolution=(720, 1280)),
         }
 
     def push_event(self, priority: int, name: str, handler: Callable, data: Any = None):
@@ -74,7 +76,7 @@ class LevelUpEngine:
                 return
 
         event = GameEvent(priority, name, handler, data)
-        logger.debug(f"📤 推送事件: {name} (P{priority})")
+        logger.info(f"📤 推送事件: {name} (P{priority})")
         self.queue.put(event)
         logger.debug(self.queue)
 
@@ -104,27 +106,32 @@ class LevelUpEngine:
                 await asyncio.sleep(1)
 
     async def detect_workflow(self):
-        """流程类检测 (P20-P50)"""
+        """流程类检测 (P20-P50) - 互斥逻辑，高优先级事件触发后直接返回"""
         loop = asyncio.get_event_loop()
 
-        # 1. 任务完成感叹号
+        # 1. 任务完成感叹号 (优先级最高)
+        # 如果任务完成了，必须先点任务，不能直接飞下一个副本，否则会漏掉奖励
         res_complete = await loop.run_in_executor(None, exists, self.templates["task_complete"])
         if res_complete:
             self.push_event(20, "task_completion", self.handle_task_completion, res_complete)
+            return  # ⛔ 互斥返回：正在交任务，不检测后续
 
         # 2. OCR 检测：领取任务
+        # 正在对话框中，优先处理对话
         res_task = await loop.run_in_executor(
             None, self.actions.find, "领取任务", 0.5, 0.8, 1, True, [1]
         )
-        if res_task:
+        if res_task and res_task.center[1] <= 290:
             self.push_event(40, "request_task", self.handle_request_task, res_task)
+            return  # ⛔ 互斥返回：正在接任务，不检测后续
 
         # 3. 经验满切换副本
+        # 只有在没有任务要交、没有对话要点的时候，才检查是否经验满了要换地方
         res_xp = await loop.run_in_executor(None, exists, self.templates["xp_full"])
         if res_xp:
             self.push_event(45, "next_dungeon", self.handle_dungeon_transition)
 
-        # 4. 穿装备
+        # 4. 穿装备 (这个可以并行，因为它通常不影响流程跳转，但为了稳妥也可以放这里)
         res_equip = await loop.run_in_executor(
             None, self.actions.find, "装备", 0.5, 0.8, 1, True, [1]
         )
@@ -144,8 +151,8 @@ class LevelUpEngine:
             self.push_event(15, "task_timeout", self.handle_timeout_recovery)
 
         # 如果队列为空，且没在战斗，也没报错，执行推进逻辑 (P100)
-        if self.queue.empty() and not self.failed_in_dungeon:
-            self.push_event(100, "idle_push", lambda _: self.handle_dungeon_transition(None))
+        # if self.queue.empty() and not self.failed_in_dungeon:
+        #     self.push_event(100, "idle_push", lambda _: self.handle_dungeon_transition(None))
 
     # --- 消费者 (动作执行) ---
 
@@ -157,7 +164,7 @@ class LevelUpEngine:
                     logger.debug(self.queue)
                     event = self.queue.get()
 
-                    logger.info(f"⚡ 执行: {event.name} (P{event.priority})")
+                    logger.info(f"⚡ 处理事件: {event.name} (P{event.priority})")
                     loop = asyncio.get_event_loop()
                     await loop.run_in_executor(None, event.handler, event.data)
                     self.queue.task_done()
@@ -178,26 +185,23 @@ class LevelUpEngine:
         touch((363, 867))  # 接下一个
 
     def handle_request_task(self, el):
-        if el.center[1] > 290:
-            return  # 3个任务不满
         el.click()
+
         for _ in range(3):
-            self.actions.find_all(use_cache=False).contains("支线").each(
-                lambda x: touch(x.center) or sleep(0.5) or touch((358, 865))
-            )
-            swipe((360, 900), (360, 300))
+            if self.actions.find_all(use_cache=False).contains("支线").first().click():
+                sleep(1)
+                touch((358, 865))
+            else:
+                swipe((360, 900), (360, 300))
         self.click_back()
 
     def handle_combat(self, _):
-        for i in range(4):
+        for i in range(5):
             touch((105 + i * 130, 560))
-        for _ in range(5):
-            touch((615, 560))
-            sleep(0.3)
 
     def handle_dungeon_transition(self, _):
         logger.info("推进副本/区域流程")
-        touch((160, 112))  # 地图
+        touch((160, 112))  # 主任务的叹号图标
         sleep(1)
         self.goto_next_place()
 
@@ -209,10 +213,7 @@ class LevelUpEngine:
 
     def goto_next_place(self):
         try:
-            next_btn = self.actions.find_all(use_cache=False).equals("前往").first()
-            if next_btn:
-                next_btn.click()
-            else:
+            if not self.actions.find_all(use_cache=False).equals("前往").first().click():
                 return
 
             sleep(0.5)
@@ -224,17 +225,11 @@ class LevelUpEngine:
                     if self.actions.find("声望商店"):
                         touch((355, 780))
                         sleep(30)
-                    else:
-                        try:
-                            touch(self.templates["enter_dungeon"])
-                            sleep(3)
-                            self.sell_trash()
-                            touch((357, 1209))
-                        except:
-                            self.failed_in_dungeon = True
-                            self.send_notification("异常", "副本推进失败")
-                            self.click_back()
-                            raise Exception("副本推进失败")
+                    elif self.actions.find("免费").click():
+                        logger.info("检测到免费副本, 正在进入...")
+                        sleep(3)
+                        self.sell_trash()
+                        touch((357, 1209))
                     return
         except Exception as e:
             logger.error(f"导航异常: {e}")

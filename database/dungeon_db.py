@@ -5,7 +5,7 @@
 使用 Peewee ORM 管理数据库
 """
 
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from peewee import (
     SqliteDatabase,
     Model,

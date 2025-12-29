@@ -32,8 +32,8 @@ def timer_decorator(func):
             logger.debug(f"⚡ {log_msg} (< 10ms)")
         elif elapsed_time < 0.5:
             logger.debug(f"⏱️ {log_msg}")
-        elif elapsed_time < 1.0:
-            logger.warning(f"🐌 {log_msg} (> 500ms)")
+        elif elapsed_time < 2.0:
+            logger.debug(f"🐌 {log_msg} (> 500ms)")
         else:
             logger.warning(f"🐢 {log_msg} (> 1s)")
 
@@ -52,6 +52,18 @@ class GameElement(dict):
         self.action_context = action_context
         # 兼容旧代码，确保 result.get("found") 返回 True
         self["found"] = True
+
+    def __bool__(self):
+        """
+        明确对象的布尔值行为
+        普通 GameElement 默认为 True (因为 found=True)
+        """
+        return self.get("found", False)
+
+    @staticmethod
+    def empty(action_context: "GameActions") -> "GameElement":
+        """工厂方法：创建一个空的 GameElement (Null Object)"""
+        return NullGameElement(action_context)
 
     @property
     def center(self) -> Tuple[int, int]:
@@ -93,6 +105,39 @@ class GameElement(dict):
         return f"GameElement(text='{self.text}', center={self.center})"
 
 
+class NullGameElement(GameElement):
+    """
+    空的游戏元素 (Null Object Pattern)
+    用于替代 None，支持链式调用但不执行实际操作
+    """
+
+    def __init__(self, action_context: "GameActions"):
+        super().__init__({}, action_context)
+        self["found"] = False
+
+    def __bool__(self):
+        return False
+
+    def __repr__(self):
+        return "NullGameElement()"
+
+    @property
+    def center(self) -> Tuple[int, int]:
+        return (0, 0)
+
+    def click(self) -> "GameElement":
+        logger.debug("👻 NullGameElement click (ignored)")
+        return self
+
+    def offset_click(self, x: int = 0, y: int = 0) -> "GameElement":
+        logger.debug("👻 NullGameElement offset_click (ignored)")
+        return self
+
+    def sleep(self, seconds: float) -> "GameElement":
+        logger.debug(f"👻 NullGameElement sleep {seconds}s (ignored)")
+        return self
+
+
 class GameElementCollection(list):
     """
     游戏元素集合，支持链式操作
@@ -119,21 +164,21 @@ class GameElementCollection(list):
         """保留置信度大于阈值的元素"""
         return self.filter(lambda e: e.confidence >= threshold)
 
-    def first(self) -> Optional[GameElement]:
+    def first(self) -> GameElement:
         """获取第一个元素"""
-        return self[0] if self else None
+        return self[0] if self else GameElement.empty(self.action_context)
 
-    def last(self) -> Optional[GameElement]:
+    def last(self) -> GameElement:
         """获取最后一个元素"""
-        return self[-1] if self else None
+        return self[-1] if self else GameElement.empty(self.action_context)
 
-    def get(self, index: int) -> Optional[GameElement]:
+    def get(self, index: int) -> GameElement:
         """
         获取指定索引的元素 (0-based)
         兼容性修改：如果 index 超过列表长度，返回最后一个元素 (Legacy OCRHelper behavior)
         """
         if not self:
-            return None
+            return GameElement.empty(self.action_context)
 
         if index >= len(self):
             return self[-1]
@@ -141,7 +186,7 @@ class GameElementCollection(list):
         if 0 <= index < len(self):
             return self[index]
 
-        return None
+        return GameElement.empty(self.action_context)
 
     def map(self, func: Callable[[GameElement], Any]) -> List[Any]:
         """对每个元素应用函数"""
@@ -215,8 +260,8 @@ class GameActions:
 
         logger.debug(f"📊 find_all 识别到 {len(results)} 个文字元素")
         # log all texts and positions
-        for idx, result in enumerate(results):
-            logger.debug(f"  [{idx}] {result['text']} at {result['center']}")
+        # for idx, result in enumerate(results):
+        #     logger.debug(f"  [{idx}] {result['text']} at {result['center']}")
 
         return GameElementCollection(results, self)
 
@@ -229,13 +274,13 @@ class GameActions:
         use_cache: bool = True,
         regions: Optional[List[int]] = None,
         raise_exception: bool = False,
-    ) -> Optional[GameElement]:
+    ) -> GameElement:
         """
         基于 find_all 实现的 find
         """
         start_time = time.time()
         region_desc = f" [区域{regions}]" if regions else ""
-        logger.info(f"🔍 查找: {text}{region_desc} (等待 {timeout}s)")
+        logger.debug(f"🔍 查找: {text}{region_desc} (等待 {timeout}s)")
 
         first_attempt = True
         while first_attempt or (time.time() - start_time < timeout):
@@ -257,10 +302,10 @@ class GameActions:
             time.sleep(0.1)
 
         msg = f"❌ 超时未找到: {text}{region_desc}"
-        logger.warning(msg)
+        logger.debug(msg)
         if raise_exception:
             raise TimeoutError(msg)
-        return None
+        return GameElement.empty(self)
 
     def text_exists(
         self,
@@ -268,17 +313,17 @@ class GameActions:
         similarity_threshold: float = 0.7,
         use_cache: bool = True,
         regions: Optional[List[int]] = None,
-    ) -> Optional[GameElement]:
+    ) -> GameElement:
         """
         基于 find_all 实现的 text_exists
         """
         if self.ocr_helper is None:
-            return None
+            return GameElement.empty(self)
 
         # 规范化输入
         texts_to_check = [texts] if isinstance(texts, str) else list(texts)
         if not texts_to_check:
-            return None
+            return GameElement.empty(self)
 
         # 获取一次全集，然后在内存中匹配
         collection = self.find_all(use_cache=use_cache, regions=regions).min_confidence(
@@ -291,11 +336,11 @@ class GameActions:
                 logger.info(f"✅ text_exists 找到: {text} at {el.center}")
                 return el
 
-        return None
+        return GameElement.empty(self)
 
     # --- 快捷方法 ---
 
-    def find_text(self, *args, **kwargs) -> Optional[GameElement]:
+    def find_text(self, *args, **kwargs) -> GameElement:
         """find 的别名"""
         return self.find(*args, **kwargs)
 
@@ -310,7 +355,7 @@ class GameActions:
 
         return list(self.find_all(**kwargs))
 
-    def find_text_and_click(self, text: str, **kwargs) -> Optional[GameElement]:
+    def find_text_and_click(self, text: str, **kwargs) -> GameElement:
         """查找并点击"""
         el = self.find(text, **kwargs)
         if el:

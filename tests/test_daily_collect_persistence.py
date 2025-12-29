@@ -12,7 +12,6 @@ from unittest.mock import MagicMock, patch
 # 添加父目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import auto_dungeon
 from auto_dungeon import DailyCollectManager
 from database.dungeon_db import DungeonProgressDB
 

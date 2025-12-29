@@ -1,13 +1,12 @@
 import sys
 import os
-import pytest
 from unittest.mock import MagicMock, patch
 
 # Add project root to sys.path
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
-from game_actions import GameActions, GameElement, GameElementCollection
+from game_actions import GameActions, GameElementCollection
 
 def test_declarative_api_logic():
     """测试声明式 API 的过滤和链式调用逻辑（不依赖实际 OCR）"""

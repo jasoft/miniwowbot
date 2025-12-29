@@ -30,7 +30,7 @@ class TestFindText:
     def test_find_text_timeout_no_exception(self):
         """测试 find_text 超时不抛出异常"""
         result = find_text("不存在的文本", timeout=1, raise_exception=False)
-        assert result is None
+        assert not result
 
     def test_find_text_with_regions(self):
         """测试 find_text 支持 regions 参数"""
@@ -40,8 +40,8 @@ class TestFindText:
             result = find_text(
                 "测试文本", timeout=1, regions=[7, 8, 9], raise_exception=False
             )
-            # 应该返回 None（因为找不到）
-            assert result is None
+            # 应该返回 False (NullGameElement)
+            assert not result
         except Exception as e:
             pytest.fail(f"find_text 调用失败: {e}")
 
@@ -75,9 +75,9 @@ class TestCodeRefactoring:
         # 这个测试通过检查两个函数的行为一致性来验证重构
         # 两个函数对于不存在的文本应该有一致的超时行为
 
-        # find_text 超时返回 None
+        # find_text 超时返回 False (NullGameElement)
         result1 = find_text("不存在的文本", timeout=1, raise_exception=False)
-        assert result1 is None
+        assert not result1
 
         # find_text_and_click 超时抛出异常
         with pytest.raises((TimeoutError, Exception)):
@@ -87,7 +87,7 @@ class TestCodeRefactoring:
         """验证两个函数都支持 regions 参数"""
         # find_text 支持 regions
         result1 = find_text("测试", timeout=1, regions=[1, 2, 3], raise_exception=False)
-        assert result1 is None
+        assert not result1
 
         # find_text_and_click 支持 regions
         with pytest.raises((TimeoutError, Exception)):
@@ -97,7 +97,7 @@ class TestCodeRefactoring:
         """验证两个函数都支持 occurrence 参数"""
         # find_text 支持 occurrence
         result1 = find_text("测试", timeout=1, occurrence=2, raise_exception=False)
-        assert result1 is None
+        assert not result1
 
         # find_text_and_click 支持 occurrence
         with pytest.raises((TimeoutError, Exception)):
