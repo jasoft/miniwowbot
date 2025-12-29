@@ -23,9 +23,9 @@ from airtest.core.settings import Settings as ST
 # 添加父目录到路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from color_helper import ColorHelper
 from game_actions import GameActions
 from ocr_helper import OCRHelper
-from color_helper import ColorHelper
 
 # 配置 Airtest 图像识别策略：优先使用模板匹配，避免 SIFT/SURF 特征点不足导致的 OpenCV 报错
 # "tpl": 模板匹配 (Template Matching)
@@ -107,13 +107,10 @@ class LevelUpEngine:
         logger.info("🐢 慢速生产者循环启动 (Workflow)")
         while self.running:
             try:
-                start_time = time.time()
                 await asyncio.gather(
                     self.detect_workflow(),
                     self.check_status(),
                 )
-                cost = time.time() - start_time
-                logger.info(f"workflow_producer_loop cycle cost: {cost:.4f}s")
             except Exception as e:
                 logger.error(f"Workflow循环异常: {e}")
                 await asyncio.sleep(1)
@@ -148,10 +145,10 @@ class LevelUpEngine:
 
         if not is_combat:
             future_request = loop.run_in_executor(
-                None, self.actions.find, "领取任务", 0.5, 0.8, 1, True, [1]
+                None, self.actions.find, "领取任务", 0.5, 0.8, 1, False, [1]
             )
             future_equip = loop.run_in_executor(
-                None, self.actions.find, "装备", 0.5, 0.8, 1, True, [1]
+                None, self.actions.find, "装备", 0.5, 0.8, 1, False, [1]
             )
 
         # --- 2. 并行执行所有任务 ---
@@ -186,7 +183,7 @@ class LevelUpEngine:
 
         # 优先级 1: 任务完成 (最高)
         if res_complete:
-            self.push_event(20, "task_completion", self.handle_task_completion, res_complete)
+            self.push_event(20, "task_completion", self.handle_task_completion, None)
             return  # ⛔ 互斥：优先交任务
 
         # 战斗中不处理其他逻辑，专心打怪直到任务完成
@@ -194,7 +191,7 @@ class LevelUpEngine:
             return
 
         # 优先级 2: 领取任务 (仅 ROAMING)
-        if res_request and res_request.center[1] <= 290:
+        if res_request:
             self.push_event(40, "request_task", self.handle_request_task, res_request)
             return  # ⛔ 互斥：优先接任务
 
@@ -256,53 +253,60 @@ class LevelUpEngine:
 
     # --- 处理函数 (Actions) ---
 
-    def handle_task_completion(self, pos):
+    def handle_task_completion(self, _):
         """处理任务完成事件"""
-        touch(pos)
+        # 动态获取坐标，防止界面变动
+        pos = exists(self.templates["task_complete"])
+        if pos:
+            touch(pos)
+        else:
+            logger.warning("未找到任务完成图标，跳过")
+            return
+
         self.last_task_time = time.time()
         sleep(0.5)
         touch((363, 867))  # 完成任务
         sleep(0.5)
         touch((363, 867))  # 接下一个
+        sleep(2)
 
     def handle_request_task(self, el):
         el.click()
         sleep(1.5)
 
-        # 1. 检查是否有区域选择弹窗 (绿色文字指示当前等级)
-        temp_path = os.path.join(self.ocr.temp_dir, "task_request.png")
-        snapshot(filename=temp_path)
-        
-        ocr_results = self.ocr.get_all_texts_from_image(temp_path)
-        green_pos = ColorHelper.find_green_text(temp_path, ocr_results)
-        
-        if green_pos:
-            logger.info(f"🟢 找到当前区域(绿色文字): {green_pos}")
-            # 点击下一个区域 (y + 50 像素偏移，约一个条目高度)
-            next_area_pos = (green_pos[0], green_pos[1] + 50)
-            logger.info(f"👆 点击下一个区域: {next_area_pos}")
-            touch(next_area_pos)
-            sleep(1)
-            
-            # 尝试点击确认按钮
-            confirm_btn = self.actions.find("切换区域", use_cache=False)
-            if confirm_btn:
-                confirm_btn.click()
-            
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-            return
-
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-
         # 2. 原有逻辑 (寻找支线任务)
+        tasks_available = False
         for _ in range(5):
             if self.actions.find_all(use_cache=False).contains("支线").first().click():
                 sleep(1)
                 touch((358, 865))
+                tasks_available = True
             else:
                 swipe((360, 900), (360, 300))
+        if not tasks_available:
+            logger.warning("⚠️ 未找到支线任务，尝试去下一个区域")
+            self.actions.find("切换区域").click()
+            # 1. 检查是否有区域选择弹窗 (绿色文字指示当前等级)
+            temp_path = os.path.join(self.ocr.temp_dir, "task_request.png")
+            snapshot(filename=temp_path)
+
+            ocr_results = self.ocr.get_all_texts_from_image(temp_path)
+            green_pos = ColorHelper.find_green_text(temp_path, ocr_results)
+
+            if green_pos:
+                logger.info(f"🟢 找到当前区域(绿色文字): {green_pos}")
+                # 点击下一个区域 (y + 50 像素偏移，约一个条目高度)
+                next_area_pos = (green_pos[0], green_pos[1] + 50)
+                logger.info(f"👆 点击下一个区域: {next_area_pos}")
+                touch(next_area_pos)
+                sleep(1)
+            else:
+                logger.warning("⚠️ 未找到绿色文字，请手工选择下一个区域")
+                self.send_notification("副本助手 - 错误", "未找到绿色文字，请手工选择下一个区域")
+
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
         self.click_back()
 
     def handle_track_task(self, _):
