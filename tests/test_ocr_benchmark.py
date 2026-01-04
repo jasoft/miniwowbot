@@ -134,7 +134,7 @@ class TestOCRBenchmark:
         mock_test_ocr.side_effect = [1.1, 1.2, 1.3, 1.0, 1.4]
 
         # 捕获打印输出
-        with patch("builtins.print") as mock_print:
+        with patch("builtins.print"):
             benchmark_ocr("test.png", num_requests=5, interval=0.1)
 
         # 验证调用次数

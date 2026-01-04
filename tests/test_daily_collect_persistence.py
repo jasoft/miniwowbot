@@ -73,17 +73,17 @@ class TestDailyCollectPersistence:
     def test_collect_daily_rewards_all_steps(self, manager, mock_db):
         """测试 collect_daily_rewards: 所有步骤都应被检查"""
         # Mock all internal methods to avoid side effects
-        with patch.object(manager, '_collect_idle_rewards') as m1, \
-             patch.object(manager, '_buy_market_items') as m2, \
-             patch.object(manager, '_handle_retinue_deployment') as m3, \
-             patch.object(manager, '_collect_free_dungeons') as m4, \
-             patch.object(manager, '_open_chests') as m5, \
-             patch.object(manager, '_kill_world_boss') as m6, \
-             patch.object(manager, '_receive_mails') as m7, \
-             patch.object(manager, '_small_cookie') as m8, \
-             patch.object(manager, '_collect_gifts') as m9, \
-             patch.object(manager, '_buy_ads_items') as m10, \
-             patch.object(manager, '_demonhunter_exam') as m11:
+        with patch.object(manager, '_collect_idle_rewards'), \
+             patch.object(manager, '_buy_market_items'), \
+             patch.object(manager, '_handle_retinue_deployment'), \
+             patch.object(manager, '_collect_free_dungeons'), \
+             patch.object(manager, '_open_chests'), \
+             patch.object(manager, '_kill_world_boss'), \
+             patch.object(manager, '_receive_mails'), \
+             patch.object(manager, '_small_cookie'), \
+             patch.object(manager, '_collect_gifts'), \
+             patch.object(manager, '_buy_ads_items'), \
+             patch.object(manager, '_demonhunter_exam'):
             
             manager.collect_daily_rewards(db=mock_db)
             

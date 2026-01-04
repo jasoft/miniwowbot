@@ -327,7 +327,7 @@ class TestLoggingBehavior:
         job = DetectionJob(name="test_job", detector=detector, handler=Mock())
 
         with caplog.at_level(logging.INFO):
-            result = await detect_first_match([job])
+            await detect_first_match([job])
 
         # 检查日志包含任务名称
         assert "test_job" in caplog.text

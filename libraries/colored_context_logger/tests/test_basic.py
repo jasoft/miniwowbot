@@ -1,7 +1,5 @@
 import os
-import shutil
 import logging
-import pytest
 from colored_context_logger import setup_logger, GlobalLogContext, attach_file_handler, log_calls
 
 def test_context_injection(caplog):
@@ -48,7 +46,7 @@ def test_file_logging(tmp_path):
 
 def test_decorator(caplog):
     """Test the @log_calls decorator."""
-    logger = setup_logger(name="test_dec", level="DEBUG")
+    setup_logger(name="test_dec", level="DEBUG")
     
     @log_calls(level="DEBUG")
     def add(x, y):

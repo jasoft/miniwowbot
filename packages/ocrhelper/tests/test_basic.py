@@ -2,7 +2,6 @@ import sys
 import os
 import unittest
 from unittest.mock import MagicMock, patch
-import json
 import shutil
 
 # Add src to path
