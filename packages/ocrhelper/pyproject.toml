@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "vibe-ocrhelper"
-version = "0.1.0"
+version = "0.1.1"
 authors = [
   { name="Wei Wang", email="weiwang@example.com" },
 ]

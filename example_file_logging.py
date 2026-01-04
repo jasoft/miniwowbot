@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 
 # --- Setup for local usage (not needed if installed via pip) ---
-sys.path.append(str(Path(__file__).parent / "libraries" / "colored_context_logger" / "src"))
+sys.path.append(str(Path(__file__).parent / "packages" / "colored_context_logger" / "src"))
 # -------------------------------------------------------------
 
 from colored_context_logger import setup_logger, GlobalLogContext, attach_file_handler
