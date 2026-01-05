@@ -262,8 +262,6 @@ class TestCaptureAndFindTextCacheFallback:
     ):
         """缓存命中但找不到文字时应重新截图并刷新缓存"""
 
-        helper = OCRHelper(output_dir=temp_output_dir)
-
         snapshot_calls = []
 
         def fake_snapshot(filename):
@@ -283,6 +281,7 @@ class TestCaptureAndFindTextCacheFallback:
             use_cache=True,
             regions=None,
             debug_save_path=None,
+            return_all=False,
         ):
             call_history.append((use_cache, image_path))
             if use_cache:
@@ -312,10 +311,20 @@ class TestCaptureAndFindTextCacheFallback:
         monkeypatch.setattr(OCRHelper, "find_text_in_image", fake_find)
         monkeypatch.setattr(OCRHelper, "_save_to_cache", fake_save_to_cache)
 
+        def fake_predict(self, image_path):
+             return {
+                "rec_texts": ["测试文字"],
+                "rec_scores": [0.99],
+                "dt_polys": [[[0, 0], [20, 0], [20, 20], [0, 20]]],
+            }
+        monkeypatch.setattr(OCRHelper, "_predict_with_timing", fake_predict)
+
+        helper = OCRHelper(output_dir=temp_output_dir)
+
         result = helper.capture_and_find_text("测试文字", use_cache=True)
 
         assert result["found"] is True
-        assert [flag for flag, _ in call_history] == [True, False]
+        assert [flag for flag, _ in call_history] == [True]
         assert len(snapshot_calls) == 2
         assert len(cache_updates) == 1
         # 第二次截图结果应该写入缓存
