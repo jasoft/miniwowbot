@@ -16,6 +16,7 @@ from airtest.core.api import (
     keyevent,
     log,
     shell,
+    snapshot,
     start_app,
     stop_app,
     swipe,
@@ -27,11 +28,6 @@ from airtest.core.error import TargetNotFoundError
 from airtest.core.settings import Settings as ST
 from tqdm import tqdm
 from transitions import Machine, MachineError
-
-# 配置 Airtest 图像识别策略：优先使用模板匹配，避免 SIFT/SURF 特征点不足导致的 OpenCV 报错
-# "tpl": 模板匹配 (Template Matching)
-# "mstpl": 多尺度模板匹配 (Multi-Scale Template Matching)
-ST.CVSTRATEGY = ["mstpl", "tpl", "sift", "brisk"]
 
 from config_loader import load_config
 from coordinates import (
@@ -64,6 +60,11 @@ from logger_config import (
 )
 from project_paths import resolve_project_path
 from system_config_loader import load_system_config
+
+# 配置 Airtest 图像识别策略：优先使用模板匹配，避免 SIFT/SURF 特征点不足导致的 OpenCV 报错
+# "tpl": 模板匹配 (Template Matching)
+# "mstpl": 多尺度模板匹配 (Multi-Scale Template Matching)
+ST.CVSTRATEGY = ["mstpl", "tpl", "sift", "brisk"]
 
 airtest_logger = logging.getLogger("airtest")
 airtest_logger.setLevel(logging.ERROR)
@@ -1458,7 +1459,7 @@ def handle_load_account_mode(
     logger.info("=" * 60 + "\n")
     logger.info(f"📱 目标账号: {account_name}")
     if emulator_name:
-    from vibe_ocr import OCRHelper
+        from vibe_ocr import OCRHelper
 
     # 确定连接字符串
     if emulator_name:
@@ -1507,6 +1508,7 @@ def handle_load_account_mode(
         hash_threshold=10,
         max_width=(640 if low_mem else 960),
         delete_temp_screenshots=True,
+        snapshot_func=snapshot,
     )
 
     # 切换账号
@@ -1749,6 +1751,7 @@ def initialize_device_and_ocr(emulator_name: Optional[str] = None, low_mem: bool
             max_width=(640 if low_mem else 960),
             delete_temp_screenshots=True,
             correction_map=correction_map,
+            snapshot_func=snapshot,
         )
 
     global game_actions

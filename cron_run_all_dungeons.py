@@ -18,12 +18,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Sequence
 
+import dotenv
+
 from logger_config import setup_logger
 
 SCRIPT_DIR = Path(__file__).parent
 IS_WINDOWS = platform.system() == "Windows"
 if not IS_WINDOWS:
     os.environ["PATH"] = f"/opt/homebrew/bin:{os.environ.get('PATH', '')}"
+
+dotenv.load_dotenv()
 
 
 def ensure_log_dir() -> None:
@@ -140,7 +144,7 @@ def launch_ocr_service(logger) -> bool:
 
     logger.info("🔧 OCR 服务未就绪，尝试调用脚本启动...")
     script_dir = SCRIPT_DIR / "scripts"
-    
+
     try:
         if IS_WINDOWS:
             script_path = script_dir / "start_ocr_docker.ps1"
@@ -157,18 +161,15 @@ def launch_ocr_service(logger) -> bool:
 
         # 直接执行脚本，无需新窗口，因为脚本内是 docker run -d
         logger.info(f"🚀 执行脚本: {script_path}")
-        result = subprocess.run(
-            cmd, 
-            capture_output=True, 
-            text=True, 
-            cwd=str(SCRIPT_DIR)
-        )
-        
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=str(SCRIPT_DIR))
+
         if result.returncode == 0:
             logger.info(f"✅ 启动脚本执行成功\n{result.stdout.strip()}")
             return True
         else:
-            logger.error(f"❌ 启动脚本失败 (Exit {result.returncode}):\nStdout: {result.stdout}\nStderr: {result.stderr}")
+            logger.error(
+                f"❌ 启动脚本失败 (Exit {result.returncode}):\nStdout: {result.stdout}\nStderr: {result.stderr}"
+            )
             return False
 
     except Exception as e:
@@ -200,7 +201,7 @@ def main() -> int:
 
     if launch_ocr_service(logger):
         logger.info(f"✅ OCR 服务{launcher_name}已启动")
-        
+
         if is_already_healthy:
             logger.info("⚡ OCR 服务 (/health) 已正常，跳过等待")
         else:
