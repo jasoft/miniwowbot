@@ -1,6 +1,7 @@
 import sys
 import os
 import unittest
+from typing import Dict, Any, cast
 from unittest.mock import MagicMock, patch
 import shutil
 
@@ -64,8 +65,9 @@ class TestOCRHelper(unittest.TestCase):
             f.write(b"dummy image data")
 
         try:
-            result = self.ocr.find_text_in_image(dummy_image_path, "Hello", use_cache=False)
+            result = cast(Dict[str, Any], self.ocr.find_text_in_image(dummy_image_path, "Hello", use_cache=False))
             
+            self.assertIsInstance(result, dict)
             self.assertTrue(result["found"])
             self.assertEqual(result["text"], "Hello")
         finally:

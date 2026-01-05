@@ -12,7 +12,7 @@ import sqlite3
 import time
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import cv2
 import imagehash
@@ -37,7 +37,7 @@ class OCRHelper:
         hash_type="dhash",  # 可选: "phash", "dhash", "ahash", "whash"
         hash_threshold=10,  # hash 汉明距离阈值
         correction_map: Optional[Dict[str, str]] = None,
-        snapshot_func: Optional[callable] = None,
+        snapshot_func: Optional[Callable[..., Any]] = None,
     ):
         """
         初始化OCR Helper

@@ -24,4 +24,5 @@ accounts.json
 log/
 logs/
 .DS_Store
+.secrets
 

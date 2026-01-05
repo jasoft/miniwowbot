@@ -9,7 +9,7 @@ import os
 import sys
 import time
 from functools import wraps
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Any
 
 # Try to import coloredlogs
 try:
@@ -236,7 +236,8 @@ def log_calls(level: str = "DEBUG"):
             arg_str = ""
             if args:
                 arg_str = str(args[:3]) # Truncate for sanity
-                if len(args) > 3: arg_str += "..."
+                if len(args) > 3:
+                    arg_str += "..."
             
             kw_str = ""
             if kwargs:

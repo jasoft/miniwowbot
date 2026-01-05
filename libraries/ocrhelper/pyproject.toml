@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "vibe-ocrhelper"
-version = "0.1.0"
+version = "0.1.1"
 authors = [
   { name="Wei Wang", email="weiwang@example.com" },
 ]
@@ -31,3 +31,10 @@ dependencies = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ocrhelper"]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.407",
+    "pytest>=7.4.4",
+    "ruff>=0.14.10",
+]
