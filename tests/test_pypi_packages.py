@@ -5,17 +5,19 @@ import numpy as np
 import time
 import logging
 
-# Add libraries to path
-sys.path.append(os.path.abspath("libraries/ocrhelper/src"))
-sys.path.append(os.path.abspath("libraries/colored_context_logger/src"))
-
+# Standard imports (installed via uv add)
 import ocrhelper
 from colored_context_logger import setup_logger, GlobalLogContext, attach_file_handler
+import colored_context_logger
 
 def test_ocr_and_logger():
     # 1. Setup Logger
     logger = setup_logger("test_ocr", level="DEBUG")
     GlobalLogContext.update({"session": "test_run_123"})
+    
+    # Verify installation source
+    logger.info(f"ocrhelper file: {ocrhelper.__file__}")
+    logger.info(f"colored_context_logger file: {colored_context_logger.__file__}")
     
     # Create logs directory if it doesn't exist
     if not os.path.exists("logs_test"):
