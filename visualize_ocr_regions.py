@@ -96,7 +96,7 @@ def visualize_all_regions(image_path, output_path):
         output_path: 输出图像路径
     """
     # 创建 OCR Helper
-    ocr = vibe_ocr.OCRHelper(output_dir="output")
+    ocr = OCRHelper(output_dir="output")
 
     # 读取图像
     if not os.path.exists(image_path):

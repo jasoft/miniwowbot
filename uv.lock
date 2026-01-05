@@ -220,18 +220,6 @@ wheels = [
 ]
 
 [[package]]
-name = "colored-context-logger"
-version = "0.1.3"
-source = { registry = "https://mirrors.huaweicloud.com/repository/pypi/simple" }
-dependencies = [
-    { name = "coloredlogs" },
-]
-sdist = { url = "https://mirrors.huaweicloud.com/repository/pypi/packages/ea/81/9ad833843f715555296d804058e64573c07557610696e59dc74629f9c7c2/colored_context_logger-0.1.3.tar.gz", hash = "sha256:00d4334bfaed67d2b0abfa9e44250bc4226c97e02ca30ce2b3e05999eb7aa6ce" }
-wheels = [
-    { url = "https://mirrors.huaweicloud.com/repository/pypi/packages/bf/2f/732a326b96d7242a98e5de00756b7d844d6f256fc41fb0e26668a090e208/colored_context_logger-0.1.3-py3-none-any.whl", hash = "sha256:1e6881b7932db1207edd6a9dbaff605936030aae5421c72fa891a21be4b00d7e" },
-]
-
-[[package]]
 name = "coloredlogs"
 version = "15.0.1"
 source = { registry = "https://mirrors.huaweicloud.com/repository/pypi/simple" }
@@ -555,7 +543,6 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "airtest" },
-    { name = "colored-context-logger" },
     { name = "coloredlogs" },
     { name = "imagehash" },
     { name = "opencv-python-headless" },
@@ -571,7 +558,8 @@ dependencies = [
     { name = "tqdm" },
     { name = "transitions" },
     { name = "typer" },
-    { name = "vibe-ocrhelper" },
+    { name = "vibe-logger" },
+    { name = "vibe-ocr" },
     { name = "wrapt-timeout-decorator" },
 ]
 
@@ -585,7 +573,6 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "airtest", specifier = ">=1.4.3" },
-    { name = "colored-context-logger", specifier = ">=0.1.3" },
     { name = "coloredlogs", specifier = ">=15.0.1" },
     { name = "imagehash", specifier = ">=4.3.2" },
     { name = "opencv-python-headless", specifier = ">=4.11.0.86" },
@@ -601,7 +588,8 @@ requires-dist = [
     { name = "tqdm", specifier = ">=4.67.1" },
     { name = "transitions", specifier = ">=0.9.0" },
     { name = "typer", specifier = ">=0.12.3" },
-    { name = "vibe-ocrhelper", specifier = ">=0.1.1" },
+    { name = "vibe-logger", editable = "libraries/vibe-logger" },
+    { name = "vibe-ocr", editable = "libraries/vibe-ocr" },
     { name = "wrapt-timeout-decorator", specifier = ">=1.5.1" },
 ]
 
@@ -1674,9 +1662,27 @@ wheels = [
 ]
 
 [[package]]
-name = "vibe-ocrhelper"
+name = "vibe-logger"
+version = "0.1.4"
+source = { editable = "libraries/vibe-logger" }
+dependencies = [
+    { name = "coloredlogs" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "coloredlogs", specifier = ">=15.0.1" }]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pyright", specifier = ">=1.1.407" },
+    { name = "pytest", specifier = ">=8.3.5" },
+    { name = "ruff", specifier = ">=0.14.10" },
+]
+
+[[package]]
+name = "vibe-ocr"
 version = "0.1.1"
-source = { registry = "https://mirrors.huaweicloud.com/repository/pypi/simple" }
+source = { editable = "libraries/vibe-ocr" }
 dependencies = [
     { name = "imagehash" },
     { name = "numpy" },
@@ -1685,9 +1691,22 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "requests" },
 ]
-sdist = { url = "https://mirrors.huaweicloud.com/repository/pypi/packages/27/03/cc444ab3635de699012ad5850c1d86347ad19f3ad973f292a79dfd9a6d52/vibe_ocrhelper-0.1.1.tar.gz", hash = "sha256:a3c33ee1648b10386b44b92409fd8799f334d205bbb876be967c179b5f493905" }
-wheels = [
-    { url = "https://mirrors.huaweicloud.com/repository/pypi/packages/46/a9/d1f5a5e34bd6a3c2f0616e19dda457857fd17f224a81b3c0f2b853f930b2/vibe_ocrhelper-0.1.1-py3-none-any.whl", hash = "sha256:8ed38d243d638218a0c37cfb184a60c94d25f18d1294fb498ae228889636ecbe" },
+
+[package.metadata]
+requires-dist = [
+    { name = "imagehash" },
+    { name = "numpy" },
+    { name = "opencv-python" },
+    { name = "pillow" },
+    { name = "python-dotenv" },
+    { name = "requests" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pyright", specifier = ">=1.1.407" },
+    { name = "pytest", specifier = ">=7.4.4" },
+    { name = "ruff", specifier = ">=0.14.10" },
 ]
 
 [[package]]

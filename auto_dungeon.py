@@ -8,6 +8,7 @@ import urllib.parse
 from typing import Optional
 
 import requests
+from vibe_ocr import OCRHelper
 from airtest.core.api import (
     Template,
     auto_setup,
@@ -1457,8 +1458,6 @@ def handle_load_account_mode(
     logger.info("🔄 账号加载模式")
     logger.info("=" * 60 + "\n")
     logger.info(f"📱 目标账号: {account_name}")
-    if emulator_name:
-    from vibe_ocr import OCRHelper
 
     # 确定连接字符串
     if emulator_name:

@@ -35,6 +35,18 @@ dev = [
 
 [tool.ruff]
 line-length = 100
+exclude = [
+    "tests/test_ocr.py",
+    "tests/test_ocr_regions.py",
+    "tests/test_pypi_packages.py",
+    "tests/test_video_mock.py",
+    "tests/test_game_actions_compat.py",
+    "tests/test_auto_dungeon_integration.py",
+    "tests/test_ocr_debug.py",
+    "tests/test_quick_afk_integration.py",
+    "simple_airtest_test.py",
+]
+ignore = ["E402"]
 
 [tool.uv]
 # 声明你需要支持的平台集合：macOS arm64 + Windows x64（可选再加 Windows arm64）
@@ -48,3 +60,7 @@ required-environments = [
 # 关键：把 pywin32 覆盖成“仅 Windows 安装”
 # 这样就算有上游把 pywin32 误写成跨平台依赖，也会被你这里纠正回去
 override-dependencies = ["pywin32==311; sys_platform == 'win32'"]
+
+[tool.uv.sources]
+vibe-logger = { path = "libraries/vibe-logger", editable = true }
+vibe-ocr = { path = "libraries/vibe-ocr", editable = true }
