@@ -21,6 +21,7 @@ dependencies = [
     "typer>=0.12.3",
     "opencv-python-headless>=4.11.0.86",
     "python-dotenv>=1.2.1",
+    "tqdm>=4.67.1",
 ]
 
 [dependency-groups]
