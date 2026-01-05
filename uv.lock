@@ -220,6 +220,18 @@ wheels = [
 ]
 
 [[package]]
+name = "colored-context-logger"
+version = "0.1.3"
+source = { registry = "https://mirrors.huaweicloud.com/repository/pypi/simple" }
+dependencies = [
+    { name = "coloredlogs" },
+]
+sdist = { url = "https://mirrors.huaweicloud.com/repository/pypi/packages/ea/81/9ad833843f715555296d804058e64573c07557610696e59dc74629f9c7c2/colored_context_logger-0.1.3.tar.gz", hash = "sha256:00d4334bfaed67d2b0abfa9e44250bc4226c97e02ca30ce2b3e05999eb7aa6ce" }
+wheels = [
+    { url = "https://mirrors.huaweicloud.com/repository/pypi/packages/bf/2f/732a326b96d7242a98e5de00756b7d844d6f256fc41fb0e26668a090e208/colored_context_logger-0.1.3-py3-none-any.whl", hash = "sha256:1e6881b7932db1207edd6a9dbaff605936030aae5421c72fa891a21be4b00d7e" },
+]
+
+[[package]]
 name = "coloredlogs"
 version = "15.0.1"
 source = { registry = "https://mirrors.huaweicloud.com/repository/pypi/simple" }
@@ -543,6 +555,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "airtest" },
+    { name = "colored-context-logger" },
     { name = "coloredlogs" },
     { name = "imagehash" },
     { name = "opencv-python-headless" },
@@ -558,6 +571,7 @@ dependencies = [
     { name = "tqdm" },
     { name = "transitions" },
     { name = "typer" },
+    { name = "vibe-ocrhelper" },
     { name = "wrapt-timeout-decorator" },
 ]
 
@@ -571,6 +585,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "airtest", specifier = ">=1.4.3" },
+    { name = "colored-context-logger", specifier = ">=0.1.3" },
     { name = "coloredlogs", specifier = ">=15.0.1" },
     { name = "imagehash", specifier = ">=4.3.2" },
     { name = "opencv-python-headless", specifier = ">=4.11.0.86" },
@@ -586,6 +601,7 @@ requires-dist = [
     { name = "tqdm", specifier = ">=4.67.1" },
     { name = "transitions", specifier = ">=0.9.0" },
     { name = "typer", specifier = ">=0.12.3" },
+    { name = "vibe-ocrhelper", specifier = ">=0.1.1" },
     { name = "wrapt-timeout-decorator", specifier = ">=1.5.1" },
 ]
 
@@ -692,6 +708,23 @@ wheels = [
     { url = "https://mirrors.huaweicloud.com/repository/pypi/packages/e3/44/8715f79051dad19fe1cdae695d26b1c8fa753126def9ba488977709aeb9f/opencv_contrib_python-4.6.0.66-cp36-abi3-win32.whl", hash = "sha256:d72fca3b0fb412cee3829cd5a2d30558953a6c378afccee3f4646daa9b12ab33" },
     { url = "https://mirrors.huaweicloud.com/repository/pypi/packages/63/0b/6ef1acbaa21e5245c85a42f9f0ecfaf2e7420b24615a00f0eee170328e6b/opencv_contrib_python-4.6.0.66-cp36-abi3-win_amd64.whl", hash = "sha256:a338e1fb67fb25b30634cb34cd79328d4431f838964cfd7689f254012dd98ed9" },
     { url = "https://mirrors.huaweicloud.com/repository/pypi/packages/32/83/fb966289ab9df2d3eaa1ad5b3ea40a37c6a8f9bc081740258056f1a18454/opencv_contrib_python-4.6.0.66-cp37-abi3-macosx_11_0_arm64.whl", hash = "sha256:243411366820ba73f185867d0d9f9b8d42296070068222d5e3e40ecdcbbb3b39" },
+]
+
+[[package]]
+name = "opencv-python"
+version = "4.11.0.86"
+source = { registry = "https://mirrors.huaweicloud.com/repository/pypi/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://mirrors.huaweicloud.com/repository/pypi/packages/17/06/68c27a523103dad5837dc5b87e71285280c4f098c60e4fe8a8db6486ab09/opencv-python-4.11.0.86.tar.gz", hash = "sha256:03d60ccae62304860d232272e4a4fda93c39d595780cb40b161b310244b736a4" }
+wheels = [
+    { url = "https://mirrors.huaweicloud.com/repository/pypi/packages/05/4d/53b30a2a3ac1f75f65a59eb29cf2ee7207ce64867db47036ad61743d5a23/opencv_python-4.11.0.86-cp37-abi3-macosx_13_0_arm64.whl", hash = "sha256:432f67c223f1dc2824f5e73cdfcd9db0efc8710647d4e813012195dc9122a52a" },
+    { url = "https://mirrors.huaweicloud.com/repository/pypi/packages/3b/84/0a67490741867eacdfa37bc18df96e08a9d579583b419010d7f3da8ff503/opencv_python-4.11.0.86-cp37-abi3-macosx_13_0_x86_64.whl", hash = "sha256:9d05ef13d23fe97f575153558653e2d6e87103995d54e6a35db3f282fe1f9c66" },
+    { url = "https://mirrors.huaweicloud.com/repository/pypi/packages/f3/bd/29c126788da65c1fb2b5fb621b7fed0ed5f9122aa22a0868c5e2c15c6d23/opencv_python-4.11.0.86-cp37-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:1b92ae2c8852208817e6776ba1ea0d6b1e0a1b5431e971a2a0ddd2a8cc398202" },
+    { url = "https://mirrors.huaweicloud.com/repository/pypi/packages/2c/8b/90eb44a40476fa0e71e05a0283947cfd74a5d36121a11d926ad6f3193cc4/opencv_python-4.11.0.86-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:6b02611523803495003bd87362db3e1d2a0454a6a63025dc6658a9830570aa0d" },
+    { url = "https://mirrors.huaweicloud.com/repository/pypi/packages/fb/d7/1d5941a9dde095468b288d989ff6539dd69cd429dbf1b9e839013d21b6f0/opencv_python-4.11.0.86-cp37-abi3-win32.whl", hash = "sha256:810549cb2a4aedaa84ad9a1c92fbfdfc14090e2749cedf2c1589ad8359aa169b" },
+    { url = "https://mirrors.huaweicloud.com/repository/pypi/packages/a4/7d/f1c30a92854540bf789e9cd5dde7ef49bbe63f855b85a2e6b3db8135c591/opencv_python-4.11.0.86-cp37-abi3-win_amd64.whl", hash = "sha256:085ad9b77c18853ea66283e98affefe2de8cc4c1f43eda4c100cf9b2721142ec" },
 ]
 
 [[package]]
@@ -1638,6 +1671,23 @@ source = { registry = "https://mirrors.huaweicloud.com/repository/pypi/simple" }
 sdist = { url = "https://mirrors.huaweicloud.com/repository/pypi/packages/1e/24/a2a2ed9addd907787d7aa0355ba36a6cadf1768b934c652ea78acbd59dcd/urllib3-2.6.2.tar.gz", hash = "sha256:016f9c98bb7e98085cb2b4b17b87d2c702975664e4f060c6532e64d1c1a5e797" }
 wheels = [
     { url = "https://mirrors.huaweicloud.com/repository/pypi/packages/6d/b9/4095b668ea3678bf6a0af005527f39de12fb026516fb3df17495a733b7f8/urllib3-2.6.2-py3-none-any.whl", hash = "sha256:ec21cddfe7724fc7cb4ba4bea7aa8e2ef36f607a4bab81aa6ce42a13dc3f03dd" },
+]
+
+[[package]]
+name = "vibe-ocrhelper"
+version = "0.1.1"
+source = { registry = "https://mirrors.huaweicloud.com/repository/pypi/simple" }
+dependencies = [
+    { name = "imagehash" },
+    { name = "numpy" },
+    { name = "opencv-python" },
+    { name = "pillow" },
+    { name = "python-dotenv" },
+    { name = "requests" },
+]
+sdist = { url = "https://mirrors.huaweicloud.com/repository/pypi/packages/27/03/cc444ab3635de699012ad5850c1d86347ad19f3ad973f292a79dfd9a6d52/vibe_ocrhelper-0.1.1.tar.gz", hash = "sha256:a3c33ee1648b10386b44b92409fd8799f334d205bbb876be967c179b5f493905" }
+wheels = [
+    { url = "https://mirrors.huaweicloud.com/repository/pypi/packages/46/a9/d1f5a5e34bd6a3c2f0616e19dda457857fd17f224a81b3c0f2b853f930b2/vibe_ocrhelper-0.1.1-py3-none-any.whl", hash = "sha256:8ed38d243d638218a0c37cfb184a60c94d25f18d1294fb498ae228889636ecbe" },
 ]
 
 [[package]]
