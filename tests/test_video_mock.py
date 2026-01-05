@@ -2,7 +2,7 @@
 import os
 import cv2
 import pytest
-from ocr_helper import OCRHelper
+from vibe_ocr import OCRHelper
 import logging
 
 # Configure logging
@@ -60,8 +60,7 @@ def test_video_ocr_flow(video_mock):
     Test OCR on video frames.
     """
     # Initialize OCRHelper with the mock snapshot function
-    ocr_helper = OCRHelper(output_dir="output/test_video", snapshot_func=video_mock.snapshot)
-    
+            ocr_helper = vibe_ocr.OCRHelper(output_dir="output/test_video", snapshot_func=video_mock.snapshot)    
     # Process a few frames
     num_frames_to_test = 5
     found_any_text = False

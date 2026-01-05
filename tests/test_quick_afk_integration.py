@@ -14,7 +14,7 @@ from auto_dungeon import (
 )  # noqa: E402
 from config_loader import load_config  # noqa: E402
 import auto_dungeon  # noqa: E402
-from ocr_helper import OCRHelper  # noqa: E402
+from vibe_ocr import OCRHelper  # noqa: E402
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ def setup_device():
         logger.info("✅ 设备连接成功")
 
         # 初始化 OCR Helper
-        auto_dungeon.ocr_helper = OCRHelper(output_dir="output")
+        auto_dungeon.ocr_helper = vibe_ocr.OCRHelper(output_dir="output")
         logger.info("✅ OCR Helper 初始化成功")
 
         yield True

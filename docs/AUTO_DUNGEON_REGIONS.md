@@ -13,17 +13,7 @@
 ### find_text()
 
 ```python
-def find_text(
-    text,
-    timeout=10,
-    similarity_threshold=0.7,
-    occurrence=1,
-    use_cache=True,
-    regions=None,
-    raise_exception=True,  # 新增参数
-):
-    """
-    使用 OCRHelper 查找文本
+    使用 vibe_ocr.OCRHelper 查找文本
 
     :param text: 要查找的文本
     :param timeout: 超时时间（秒）
@@ -40,16 +30,7 @@ def find_text(
 ### find_text_and_click()
 
 ```python
-def find_text_and_click(
-    text,
-    timeout=10,
-    similarity_threshold=0.7,
-    occurrence=1,
-    use_cache=True,
-    regions=None,
-):
-    """
-    使用 OCRHelper 查找文本并点击
+    使用 vibe_ocr.OCRHelper 查找文本并点击
 
     :param text: 要查找的文本
     :param timeout: 超时时间（秒）

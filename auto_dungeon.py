@@ -101,7 +101,7 @@ LAST_OCCURRENCE = 9999  # 用于表示查找最后一个出现的文字
 # 配置彩色日志（从系统配置文件加载通用日志配置）
 logger = setup_logger_from_config(use_color=True)
 
-# 设置 OCRHelper 的日志级别
+# 设置 vibe_ocr.OCRHelper 的日志级别
 logging.getLogger("ocr_helper").setLevel(logging.DEBUG)
 
 
@@ -1458,10 +1458,7 @@ def handle_load_account_mode(
     logger.info("=" * 60 + "\n")
     logger.info(f"📱 目标账号: {account_name}")
     if emulator_name:
-        logger.info(f"📱 目标模拟器: {emulator_name}")
-
-    # 初始化设备和OCR
-    from ocr_helper import OCRHelper
+    from vibe_ocr import OCRHelper
 
     # 确定连接字符串
     if emulator_name:
@@ -1676,7 +1673,7 @@ def initialize_device_and_ocr(emulator_name: Optional[str] = None, low_mem: bool
     """
     global ocr_helper, emulator_manager, target_emulator
 
-    from ocr_helper import OCRHelper
+    from vibe_ocr import OCRHelper
 
     # 确定连接字符串
     if emulator_name:

@@ -1,6 +1,6 @@
 """
 OCR Helper Class - 基于PaddleOCR的文字识别和定位工具类
-Wrapper around vibe-ocrhelper library.
+Wrapper around vibe-ocr library.
 """
 import os
 import uuid
@@ -12,7 +12,7 @@ from project_paths import ensure_project_path
 from logger_config import apply_logging_slice, setup_logger_from_config
 
 # Import from library
-from ocrhelper import OCRHelper as BaseOCRHelper
+from vibe_ocr.ocr_helper import OCRHelper as BaseOCRHelper
 
 load_dotenv()
 

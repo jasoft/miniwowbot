@@ -11,7 +11,7 @@ from typing import Optional, Dict
 from project_paths import resolve_project_path
 
 # Import from the installed package
-from colored_context_logger import (
+from vibe_logger import (
     GlobalLogContext,
     LoggerConfig as BaseLoggerConfig,
     setup_logger,

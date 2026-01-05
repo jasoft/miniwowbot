@@ -191,7 +191,7 @@ def main():
     
     # 4. 如果有剩余，才初始化设备
     connect_device("Android:///")
-    ocr_helper = OCRHelper(output_dir="output")
+    ocr_helper = vibe_ocr.OCRHelper(output_dir="output")
     
     # 5. 选择角色
     if char_class:

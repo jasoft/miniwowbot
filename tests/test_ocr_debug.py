@@ -12,7 +12,7 @@ import pytest
 # 添加父目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ocr_helper import OCRHelper  # noqa: E402
+from vibe_ocr import OCRHelper  # noqa: E402
 
 
 class TestOCRDebug:
@@ -21,7 +21,7 @@ class TestOCRDebug:
     @pytest.fixture(scope="class")
     def ocr_helper(self):
         """创建 OCR Helper 实例"""
-        return OCRHelper(output_dir="output")
+        return vibe_ocr.OCRHelper(output_dir="output")
 
     def test_image_exists(self):
         """测试图像文件是否存在"""

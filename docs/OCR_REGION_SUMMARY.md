@@ -72,9 +72,9 @@ def _adjust_coordinates_to_full_image(self, bbox, offset):
 ### 基本用法
 
 ```python
-from ocr_helper import OCRHelper
+from vibe_ocr import OCRHelper
 
-ocr = OCRHelper()
+ocr = vibe_ocr.OCRHelper()
 
 # 1. 单个区域（最快，9倍速度）
 ocr.find_and_click_text("设置", regions=[3])  # 右上角

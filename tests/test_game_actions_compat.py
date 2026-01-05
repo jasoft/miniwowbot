@@ -10,7 +10,7 @@ sys.path.append(os.getcwd())
 
 import auto_dungeon
 from game_actions import GameActions
-from ocr_helper import OCRHelper
+from vibe_ocr import OCRHelper
 from project_paths import resolve_project_path
 
 @pytest.fixture
@@ -23,14 +23,13 @@ def mock_env(request):
     if not os.path.exists(example_image_path):
         pytest.fail(f"Test image not found at {example_image_path}")
 
-    # Initialize OCRHelper and GameActions
+    # Initialize vibe_ocr.OCRHelper and GameActions
     # We use a dummy output dir
     output_dir = "output/test_compat"
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
         
-    ocr_helper = OCRHelper(output_dir=output_dir, delete_temp_screenshots=True)
-    game_actions = GameActions(ocr_helper)
+            ocr_helper = vibe_ocr.OCRHelper(output_dir=output_dir, delete_temp_screenshots=True)    game_actions = GameActions(ocr_helper)
 
     # Inject into auto_dungeon
     original_ocr_helper = auto_dungeon.ocr_helper

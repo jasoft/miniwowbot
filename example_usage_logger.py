@@ -4,10 +4,8 @@ from pathlib import Path
 
 # --- 模拟环境配置 (实际安装后不需要这一步) ---
 # 将本地库路径加入系统路径，以便直接导入
-sys.path.append(str(Path(__file__).parent / "libraries" / "colored_context_logger" / "src"))
-# ----------------------------------------
-
-from colored_context_logger import setup_logger, GlobalLogContext, attach_file_handler, log_calls
+sys.path.append(str(Path(__file__).parent / "libraries" / "vibe-logger" / "src"))
+from vibe_logger import setup_logger, GlobalLogContext, attach_file_handler, log_calls
 
 def main():
     # 1. 初始化 Logger

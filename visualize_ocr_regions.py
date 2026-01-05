@@ -13,7 +13,7 @@ import numpy as np
 # 添加父目录到路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from ocr_helper import OCRHelper
+from vibe_ocr import OCRHelper
 
 
 def draw_text_boxes(image, ocr_results, region_id, color):
@@ -96,7 +96,7 @@ def visualize_all_regions(image_path, output_path):
         output_path: 输出图像路径
     """
     # 创建 OCR Helper
-    ocr = OCRHelper(output_dir="output")
+    ocr = vibe_ocr.OCRHelper(output_dir="output")
 
     # 读取图像
     if not os.path.exists(image_path):

@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 # 添加项目根目录到路径
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from ocr_helper import OCRHelper
+from vibe_ocr import OCRHelper
 
 
 def example_ocr_with_temp_file():

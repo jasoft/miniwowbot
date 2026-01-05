@@ -17,7 +17,7 @@ pip install colored-context-logger
 ### 1. Basic Setup & Context
 
 ```python
-from colored_context_logger import setup_logger, GlobalLogContext, log_calls
+from vibe_logger import setup_logger, GlobalLogContext, log_calls
 
 # Setup Logger
 logger = setup_logger(name="my_app", level="DEBUG")
@@ -34,7 +34,7 @@ logger.info("Processing request")
 You can easily attach file handlers to your logger.
 
 ```python
-from colored_context_logger import attach_file_handler
+from vibe_logger import attach_file_handler
 
 # Method A: Auto-generated filename based on context
 # If 'session' is in GlobalLogContext, it uses that for the filename.

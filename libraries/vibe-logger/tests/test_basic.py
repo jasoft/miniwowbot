@@ -1,6 +1,6 @@
 import os
 import logging
-from colored_context_logger import setup_logger, GlobalLogContext, attach_file_handler, log_calls
+from vibe_logger import setup_logger, GlobalLogContext, attach_file_handler, log_calls
 
 def test_context_injection(caplog):
     """Test that context is correctly injected into logs."""

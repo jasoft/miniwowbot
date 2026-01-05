@@ -175,7 +175,8 @@ class GameElementCollection(list):
     def get(self, index: int) -> GameElement:
         """
         获取指定索引的元素 (0-based)
-        兼容性修改：如果 index 超过列表长度，返回最后一个元素 (Legacy OCRHelper behavior)
+# 兼容性修改：如果 index 超过列表长度，返回最后一个元素 (Legacy vibe_ocr behavior)
+ocr_helper: "vibe_ocr.OCRHelper" 实例
         """
         if not self:
             return GameElement.empty(self.action_context)
@@ -247,7 +248,7 @@ class GameActions:
     ) -> GameElementCollection:
         """
         声明式 API 入口：获取当前屏幕所有文字元素
-        这是唯一直接调用 OCRHelper 截图识别的函数
+        这是唯一直接调用 vibe_ocr.OCRHelper 截图识别的函数
         """
         if self.ocr_helper is None:
             logger.error("❌ OCR助手未初始化")

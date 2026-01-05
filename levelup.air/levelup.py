@@ -25,7 +25,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from color_helper import ColorHelper
 from game_actions import GameActions
-from ocr_helper import OCRHelper
+from vibe_ocr import OCRHelper
 
 # 配置 Airtest 图像识别策略：优先使用模板匹配，避免 SIFT/SURF 特征点不足导致的 OpenCV 报错
 # "tpl": 模板匹配 (Template Matching)

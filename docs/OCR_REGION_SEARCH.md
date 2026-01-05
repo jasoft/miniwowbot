@@ -67,12 +67,7 @@ ocr.find_text_in_image("screenshot.png", "返回", regions=[1, 2, 4, 5])
 
 ## API 使用
 
-### 1. find_text_in_image
-
-在图像文件中查找文字，支持指定区域。
-
-```python
-from ocr_helper import OCRHelper
+from vibe_ocr import OCRHelper
 
 ocr = OCRHelper()
 
@@ -213,9 +208,7 @@ while True:
 ### 示例1: 游戏自动化
 
 ```python
-from ocr_helper import OCRHelper
-
-ocr = OCRHelper()
+ocr = vibe_ocr.OCRHelper()
 
 # 点击左上角的返回按钮
 ocr.find_and_click_text("返回", regions=[1])

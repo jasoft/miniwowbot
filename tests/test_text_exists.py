@@ -30,8 +30,7 @@ class TestTextExistsBasic:
 
         calls = []
 
-        class FakeOCRHelper:
-            def capture_and_find_text(
+class Fakevibe_ocr.OCRHelper:
                 self,
                 target_text,
                 confidence_threshold=0.5,
@@ -61,8 +60,7 @@ class TestTextExistsBasic:
 
                 return {"found": False}
 
-        fake_helper = FakeOCRHelper()
-        monkeypatch.setattr(auto_dungeon, "ocr_helper", fake_helper, raising=False)
+        fake_helper = Fakevibe_ocr.OCRHelper()
 
         texts = ["不存在1", "存在", "不存在2"]
 
@@ -86,7 +84,7 @@ class TestTextExistsBasic:
 
 
 class TestTextExistsBulkOCR:
-    """测试在 OCRHelper 支持批量 OCR 能力时的行为（单次截图，多次匹配）。"""
+    """测试在 vibe_ocr.OCRHelper 支持批量 OCR 能力时的行为（单次截图，多次匹配）。"""
 
     def test_text_exists_uses_bulk_ocr_when_available(self, monkeypatch, tmp_path):
         """当 ocr_helper 提供 _get_or_create_ocr_result / _get_all_texts_from_json 时，应只截图一次并复用结果。"""
@@ -94,7 +92,7 @@ class TestTextExistsBulkOCR:
         calls = {"snapshot": 0, "get_or_create": 0, "get_all": 0}
         captured_paths = []
 
-        class FakeOCRHelper:
+        class Fakevibe_ocr.OCRHelper:
             def __init__(self):
                 # 模拟 auto_dungeon.OCRHelper 里的 temp_dir 属性
                 self.temp_dir = str(tmp_path)
@@ -120,7 +118,7 @@ class TestTextExistsBulkOCR:
                     {"text": "无关文本", "confidence": 0.6, "center": (50, 50)},
                 ]
 
-        fake_helper = FakeOCRHelper()
+        fake_helper = Fakevibe_ocr.OCRHelper()
 
         def fake_snapshot(filename=None):  # 与 auto_dungeon.snapshot 签名保持兼容
             calls["snapshot"] += 1

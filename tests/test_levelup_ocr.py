@@ -7,7 +7,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
 def test_levelup_ocr_instantiation():
-    """Test that OCRHelper is instantiated correctly in levelup.py"""
+    """Test that vibe_ocr.OCRHelper is instantiated correctly in levelup.py"""
     
     # Add levelup.air to sys.path so we can import levelup
     levelup_path = os.path.join(PROJECT_ROOT, 'levelup.air')

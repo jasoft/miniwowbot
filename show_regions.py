@@ -18,7 +18,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from emulator_manager import EmulatorManager
 from logger_config import setup_logger_from_config
-from ocr_helper import OCRHelper
+from vibe_ocr import OCRHelper
 
 # 添加父目录到路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

@@ -27,7 +27,7 @@ class MockTemplate:
         pass
 
 
-class MockOCRHelper:
+class Mockvibe_ocr.OCRHelper:
     def find(self, *args, **kwargs):
         return None
 

@@ -17,33 +17,6 @@ wheels = [
 ]
 
 [[package]]
-name = "colored-context-logger"
-version = "0.1.1"
-source = { editable = "." }
-dependencies = [
-    { name = "coloredlogs" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pyright" },
-    { name = "pytest", version = "8.3.5", source = { registry = "https://mirrors.huaweicloud.com/repository/pypi/simple" }, marker = "python_full_version < '3.9'" },
-    { name = "pytest", version = "8.4.2", source = { registry = "https://mirrors.huaweicloud.com/repository/pypi/simple" }, marker = "python_full_version == '3.9.*'" },
-    { name = "pytest", version = "9.0.2", source = { registry = "https://mirrors.huaweicloud.com/repository/pypi/simple" }, marker = "python_full_version >= '3.10'" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "coloredlogs", specifier = ">=15.0.1" }]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pyright", specifier = ">=1.1.407" },
-    { name = "pytest", specifier = ">=8.3.5" },
-    { name = "ruff", specifier = ">=0.14.10" },
-]
-
-[[package]]
 name = "coloredlogs"
 version = "15.0.1"
 source = { registry = "https://mirrors.huaweicloud.com/repository/pypi/simple" }
@@ -340,4 +313,31 @@ resolution-markers = [
 sdist = { url = "https://mirrors.huaweicloud.com/repository/pypi/packages/72/94/1a15dd82efb362ac84269196e94cf00f187f7ed21c242792a923cdb1c61f/typing_extensions-4.15.0.tar.gz", hash = "sha256:0cea48d173cc12fa28ecabc3b837ea3cf6f38c6d1136f85cbaaf598984861466" }
 wheels = [
     { url = "https://mirrors.huaweicloud.com/repository/pypi/packages/18/67/36e9267722cc04a6b9f15c7f3441c2363321a3ea07da7ae0c0707beb2a9c/typing_extensions-4.15.0-py3-none-any.whl", hash = "sha256:f0fa19c6845758ab08074a0cfa8b7aecb71c999ca73d62883bc25cc018c4e548" },
+]
+
+[[package]]
+name = "vibe-logger"
+version = "0.1.4"
+source = { editable = "." }
+dependencies = [
+    { name = "coloredlogs" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pyright" },
+    { name = "pytest", version = "8.3.5", source = { registry = "https://mirrors.huaweicloud.com/repository/pypi/simple" }, marker = "python_full_version < '3.9'" },
+    { name = "pytest", version = "8.4.2", source = { registry = "https://mirrors.huaweicloud.com/repository/pypi/simple" }, marker = "python_full_version == '3.9.*'" },
+    { name = "pytest", version = "9.0.2", source = { registry = "https://mirrors.huaweicloud.com/repository/pypi/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "coloredlogs", specifier = ">=15.0.1" }]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pyright", specifier = ">=1.1.407" },
+    { name = "pytest", specifier = ">=8.3.5" },
+    { name = "ruff", specifier = ">=0.14.10" },
 ]

@@ -2,10 +2,8 @@ import sys
 from pathlib import Path
 
 # --- Setup for local usage (not needed if installed via pip) ---
-sys.path.append(str(Path(__file__).parent / "libraries" / "colored_context_logger" / "src"))
-# -------------------------------------------------------------
-
-from colored_context_logger import setup_logger, GlobalLogContext, attach_file_handler
+sys.path.append(str(Path(__file__).parent / "libraries" / "vibe-logger" / "src"))
+from vibe_logger import setup_logger, GlobalLogContext, attach_file_handler
 
 def main():
     # 1. Setup the logger

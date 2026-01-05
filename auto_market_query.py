@@ -18,7 +18,7 @@ from airtest.core.api import (
 
 # 导入通用日志配置模块
 from logger_config import setup_logger_from_config
-from ocr_helper import OCRHelper
+from vibe_ocr import OCRHelper
 from emulator_manager import EmulatorManager
 from error_dialog_monitor import ErrorDialogMonitor
 

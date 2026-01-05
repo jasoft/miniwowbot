@@ -45,7 +45,7 @@ def test_declarative_api_logic():
         assert mock_touch.call_count == 2 # "开始游戏" and "等级达到 10 级"
 
 def test_find_all_delegation():
-    """测试 find_all 是否正确调用 OCRHelper"""
+    """测试 find_all 是否正确调用 vibe_ocr.OCRHelper"""
     mock_ocr = MagicMock()
     mock_ocr.capture_and_get_all_texts.return_value = [{"text": "A", "center": (1,1)}]
     

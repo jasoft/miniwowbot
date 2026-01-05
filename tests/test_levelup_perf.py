@@ -28,7 +28,7 @@ from levelup import LevelUpEngine, logger  # noqa: E402
 @pytest.mark.asyncio
 async def test_workflow_producer_loop_logging():
     # Setup
-    with patch("levelup.OCRHelper"), \
+    with patch("levelup.vibe_ocr.OCRHelper"), \
          patch("levelup.GameActions"):
         engine = LevelUpEngine()
     

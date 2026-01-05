@@ -36,7 +36,7 @@ class ColorHelper:
 
             for item in ocr_results:
                 # 获取 bbox
-                # OCRHelper 的结果中 bbox 格式通常是 [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
+                # vibe_ocr.OCRHelper 的结果中 bbox 格式通常是 [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
                 bbox = item.get("bbox") or item.get("poly")
                 if not bbox:
                     continue

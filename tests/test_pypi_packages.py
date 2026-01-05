@@ -6,9 +6,9 @@ import time
 import logging
 
 # Standard imports (installed via uv add)
-import ocrhelper
-from colored_context_logger import setup_logger, GlobalLogContext, attach_file_handler
-import colored_context_logger
+import vibe_ocr
+from vibe_logger import setup_logger, GlobalLogContext, attach_file_handler
+import vibe_logger
 
 def test_ocr_and_logger():
     # 1. Setup Logger
@@ -16,8 +16,7 @@ def test_ocr_and_logger():
     GlobalLogContext.update({"session": "test_run_123"})
     
     # Verify installation source
-    logger.info(f"ocrhelper file: {ocrhelper.__file__}")
-    logger.info(f"colored_context_logger file: {colored_context_logger.__file__}")
+            logger.info(f"vibe_ocr file: {vibe_ocr.__file__}")    logger.info(f"vibe_logger file: {vibe_logger.__file__}")
     
     # Create logs directory if it doesn't exist
     if not os.path.exists("logs_test"):
@@ -34,8 +33,7 @@ def test_ocr_and_logger():
     
     logger.info(f"Using OCR Server: {ocr_server}")
     
-    ocr = ocrhelper.OCRHelper(output_dir="output_test")
-    
+            ocr = vibe_ocr.OCRHelper(output_dir="output_test")    
     # 3. Create a dummy image with text
     # Create a white image
     width, height = 600, 200

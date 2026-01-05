@@ -4,11 +4,11 @@
 
 ### 优化内容
 
-- 重构 `auto_dungeon.text_exists` 实现逻辑，优先使用 OCRHelper 的批量 OCR 能力：
+- 重构 `auto_dungeon.text_exists` 实现逻辑，优先使用 vibe_ocr.OCRHelper 的批量 OCR 能力：
   - 对当前界面 **只截图一次**；
   - 通过 `_get_or_create_ocr_result` 生成/复用 OCR JSON 结果；
   - 通过 `_get_all_texts_from_json` 一次性加载所有文本，再在内存中按候选数组顺序匹配；
-  - 仅在旧版 OCRHelper 或异常场景下，才回退到逐个 `capture_and_find_text` 的慢路径。
+  - 仅在旧版 vibe_ocr.OCRHelper 或异常场景下，才回退到逐个 `capture_and_find_text` 的慢路径。
 - 在 `tests/test_text_exists.py` 中新增单元测试，验证在支持批量 OCR 的场景下只会进行一次截图和一次 OCR 结果加载，确保性能优化生效且行为稳定。
 
 ---
@@ -684,7 +684,7 @@ python auto_market_query.py --price-threshold 100000 --max-iterations 50
 ### 主要功能
 
 1. **定时查询** - 每 5 秒点击一次查询按钮（可配置间隔）
-2. **OCR 识别** - 使用 OCRHelper 识别全屏幕文字
+2. **OCR 识别** - 使用 vibe_ocr.OCRHelper 识别全屏幕文字
 3. **金币解析** - 智能解析 `2000k` 或 `89888` 格式的价格
 4. **自动购买** - 当金币数 < 100k 时自动执行购买流程
 5. **灵活配置** - 支持命令行参数配置按钮位置和查询间隔
@@ -717,7 +717,7 @@ python auto_market_query.py --emulator 127.0.0.1:5555
    - 返回整数金币数量
 
 2. **find_gold_price_text()** - 文字识别
-   - 使用 OCRHelper 进行全屏幕 OCR
+   - 使用 vibe_ocr.OCRHelper 进行全屏幕 OCR
    - 查找"一口价"关键词
    - 返回文字位置和内容
 
@@ -3598,9 +3598,7 @@ if accounts:
 - ✅ `find_text()` 支持 `raise_exception` 参数控制超时行为
 
 #### API 更新
-所有主要方法都新增了 `regions` 参数：
-
-**OCRHelper 类方法**：
+### **vibe_ocr.OCRHelper 类方法**：
 - ✅ `find_text_in_image(regions=[1, 2, 3])` - 在图像的指定区域搜索
 - ✅ `capture_and_find_text(regions=[5])` - 截图并在指定区域搜索
 - ✅ `find_and_click_text(regions=[7, 8, 9])` - 在指定区域搜索并点击
@@ -3627,7 +3625,7 @@ if accounts:
 
 #### 使用示例
 
-**OCRHelper 类方法**：
+### **vibe_ocr.OCRHelper 类方法**：
 ```python
 # 在右上角搜索设置按钮（区域3）
 ocr.find_and_click_text("设置", regions=[3])

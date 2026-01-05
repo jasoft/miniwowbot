@@ -1,17 +1,17 @@
-# OCRHelper
+# Vibe-OCR
 
 A decoupled OCR helper library using PaddleOCR (via remote server) and SQLite caching.
 
 ## Installation
 
 ```bash
-pip install ocrhelper
+pip install vibe-ocr
 ```
 
 ## Usage
 
 ```python
-from ocrhelper import OCRHelper
+from vibe_ocr import OCRHelper
 
 ocr = OCRHelper()
 result = ocr.find_text_in_image("screenshot.png", "Target Text")

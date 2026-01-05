@@ -10,7 +10,7 @@ import os
 # 添加父目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ocr_helper import OCRHelper
+from vibe_ocr import OCRHelper
 
 
 def main():
