@@ -6,6 +6,7 @@ import pytest
 import cv2
 import numpy as np
 from vibe_ocr import OCRHelper
+import vibe_ocr
 
 
 @pytest.fixture
@@ -62,6 +63,7 @@ def sample_image(tmp_path):
 class TestRegionMerge:
     """测试区域合并"""
 
+    def test_merge_single_region(self, temp_output_dir):
         ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
 
         # 区域1
@@ -76,6 +78,7 @@ class TestRegionMerge:
         min_row, max_row, min_col, max_col = ocr._merge_regions([9])
         assert (min_row, max_row, min_col, max_col) == (2, 2, 2, 2)
 
+    def test_merge_rows(self, temp_output_dir):
         ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
 
         # 上部整行 (1, 2, 3)
@@ -90,6 +93,7 @@ class TestRegionMerge:
         min_row, max_row, min_col, max_col = ocr._merge_regions([7, 8, 9])
         assert (min_row, max_row, min_col, max_col) == (2, 2, 0, 2)
 
+    def test_merge_cols(self, temp_output_dir):
         ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
 
         # 左侧整列 (1, 4, 7)
@@ -104,6 +108,7 @@ class TestRegionMerge:
         min_row, max_row, min_col, max_col = ocr._merge_regions([3, 6, 9])
         assert (min_row, max_row, min_col, max_col) == (0, 2, 2, 2)
 
+    def test_merge_blocks(self, temp_output_dir):
         ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
 
         # 左上角 2x2 (1, 2, 4, 5)
@@ -118,10 +123,12 @@ class TestRegionMerge:
 class TestRegionBounds:
     """测试区域边界计算"""
 
+    def test_bounds_none(self, temp_output_dir):
         ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
         bounds = ocr._get_region_bounds((900, 900), None)
         assert bounds == (0, 0, 900, 900)
 
+    def test_bounds_single(self, temp_output_dir):
         ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
 
         # 测试区域1 (左上)
@@ -136,6 +143,7 @@ class TestRegionBounds:
         bounds = ocr._get_region_bounds((900, 900), [9])
         assert bounds == (600, 600, 300, 300)
 
+    def test_bounds_rows(self, temp_output_dir):
         ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
 
         # 上部整行 (1, 2, 3)
@@ -146,6 +154,7 @@ class TestRegionBounds:
         bounds = ocr._get_region_bounds((900, 900), [7, 8, 9])
         assert bounds == (0, 600, 900, 300)
 
+    def test_bounds_cols(self, temp_output_dir):
         ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
 
         # 左侧整列 (1, 4, 7)
@@ -160,6 +169,7 @@ class TestRegionBounds:
 class TestExtractRegion:
     """测试区域提取"""
 
+    def test_extract_single(self, temp_output_dir, sample_image):
         ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
         image = cv2.imread(sample_image)
 
@@ -168,6 +178,7 @@ class TestExtractRegion:
         assert region_img.shape[1] == 300  # 宽度
         assert offset == (0, 0)
 
+    def test_extract_rows(self, temp_output_dir, sample_image):
         ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
         image = cv2.imread(sample_image)
 
@@ -177,6 +188,7 @@ class TestExtractRegion:
         assert region_img.shape[1] == 900  # 宽度（整行）
         assert offset == (0, 0)
 
+    def test_extract_cols(self, temp_output_dir, sample_image):
         ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
         image = cv2.imread(sample_image)
 
@@ -190,6 +202,7 @@ class TestExtractRegion:
 class TestCoordinateAdjustment:
     """测试坐标调整"""
 
+    def test_adjust_coordinates(self, temp_output_dir):
         ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
 
         # 区域内的边界框
@@ -208,6 +221,7 @@ class TestCoordinateAdjustment:
 class TestRegionSearch:
     """测试区域搜索功能"""
 
+    def test_find_text_single_region(self, temp_output_dir, sample_image):
         ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
 
         # 测试在区域1中搜索（应该能找到 "Region 1"）
@@ -226,6 +240,7 @@ class TestRegionSearch:
         assert "total_matches" in result
         assert "selected_index" in result
 
+    def test_find_text_multi_region(self, temp_output_dir, sample_image):
         ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
 
         # 在区域1, 2, 3中搜索
@@ -241,6 +256,7 @@ class TestRegionSearch:
 class TestEmptyResult:
     """测试空结果"""
 
+    def test_empty_result(self, temp_output_dir):
         ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
         result = ocr._empty_result()
 
