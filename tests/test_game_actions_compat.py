@@ -28,8 +28,9 @@ def mock_env(request):
     output_dir = "output/test_compat"
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
-        
-            ocr_helper = vibe_ocr.OCRHelper(output_dir=output_dir, delete_temp_screenshots=True)    game_actions = GameActions(ocr_helper)
+
+    ocr_helper = vibe_ocr.OCRHelper(output_dir=output_dir, delete_temp_screenshots=True)
+    game_actions = GameActions(ocr_helper)
 
     # Inject into auto_dungeon
     original_ocr_helper = auto_dungeon.ocr_helper

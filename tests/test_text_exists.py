@@ -30,7 +30,8 @@ class TestTextExistsBasic:
 
         calls = []
 
-class Fakevibe_ocr.OCRHelper:
+        class FakeOCRHelper:
+            def __init__(
                 self,
                 target_text,
                 confidence_threshold=0.5,
@@ -92,7 +93,7 @@ class TestTextExistsBulkOCR:
         calls = {"snapshot": 0, "get_or_create": 0, "get_all": 0}
         captured_paths = []
 
-        class Fakevibe_ocr.OCRHelper:
+        class FakeOCRHelper:
             def __init__(self):
                 # 模拟 auto_dungeon.OCRHelper 里的 temp_dir 属性
                 self.temp_dir = str(tmp_path)
@@ -118,7 +119,7 @@ class TestTextExistsBulkOCR:
                     {"text": "无关文本", "confidence": 0.6, "center": (50, 50)},
                 ]
 
-        fake_helper = Fakevibe_ocr.OCRHelper()
+        fake_helper = FakeOCRHelper()
 
         def fake_snapshot(filename=None):  # 与 auto_dungeon.snapshot 签名保持兼容
             calls["snapshot"] += 1

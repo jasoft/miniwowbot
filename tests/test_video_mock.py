@@ -1,13 +1,14 @@
-
+import logging
 import os
+
 import cv2
 import pytest
 from vibe_ocr import OCRHelper
-import logging
 
 # Configure logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
 
 class VideoMockEmulator:
     def __init__(self, video_path):
@@ -32,56 +33,59 @@ class VideoMockEmulator:
             ret, frame = self.cap.read()
             if not ret:
                 raise EOFError("Could not read video frame even after restart")
-        
+
         if filename:
             # Ensure directory exists
             os.makedirs(os.path.dirname(filename), exist_ok=True)
             cv2.imwrite(filename, frame)
             logger.debug(f"Saved video frame {self.frame_count} to {filename}")
-        
+
         self.frame_count += 1
         return frame
 
     def close(self):
         self.cap.release()
 
+
 @pytest.fixture(scope="module")
 def video_mock():
     video_path = r"C:\Users\11885\Videos\BlueStacks-Pie64\Recording-2025-12-26-005653.mp4"
     if not os.path.exists(video_path):
         pytest.skip(f"Video file not found: {video_path}")
-    
+
     emulator = VideoMockEmulator(video_path)
     yield emulator
     emulator.close()
+
 
 def test_video_ocr_flow(video_mock):
     """
     Test OCR on video frames.
     """
     # Initialize OCRHelper with the mock snapshot function
-            ocr_helper = vibe_ocr.OCRHelper(output_dir="output/test_video", snapshot_func=video_mock.snapshot)    
+    ocr_helper = OCRHelper(output_dir="output/test_video", snapshot_func=video_mock.snapshot)
     # Process a few frames
     num_frames_to_test = 5
     found_any_text = False
-    
+
     for i in range(num_frames_to_test):
         logger.info(f"Processing frame {i+1}/{num_frames_to_test}...")
-        
+
         # Capture and get all texts
         results = ocr_helper.capture_and_get_all_texts(use_cache=False)
-        
+
         logger.info(f"Frame {i+1} found {len(results)} text elements")
-        for res in results[:5]: # Print first 5 results
+        for res in results[:5]:  # Print first 5 results
             logger.info(f"  - {res.get('text')} at {res.get('center')}")
-            
+
         if len(results) > 0:
             found_any_text = True
-            
+
         # Simulate some time passing if needed, though for the mock it just grabs the next frame
         # In a real scenario, you might want to skip frames to simulate real-time
-        
+
     assert found_any_text, "OCR should detect text in at least one frame of the video"
+
 
 if __name__ == "__main__":
     # Allow running directly

@@ -44,24 +44,32 @@ def create_dummy_image(path):
 class TestOCRHelperBasic:
     """测试 OCR 辅助类基本功能"""
 
-        ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
+    def test_ocr_helper_creation(self, temp_output_dir):
+        """测试 OCRHelper 创建"""
+        ocr = OCRHelper(output_dir=temp_output_dir)
         assert ocr is not None
         assert ocr.output_dir == temp_output_dir
 
-        ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
+    def test_output_dir_exists_after_init(self, temp_output_dir):
+        """测试初始化后输出目录存在"""
+        ocr = OCRHelper(output_dir=temp_output_dir)
         assert os.path.exists(ocr.output_dir)
 
-        ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
+    def test_cache_dir_created(self, temp_output_dir):
+        """测试缓存目录创建"""
+        ocr = OCRHelper(output_dir=temp_output_dir)
         assert os.path.exists(ocr.cache_dir)
         assert ocr.cache_dir == os.path.join(temp_output_dir, "cache")
 
     def test_default_output_dir_relative_to_auto_dungeon(self):
         """默认输出目录应相对 auto_dungeon.py"""
-        ocr = vibe_ocr.OCRHelper()
+        ocr = OCRHelper()
         expected_dir = str(resolve_project_path("output"))
         assert ocr.output_dir == expected_dir
 
-        ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
+    def test_ocr_cache_initialized(self, temp_output_dir):
+        """测试 OCR 缓存初始化"""
+        ocr = OCRHelper(output_dir=temp_output_dir)
         assert isinstance(ocr.ocr_cache, list)
         assert len(ocr.ocr_cache) == 0  # 初始为空
         assert os.path.exists(ocr.cache_db_path)
@@ -70,7 +78,9 @@ class TestOCRHelperBasic:
 class TestOCRCacheLoading:
     """测试 OCR 缓存加载功能"""
 
-        ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
+    def test_cache_db_created(self, temp_output_dir):
+        """测试缓存数据库创建"""
+        ocr = OCRHelper(output_dir=temp_output_dir)
         with sqlite3.connect(ocr.cache_db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM ocr_cache")
@@ -88,7 +98,7 @@ class TestOCRCacheLoading:
             )
             conn.commit()
 
-        vibe_ocr.OCRHelper(output_dir=temp_output_dir)
+        OCRHelper(output_dir=temp_output_dir)
 
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
@@ -100,7 +110,7 @@ class TestOCRCacheLoading:
     def test_cache_persistence(self, temp_output_dir, monkeypatch):
         """测试缓存持久化"""
         # 第一次初始化
-        ocr1 = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
+        ocr1 = OCRHelper(output_dir=temp_output_dir)
         image_path = os.path.join(temp_output_dir, "dummy.png")
         create_dummy_image(image_path)
 
@@ -121,13 +131,15 @@ class TestOCRCacheLoading:
             cursor.execute("SELECT COUNT(*) FROM ocr_cache")
             initial_cache_count = cursor.fetchone()[0]
 
-        ocr2 = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
+        ocr2 = OCRHelper(output_dir=temp_output_dir)
         with sqlite3.connect(ocr2.cache_db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM ocr_cache")
             assert cursor.fetchone()[0] == initial_cache_count
 
-        ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
+    def test_cache_dir_structure(self, temp_output_dir):
+        """测试缓存目录结构"""
+        ocr = OCRHelper(output_dir=temp_output_dir)
         cache_dir = ocr.cache_dir
 
         # 检查缓存目录存在
@@ -138,16 +150,22 @@ class TestOCRCacheLoading:
 class TestOCRConfiguration:
     """测试 OCR 配置"""
 
-        ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
+    def test_cache_similarity_threshold_exists(self, temp_output_dir):
+        """测试缓存相似度阈值属性存在"""
+        ocr = OCRHelper(output_dir=temp_output_dir)
         assert hasattr(ocr, "cache_similarity_threshold")
         assert isinstance(ocr.cache_similarity_threshold, float)
         assert 0 < ocr.cache_similarity_threshold <= 1
 
-        ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
+    def test_default_cache_similarity_threshold(self, temp_output_dir):
+        """测试默认缓存相似度阈值"""
+        ocr = OCRHelper(output_dir=temp_output_dir)
         # 默认应该是 0.95
         assert ocr.cache_similarity_threshold == 0.95
 
-        ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
+    def test_logger_initialized(self, temp_output_dir):
+        """测试日志器初始化"""
+        ocr = OCRHelper(output_dir=temp_output_dir)
         assert hasattr(ocr, "logger")
         assert ocr.logger is not None
 
@@ -155,11 +173,15 @@ class TestOCRConfiguration:
 class TestOCRMethods:
     """测试 OCR 方法"""
 
-        ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
+    def test_find_and_click_text_exists(self, temp_output_dir):
+        """测试 find_and_click_text 方法存在"""
+        ocr = OCRHelper(output_dir=temp_output_dir)
         assert hasattr(ocr, "find_and_click_text")
         assert callable(ocr.find_and_click_text)
 
-        ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
+    def test_ocr_url_configured(self, temp_output_dir):
+        """测试 OCR URL 配置"""
+        ocr = OCRHelper(output_dir=temp_output_dir)
         assert hasattr(ocr, "ocr_url")
         assert ocr.ocr_url
 
@@ -167,8 +189,14 @@ class TestOCRMethods:
 class TestOCRCacheManagement:
     """测试 OCR 缓存管理"""
 
-        ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
+    def test_ocr_cache_is_list(self, temp_output_dir):
+        """测试 OCR 缓存是列表"""
+        ocr = OCRHelper(output_dir=temp_output_dir)
         assert isinstance(ocr.ocr_cache, list)
+
+    def test_ocr_cache_structure(self, temp_output_dir):
+        """测试 OCR 缓存结构"""
+        ocr = OCRHelper(output_dir=temp_output_dir)
 
         # 如果有缓存，检查结构
         for cache_item in ocr.ocr_cache:
@@ -179,7 +207,9 @@ class TestOCRCacheManagement:
             # 第二个元素是 JSON 路径
             assert isinstance(cache_item[1], str)
 
-        ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
+    def test_cache_files_management(self, temp_output_dir, monkeypatch):
+        """测试缓存文件管理"""
+        ocr = OCRHelper(output_dir=temp_output_dir)
         image_path = os.path.join(temp_output_dir, "dummy.png")
         create_dummy_image(image_path)
 
@@ -215,12 +245,14 @@ class TestOCRIntegration:
 
     def test_multiple_instances_share_cache_dir(self, temp_output_dir):
         """测试多个实例共享缓存目录"""
-        ocr1 = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
-        ocr2 = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
+        ocr1 = OCRHelper(output_dir=temp_output_dir)
+        ocr2 = OCRHelper(output_dir=temp_output_dir)
 
         assert ocr1.cache_dir == ocr2.cache_dir
 
-        ocr = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
+    def test_cache_dir_path(self, temp_output_dir):
+        """测试缓存目录路径"""
+        ocr = OCRHelper(output_dir=temp_output_dir)
         expected_cache_dir = os.path.join(temp_output_dir, "cache")
         assert ocr.cache_dir == expected_cache_dir
 
@@ -279,18 +311,18 @@ class TestCaptureAndFindTextCacheFallback:
             cache_updates.append((image_path, ocr_result, regions))
 
         monkeypatch.setattr(ocr_helper, "snapshot", fake_snapshot)
-        monkeypatch.setattr(vibe_ocr.OCRHelper, "find_text_in_image", fake_find)
-        monkeypatch.setattr(vibe_ocr.OCRHelper, "_save_to_cache", fake_save_to_cache)
+        monkeypatch.setattr(OCRHelper, "find_text_in_image", fake_find)
+        monkeypatch.setattr(OCRHelper, "_save_to_cache", fake_save_to_cache)
 
         def fake_predict(self, image_path):
-             return {
+            return {
                 "rec_texts": ["测试文字"],
                 "rec_scores": [0.99],
                 "dt_polys": [[[0, 0], [20, 0], [20, 20], [0, 20]]],
             }
-        monkeypatch.setattr(vibe_ocr.OCRHelper, "_predict_with_timing", fake_predict)
+        monkeypatch.setattr(OCRHelper, "_predict_with_timing", fake_predict)
 
-        helper = vibe_ocr.OCRHelper(output_dir=temp_output_dir)
+        helper = OCRHelper(output_dir=temp_output_dir)
 
         result = helper.capture_and_find_text("测试文字", use_cache=True)
 

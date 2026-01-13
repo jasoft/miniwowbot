@@ -16,7 +16,8 @@ def test_ocr_and_logger():
     GlobalLogContext.update({"session": "test_run_123"})
     
     # Verify installation source
-            logger.info(f"vibe_ocr file: {vibe_ocr.__file__}")    logger.info(f"vibe_logger file: {vibe_logger.__file__}")
+    logger.info(f"vibe_ocr file: {vibe_ocr.__file__}")
+    logger.info(f"vibe_logger file: {vibe_logger.__file__}")
     
     # Create logs directory if it doesn't exist
     if not os.path.exists("logs_test"):
@@ -33,7 +34,7 @@ def test_ocr_and_logger():
     
     logger.info(f"Using OCR Server: {ocr_server}")
     
-            ocr = vibe_ocr.OCRHelper(output_dir="output_test")    
+    ocr = vibe_ocr.OCRHelper(output_dir="output_test")    
     # 3. Create a dummy image with text
     # Create a white image
     width, height = 600, 200

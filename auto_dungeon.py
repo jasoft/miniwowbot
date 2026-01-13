@@ -758,16 +758,14 @@ class DailyCollectManager:
             find_text_and_click("兑换", regions=[9])
 
             # 兑换随从碎片
-            res = find_text("70/40", regions=[3])
+            buttons = game_actions.find_all().equals("兑换")
             try:
-                if res:
-                    touch(res["center"])
-                    sleep(CLICK_INTERVAL, "等待兑换碎片窗口")
-                    find_text_and_click("确定", regions=[5])
-                    res.offset_click(0, 125)
-                    sleep(CLICK_INTERVAL, "等待兑换碎片窗口")
-                    find_text_and_click("确定", regions=[5])
-                    send_bark_notification("兑换碎片成功", "兑换成功, 请立即检查")
+                for button in buttons:
+                    button.click()
+
+                    game_actions.find_all(regions=[5]).equals("确定").first().click()
+                    if find_text_and_click_safe("确定", regions=[5], timeout=3):
+                        send_bark_notification("兑换碎片成功", "兑换成功, 请立即检查")
             except Exception as e:
                 logger.error(f"❌ 兑换碎片失败: {e}")
                 send_bark_notification("兑换碎片失败", "兑换失败, 请立即检查")

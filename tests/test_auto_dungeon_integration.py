@@ -11,10 +11,11 @@ import os
 import time
 
 import pytest
+import vibe_ocr  # noqa: E402
 
 # 添加父目录到路径
 # sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from airtest.core.api import auto_setup, connect_device  # noqa: E402
+from airtest.core.api import auto_setup, connect_device, snapshot  # noqa: E402
 
 import auto_dungeon  # noqa: E402
 from auto_dungeon import (
@@ -25,7 +26,6 @@ from auto_dungeon import (
     switch_account,
 )  # noqa: E402
 from config_loader import ConfigLoader  # noqa: E402
-from vibe_ocr import OCRHelper  # noqa: E402
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -90,13 +90,25 @@ def setup_device():
         logger.info("✅ 设备连接成功")
 
         # 初始化 OCR Helper
-        auto_dungeon.ocr_helper = vibe_ocr.OCRHelper(output_dir="output")
+        auto_dungeon.ocr_helper = vibe_ocr.OCRHelper(output_dir="output", snapshot_func=snapshot)
         logger.info("✅ OCR Helper 初始化成功")
 
-        yield True
+        # 初始化 GameActions (依赖于 ocr_helper)
+        from game_actions import GameActions
+
+        auto_dungeon.game_actions = GameActions(auto_dungeon.ocr_helper, click_interval=1)
+        logger.info("✅ GameActions 初始化成功")
+
     except Exception as e:
         logger.error(f"❌ 设备连接失败: {e}")
         pytest.skip(f"无法连接设备: {e}")
+        return
+
+    yield True
+
+    # 清理
+    auto_dungeon.game_actions = None
+    auto_dungeon.ocr_helper = None
 
 
 @pytest.mark.integration
