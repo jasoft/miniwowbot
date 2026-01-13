@@ -3,7 +3,7 @@
     "class": "战士",
     "enable_daily_collect": true,
     "enable_quick_afk": true,
-    "chestname": "军团宝箱",
+    "chestname": "风暴宝箱",
     "ocr_correction_map": {
         "梦魔丛林": "梦魇丛林"
     },
