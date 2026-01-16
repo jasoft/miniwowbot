@@ -20,6 +20,7 @@ from auto_dungeon_core import (
     click_back,
     sleep,
     touch,
+    get_container,
 )
 
 # 坐标常量
@@ -172,7 +173,7 @@ class DailyCollectManager:
             find_text_and_click("兑换", regions=[9])
 
             # 兑换随从碎片
-            from game_actions import game_actions
+            game_actions = get_container().game_actions
 
             buttons = game_actions.find_all().equals("兑换")
             try:
