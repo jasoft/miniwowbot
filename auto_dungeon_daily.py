@@ -3,24 +3,23 @@ auto_dungeon 每日收集模块
 
 本模块提供每日收集相关的操作管理。
 """
+
 import logging
-from typing import Optional
 
 from auto_dungeon_config import CLICK_INTERVAL
 from auto_dungeon_core import (
     back_to_main,
+    click_back,
     find_text,
     find_text_and_click,
     find_text_and_click_safe,
-    is_main_world,
+    get_container,
     open_map,
     send_bark_notification,
+    sleep,
     switch_to,
     text_exists,
-    click_back,
-    sleep,
     touch,
-    get_container,
 )
 
 # 坐标常量
