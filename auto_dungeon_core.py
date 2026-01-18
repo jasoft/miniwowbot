@@ -9,7 +9,7 @@ import subprocess
 import sys
 import time
 import urllib.parse
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 from airtest.core.api import (
@@ -67,7 +67,6 @@ from emulator_manager import EmulatorManager
 from error_dialog_monitor import ErrorDialogMonitor
 from game_actions import GameActions
 from logger_config import GlobalLogContext, setup_logger_from_config
-from project_paths import resolve_project_path
 from system_config_loader import load_system_config
 
 # 配置 Airtest 图像识别策略
@@ -1412,10 +1411,6 @@ def run_dungeon_traversal(db: DungeonProgressDB, total_dungeons: int, state_mach
         logger.error("❌ 区域副本配置未初始化")
         return 0
 
-    daily_collect_finished = db.is_daily_collect_completed()
-    if daily_collect_finished and _container.config_loader.is_daily_collect_enabled():
-        logger.info("⏭️ 今日每日收集任务已完成，跳过 daily_collect 步骤")
-
     dungeon_index = 0
     processed_dungeons = 0
     remaining_dungeons = count_remaining_selected_dungeons(db)
@@ -1450,11 +1445,6 @@ def run_dungeon_traversal(db: DungeonProgressDB, total_dungeons: int, state_mach
             if db.is_dungeon_completed(zone_name, dungeon_name):
                 logger.info(f"⏭️ [{dungeon_index}/{total_dungeons}] 已通关，跳过: {dungeon_name}")
                 continue
-
-            if not daily_collect_finished and _container.config_loader.is_daily_collect_enabled():
-                if state_machine.claim_daily_rewards():
-                    daily_collect_finished = True
-                    state_machine.return_to_main_state()
 
             if process_dungeon(
                 dungeon_name,
@@ -1625,8 +1615,6 @@ def stop_error_monitor():
 
 def main():
     """主函数"""
-    from logger_config import apply_logging_slice, attach_emulator_file_handler, update_log_context
-
     args = parse_arguments()
 
     if not args.load_account:
@@ -1660,7 +1648,10 @@ def main():
     with DungeonProgressDB(config_name=_container.config_loader.get_config_name()) as db:
         completed_count, total_selected, total = show_progress_statistics(db)
 
-        if completed_count >= total_selected:
+        daily_collect_finished = db.is_daily_collect_completed()
+        daily_collect_enabled = _container.config_loader.is_daily_collect_enabled()
+
+        if completed_count >= total_selected and (not daily_collect_enabled or daily_collect_finished):
             logger.info("✅ 无需启动模拟器，脚本退出")
             return
 
@@ -1690,6 +1681,12 @@ def main():
     else:
         logger.info("⚠️ 未配置角色职业，跳过角色选择")
         state_machine.ensure_main()
+
+    # 执行每日收集
+    if _container.config_loader.is_daily_collect_enabled():
+        logger.info("🚀 检查每日收集任务")
+        if state_machine.claim_daily_rewards():
+            state_machine.return_to_main_state()
 
     # 执行副本遍历
     with DungeonProgressDB(config_name=_container.config_loader.get_config_name()) as db:
@@ -1753,7 +1750,7 @@ def main_wrapper():
                 logger.error(f"\n❌ 已达到最大重启次数 ({max_restarts})，程序退出")
                 send_bark_notification(
                     "副本助手 - 严重错误",
-                    f"程序因多次超时失败退出",
+                    "程序因多次超时失败退出",
                     level="timeSensitive",
                 )
                 sys.exit(1)
@@ -1782,6 +1779,8 @@ def main_wrapper():
 
 def setup_logging_slices():
     """设置日志切面"""
+    from logger_config import apply_logging_slice
+
     apply_logging_slice(
         [
             (sys.modules[__name__], "find_text"),

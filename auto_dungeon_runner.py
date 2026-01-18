@@ -3,7 +3,7 @@ auto_dungeon 运行器模块
 
 本模块封装副本自动遍历的核心运行逻辑，使用依赖注入提高可测试性。
 """
-import logging
+
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
@@ -11,12 +11,11 @@ from auto_dungeon_config import CLICK_INTERVAL
 from auto_dungeon_core import (
     back_to_main,
     find_text_and_click_safe,
-    is_main_world,
     open_map,
     switch_to_zone,
 )
-from auto_dungeon_device import DeviceManager
 from auto_dungeon_daily import DailyCollectManager
+from auto_dungeon_device import DeviceManager
 from auto_dungeon_state import DungeonStateMachine
 from database import DungeonProgressDB
 from logger_config import logger
@@ -25,6 +24,7 @@ from logger_config import logger
 @dataclass
 class DungeonBotConfig:
     """副本机器人配置"""
+
     config_path: str = "configs/default.json"
     emulator_name: Optional[str] = None
     low_mem: bool = False
@@ -69,8 +69,6 @@ class DungeonBot:
     def device_manager(self) -> DeviceManager:
         """获取设备管理器（懒加载）"""
         if self._device_manager is None:
-            from config_loader import load_config
-
             self._device_manager = DeviceManager()
             self._device_manager.initialize(
                 self.config.emulator_name,
@@ -237,7 +235,11 @@ class DungeonBot:
             return 0
 
         daily_collect_finished = self.db.is_daily_collect_completed()
-        if daily_collect_finished and self.config_loader.is_daily_collect_enabled():
+        daily_collect_enabled = self.config_loader.is_daily_collect_enabled()
+        self.logger.info(
+            f"🔍 每日收集检查: enabled={daily_collect_enabled}, finished={daily_collect_finished}"
+        )
+        if daily_collect_finished and daily_collect_enabled:
             self.logger.info("⏭️ 今日每日收集任务已完成，跳过 daily_collect 步骤")
 
         dungeon_index = 0
@@ -252,6 +254,16 @@ class DungeonBot:
         self.logger.info(f"📊 今天已完成的副本数: {completed_today}")
 
         self.state_machine.ensure_main()
+
+        # 在遍历副本之前，先执行每日收集（如果需要且未完成）
+        if not daily_collect_finished and daily_collect_enabled:
+            self.logger.info("🚀 开始执行每日收集任务")
+            if self.state_machine.claim_daily_rewards():
+                self.logger.info("✅ 每日收集任务状态机调用成功")
+                daily_collect_finished = True
+                self.state_machine.return_to_main_state()
+            else:
+                self.logger.error("❌ 每日收集任务状态机调用失败")
 
         # 遍历所有区域
         for zone_idx, (zone_name, dungeons) in enumerate(zone_dungeons.items(), 1):
@@ -286,15 +298,6 @@ class DungeonBot:
                         f"⏭️ [{dungeon_index}/{len(zone_dungeons)}] 已通关，跳过: {dungeon_name}"
                     )
                     continue
-
-                # 正式开始挂机
-                if (
-                    not daily_collect_finished
-                    and self.config_loader.is_daily_collect_enabled()
-                ):
-                    if self.state_machine.claim_daily_rewards():
-                        daily_collect_finished = True
-                        self.state_machine.return_to_main_state()
 
                 # 完成副本
                 if self.process_dungeon(
@@ -402,8 +405,18 @@ class DungeonBot:
         # 显示进度统计
         completed_count, total_selected, total = self.show_progress_statistics()
 
-        if completed_count >= total_selected:
-            self.logger.info("✅ 无需启动模拟器，脚本退出")
+        # 检查是否需要启动游戏（副本未完成 或 每日收集未完成）
+        daily_collect_finished = self.db.is_daily_collect_completed()
+        daily_collect_enabled = self.config_loader.is_daily_collect_enabled()
+        self.logger.info(
+            f"🔍 每日收集检查: enabled={daily_collect_enabled}, finished={daily_collect_finished}"
+        )
+        need_run = completed_count < total_selected or (
+            daily_collect_enabled and not daily_collect_finished
+        )
+
+        if not need_run:
+            self.logger.info("✅ 副本和每日收集都已完成，无需启动模拟器，脚本退出")
             return
 
         # 启动游戏
@@ -455,9 +468,7 @@ class DungeonBot:
 
         # 显示完成信息
         self.logger.info("\n" + "=" * 60)
-        self.logger.info(
-            f"🎉 全部完成！今天共通关 {self.db.get_today_completed_count()} 个副本"
-        )
+        self.logger.info(f"🎉 全部完成！今天共通关 {self.db.get_today_completed_count()} 个副本")
         self.logger.info("=" * 60 + "\n")
         self.state_machine.ensure_main()
 

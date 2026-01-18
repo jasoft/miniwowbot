@@ -133,8 +133,11 @@ class DungeonStateMachine:
     def _safe_trigger(self, trigger_name: str, **kwargs) -> bool:
         """安全触发状态转换"""
         try:
+            self.logger.info(f"🔍 状态机: _safe_trigger('{trigger_name}') 开始, 当前状态: {self.state}")
             trigger = getattr(self, trigger_name)
-            return trigger(**kwargs)
+            result = trigger(**kwargs)
+            self.logger.info(f"🔍 状态机: _safe_trigger('{trigger_name}') 返回: {result}, 新状态: {self.state}")
+            return result
         except (AttributeError, MachineError) as exc:
             self.logger.error(f"⚠️ 状态机触发失败: {trigger_name} - {exc}")
             return False
@@ -182,7 +185,9 @@ class DungeonStateMachine:
 
     def claim_daily_rewards(self) -> bool:
         """领取每日奖励"""
-        self._safe_trigger("claim_rewards", reward_type="daily_collect")
+        self.logger.info("🔍 状态机: claim_daily_rewards() 被调用")
+        result = self._safe_trigger("claim_rewards", reward_type="daily_collect")
+        self.logger.info(f"🔍 状态机: claim_daily_rewards() 返回 {result}, 当前状态: {self.state}")
         return self.state == "reward_claim"
 
     def return_to_main_state(self) -> bool:
@@ -275,6 +280,7 @@ class DungeonStateMachine:
     def _on_reward_state(self, event):
         """奖励状态动作"""
         reward_type = event.kwargs.get("reward_type", "battle")
+        self.logger.info(f"🔍 状态机: _on_reward_state() called, reward_type={reward_type}")
 
         if reward_type == "daily_collect":
             self.logger.info("🎁 状态机: 执行每日领取流程")
@@ -283,7 +289,8 @@ class DungeonStateMachine:
             from auto_dungeon import daily_collect
 
             try:
-                daily_collect()
+                result = daily_collect()
+                self.logger.info(f"🔍 状态机: daily_collect() 返回: {result}")
             except Exception as exc:
                 self.logger.error(f"❌ 每日领取失败: {exc}")
                 raise
