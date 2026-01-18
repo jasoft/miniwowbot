@@ -3,9 +3,9 @@
 
 本文件只保留入口点，所有核心逻辑已迁移到 auto_dungeon_core.py。
 """
+from auto_dungeon_daily import DailyCollectManager
 from auto_dungeon_core import (
     # 核心类
-    DailyCollectManager,
     DungeonStateMachine,
     DeviceManager,
     DependencyContainer,
