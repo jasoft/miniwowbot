@@ -280,18 +280,6 @@ class ConfigLoader:
         if value is None:
             return default
 
-        # 对于布尔值，如果默认值是布尔类型，确保返回布尔类型
-        if isinstance(default, bool) and not isinstance(value, bool):
-            return default
-
-        # 对于字典类型，如果默认值是字典，确保返回字典
-        if isinstance(default, dict) and not isinstance(value, dict):
-            return default
-
-        # 对于字符串类型，如果默认值是字符串，确保返回字符串
-        if isinstance(default, str) and not isinstance(value, str):
-            return default
-
         return value  # type: ignore
 
     def has_attr(self, attr_name: str) -> bool:
