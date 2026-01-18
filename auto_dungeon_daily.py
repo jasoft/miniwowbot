@@ -55,6 +55,56 @@ class DailyCollectManager:
         self.db = db
         self.logger = logging.getLogger(__name__)
 
+        # 任务映射：任务名称 -> (方法, 步骤key)
+        self.TASK_MAPPING = {
+            "领取挂机奖励": (self._collect_idle_rewards, "idle_rewards"),
+            "购买商店每日": (self._buy_market_items, "buy_market_items"),
+            "随从派遣": (self._handle_retinue_deployment, "retinue_deployment"),
+            "每日免费地下城": (self._collect_free_dungeons, "free_dungeons"),
+            "开启宝箱": (self._open_chests_wrapper, "open_chests"),
+            "世界BOSS": (self._kill_world_boss_wrapper, "world_boss"),
+            "领取邮件": (self._receive_mails, "receive_mails"),
+            "领取主题奖励": (self._small_cookie, "small_cookie"),
+            "领取礼包": (self._collect_gifts, "collect_gifts"),
+            "领取广告奖励": (self._buy_ads_items, "buy_ads_items"),
+            "猎魔试炼": (self._demonhunter_exam, "demonhunter_exam"),
+        }
+
+    def execute_task(self, task_name: str) -> bool:
+        """
+        根据任务名称执行每日任务
+
+        Args:
+            task_name: 任务名称
+
+        Returns:
+            bool: 执行是否成功
+        """
+        if task_name not in self.TASK_MAPPING:
+            self.logger.warning(f"⚠️ 未知的每日任务: {task_name}")
+            return False
+
+        method, step_key = self.TASK_MAPPING[task_name]
+        try:
+            self.logger.info(f"🚀 执行每日任务: {task_name}")
+            self._run_step(step_key, method)
+            return True
+        except Exception as e:
+            self.logger.error(f"❌ 执行每日任务 {task_name} 失败: {e}")
+            return False
+
+    def _open_chests_wrapper(self):
+        """宝箱包装器"""
+        if self.config_loader and self.config_loader.get_chest_name():
+            self._open_chests(self.config_loader.get_chest_name())
+        else:
+            self.logger.info("ℹ️ 未配置宝箱名称，跳过开启宝箱")
+
+    def _kill_world_boss_wrapper(self):
+        """世界BOSS包装器"""
+        for _ in range(3):
+            self._kill_world_boss()
+
     def _run_step(self, step_name: str, func, *args, **kwargs):
         """
         执行单个步骤，支持进度保存

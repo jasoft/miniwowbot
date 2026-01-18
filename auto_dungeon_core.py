@@ -949,301 +949,6 @@ class DungeonStateMachine:
         sell_trashes()
 
 
-# ====== 每日收集 ======
-
-class DailyCollectManager:
-    """每日收集管理器"""
-
-    def __init__(self, config_loader=None, db=None):
-        self.config_loader = config_loader
-        self.db = db
-        self.logger = logger
-
-    def collect_daily_rewards(self) -> None:
-        """执行所有每日收集操作"""
-        self.logger.info("=" * 60)
-        self.logger.info("🎁 开始执行每日收集操作")
-        self.logger.info("=" * 60)
-
-        try:
-            self._run_step("idle_rewards", self._collect_idle_rewards)
-            self._run_step("buy_market_items", self._buy_market_items)
-            self._run_step("retinue_deployment", self._handle_retinue_deployment)
-            self._run_step("free_dungeons", self._collect_free_dungeons)
-
-            if self.config_loader and self.config_loader.get_chest_name():
-                self._run_step("open_chests", self._open_chests, self.config_loader.get_chest_name())
-
-            def kill_boss_loop():
-                for _ in range(3):
-                    self._kill_world_boss()
-
-            self._run_step("world_boss", kill_boss_loop)
-            self._run_step("receive_mails", self._receive_mails)
-            self._run_step("small_cookie", self._small_cookie)
-            self._run_step("collect_gifts", self._collect_gifts)
-            self._run_step("buy_ads_items", self._buy_ads_items)
-            self._run_step("demonhunter_exam", self._demonhunter_exam)
-
-            self.logger.info("=" * 60)
-            self.logger.info("✅ 每日收集操作全部完成")
-            self.logger.info("=" * 60)
-
-        except Exception as e:
-            self.logger.error(f"❌ 每日收集操作失败: {e}")
-            raise
-
-    def _run_step(self, step_name: str, func, *args, **kwargs):
-        if self.db and self.db.is_daily_step_completed(step_name):
-            self.logger.info(f"⏭️ 步骤 {step_name} 已完成，跳过")
-            return
-        func(*args, **kwargs)
-        if self.db:
-            self.db.mark_daily_step_completed(step_name)
-
-    def _collect_gifts(self):
-        self.logger.info("领取礼包")
-        back_to_main()
-        find_text_and_click("礼包", regions=[3])
-        find_text_and_click("旅行日志", regions=[3])
-        find_text_and_click("领取奖励", regions=[8])
-        back_to_main()
-
-    def _demonhunter_exam(self):
-        self.logger.info("猎魔试炼")
-        back_to_main()
-        try:
-            find_text_and_click("猎魔试炼")
-            find_text_and_click("签到")
-            find_text_and_click("一键签到")
-            back_to_main()
-        except Exception as e:
-            self.logger.error(f"❌ 猎魔试炼失败: {e}, 活动可能已结束")
-
-    def _small_cookie(self):
-        self.logger.info("领取各种主题奖励[海盗船,法师塔]")
-        back_to_main()
-        find_text_and_click("活动", regions=[3])
-        res = text_exists(
-            ["海盗船", "法师塔", "野蛮角斗场", "火焰塔", "狗头人世界", "冰霜骑士团"],
-            regions=[2, 3, 5, 6],
-        )
-        if res:
-            touch(res["center"])
-            sleep(CLICK_INTERVAL)
-            find_text_and_click("领取", regions=[6])
-            res = find_text("上缴", regions=[5])
-            if res:
-                for _ in range(5):
-                    touch(res["center"])
-                    sleep(CLICK_INTERVAL)
-            find_text_and_click("领取", regions=[9])
-            find_text_and_click("兑换", regions=[9])
-
-            # 兑换随从碎片
-            buttons = _container.game_actions.find_all().equals("兑换")
-            try:
-                for button in buttons:
-                    button.click()
-                    _container.game_actions.find_all(regions=[5]).equals("确定").first().click()
-                    if find_text_and_click_safe("确定", regions=[5], timeout=3):
-                        send_bark_notification("兑换碎片成功", "兑换成功, 请立即检查")
-            except Exception as e:
-                self.logger.error(f"❌ 兑换碎片失败: {e}")
-                send_bark_notification("兑换碎片失败", "兑换失败, 请立即检查")
-        back_to_main()
-
-    def _collect_idle_rewards(self):
-        self.logger.info("📦 开始领取每日挂机奖励")
-        back_to_main()
-        try:
-            res = switch_to("战斗")
-            assert res
-            touch((res["center"][0], res["center"][1] + DAILY_REWARD_BOX_OFFSET_Y))
-            sleep(CLICK_INTERVAL)
-            touch(DAILY_REWARD_CONFIRM)
-            sleep(CLICK_INTERVAL)
-            find_text_and_click("确定", regions=[5])
-            self.logger.info("✅ 每日挂机奖励领取成功")
-            self._collect_quick_afk()
-            back_to_main()
-        except Exception as e:
-            self.logger.warning(f"⚠️ 未找到战斗按钮或点击失败: {e}")
-            raise
-
-    def _close_ads(self):
-        self.logger.info("点击广告")
-        sleep(40)
-        touch((654, 114))
-
-    def _collect_quick_afk(self):
-        self.logger.info("⚡ 开始快速挂机领取")
-        if find_text_and_click_safe("快速挂机", regions=[4, 5, 6, 7, 8, 9]):
-            if self.config_loader and self.config_loader.is_quick_afk_enabled():
-                for _ in range(10):
-                    touch(QUICK_AFK_COLLECT_BUTTON)
-                    sleep(1)
-            else:
-                for _ in range(3):
-                    touch(QUICK_AFK_COLLECT_BUTTON)
-                    self._close_ads()
-                    sleep(3)
-            self.logger.info("✅ 快速挂机领取完成")
-        else:
-            self.logger.warning("⚠️ 未找到快速挂机按钮")
-
-    def _buy_ads_items(self):
-        self.logger.info("🛒 购买广告物品")
-        back_to_main()
-        find_text_and_click("主城", regions=[9])
-        find_text_and_click("商店", regions=[4])
-        first_item_pos = (111, 395)
-        for i in range(3):
-            for j in range(5):
-                touch((first_item_pos[0] + i * 122, first_item_pos[1]))
-                sleep(1)
-                if text_exists(["已售罄", "已售馨"], use_cache=False, regions=[5]):
-                    self.logger.warning("⚠️ 商品已售罄, 跳过")
-                    click_back()
-                    break
-                touch((362, 783))
-                self._close_ads()
-                sleep(3)
-                click_back()
-                sleep(150)
-        back_to_main()
-        self.logger.info("✅ 购买广告商品成功")
-
-    def _handle_retinue_deployment(self):
-        self.logger.info("👥 开始处理随从派遣")
-        back_to_main()
-        if find_text_and_click_safe("随从", regions=[7]):
-            find_text_and_click("派遣", regions=[8])
-            touch(ONE_KEY_REWARD)
-            back_to_main()
-            find_text_and_click("派遣", regions=[8])
-            touch(ONE_KEY_DEPLOY)
-            sleep(1)
-            touch(DEPLOY_CONFIRM_BUTTON)
-            back_to_main()
-            self.logger.info("✅ 随从派遣处理完成")
-            back_to_main()
-        else:
-            self.logger.warning("⚠️ 未找到随从按钮，跳过派遣操作")
-
-        find_text_and_click("酒馆", regions=[7])
-        res = find_text("招募10次", regions=[8, 9], occurrence=LAST_OCCURRENCE, raise_exception=False, use_cache=False)
-        if res:
-            for _ in range(4):
-                touch(res["center"])
-                sleep(1)
-        back_to_main()
-
-        find_text_and_click("符文", regions=[9])
-        find_text_and_click_safe("抽取十次", regions=[8, 9], use_cache=False)
-        back_to_main()
-
-    def _collect_free_dungeons(self):
-        self.logger.info("🏰 开始领取每日免费地下城")
-        back_to_main()
-        open_map()
-        if find_text_and_click_safe("试炼塔", regions=[9]):
-            self.logger.info("✅ 进入试炼塔")
-            self._sweep_tower_floor("刻印", regions=[7, 8])
-            self._sweep_tower_floor("宝石", regions=[8, 8])
-            self._sweep_tower_floor("雕文", regions=[9, 8])
-            self.logger.info("✅ 每日免费地下城领取完成")
-        else:
-            self.logger.warning("⚠️ 未找到试炼塔，跳过免费地下城领取")
-        back_to_main()
-
-    def _sweep_tower_floor(self, floor_name: str, regions):
-        if find_text_and_click_safe(floor_name, regions=[regions[0]], use_cache=False):
-            try:
-                find_text_and_click("扫荡一次", regions=[regions[1]])
-                find_text_and_click("确定", regions=[5])
-                self.logger.info(f"✅ 完成{floor_name}扫荡")
-            except Exception as e:
-                self.logger.warning(f"⚠️ 扫荡{floor_name}失败: {e}")
-        else:
-            self.logger.warning(f"⚠️ 未找到{floor_name}楼层")
-
-    def _kill_world_boss(self):
-        self.logger.info("💀 开始杀死世界boss")
-        back_to_main()
-        open_map()
-        try:
-            find_text_and_click("切换区域", regions=[8])
-            find_text_and_click("东部大陆", regions=[5])
-            touch((126, 922))
-            sleep(1.5)
-            find_text_and_click("协助模式", regions=[8])
-            find_text_and_click("创建队伍", regions=[4, 5])
-            find_text_and_click("开始", regions=[5])
-            find_text_and_click("离开", regions=[5], timeout=20)
-            self.logger.info("✅ 杀死世界boss成功")
-        except Exception as e:
-            self.logger.warning(f"⚠️ 未找到世界boss: {e}")
-            back_to_main()
-
-    def _buy_market_items(self):
-        self.logger.info("🛒 开始购买市场商品")
-        back_to_main()
-        try:
-            find_text_and_click("主城", regions=[9])
-            find_text_and_click("商店", regions=[4])
-            touch((570, 258))
-            sleep(1)
-            find_text_and_click("购买", regions=[8])
-            back_to_main()
-            self.logger.info("✅ 购买市场商品成功")
-        except Exception as e:
-            self.logger.warning(f"⚠️ 未找到商店: {e}")
-            back_to_main()
-
-    def _open_chests(self, chest_name: str):
-        self.logger.info(f"🎁 开始开启{chest_name}")
-        back_to_main()
-        try:
-            find_text_and_click("主城", regions=[9])
-            find_text_and_click("宝库", regions=[9])
-            find_text_and_click(chest_name, regions=[4, 5, 6, 7, 8])
-            res = find_text("开启10次", regions=[8, 9], use_cache=False, timeout=5)
-            if res:
-                for _ in range(6):
-                    touch(res["center"])
-                    sleep(0.2)
-                    click_back()
-                sleep(0.2)
-                touch((359, 879))
-            back_to_main()
-            find_text_and_click("宝库", regions=[9])
-            find_text_and_click(chest_name, regions=[4, 5, 6, 7, 8])
-            touch((359, 879))
-            back_to_main()
-            self.logger.info("✅ 打开宝箱成功")
-        except Exception as e:
-            self.logger.warning(f"⚠️ 未找到宝箱: {e}")
-            back_to_main()
-
-    def _receive_mails(self):
-        self.logger.info("✉️ 信件 开始领取邮件")
-        back_to_main()
-        try:
-            find_text_and_click("主城", regions=[9])
-            find_text_and_click("邮箱", regions=[5])
-            res = find_text("一键领取", regions=[8, 9], timeout=5)
-            if res:
-                for _ in range(3):
-                    touch(res["center"])
-                    sleep(1)
-            back_to_main()
-            self.logger.info("✅ 领取邮件成功")
-        except Exception as e:
-            self.logger.warning(f"⚠️ 未找到一键领取: {e}")
-            back_to_main()
-
-
 # ====== 核心业务函数 ======
 
 def focus_and_click_dungeon(dungeon_name: str, zone_name: str, max_attempts: int = 2) -> bool:
@@ -1286,6 +991,16 @@ def process_dungeon(
         logger.error("❌ 状态机未初始化，无法处理副本")
         return False
 
+    # 处理日常任务
+    if zone_name == "日常任务":
+        from auto_dungeon_daily import DailyCollectManager
+        logger.info(f"📋 执行日常任务: {dungeon_name}")
+        manager = DailyCollectManager(_container.config_loader, db)
+        if manager.execute_task(dungeon_name):
+            db.mark_dungeon_completed(zone_name, dungeon_name)
+            return True
+        return False
+
     if not state_machine.prepare_dungeon_state(
         zone_name=zone_name, dungeon_name=dungeon_name, max_attempts=3
     ):
@@ -1315,6 +1030,8 @@ def process_dungeon(
 
 def daily_collect() -> bool:
     """领取每日挂机奖励"""
+    from auto_dungeon_daily import DailyCollectManager
+
     if _container.config_loader is None:
         raise RuntimeError("配置加载器未初始化，无法执行每日收集")
 
@@ -1648,10 +1365,7 @@ def main():
     with DungeonProgressDB(config_name=_container.config_loader.get_config_name()) as db:
         completed_count, total_selected, total = show_progress_statistics(db)
 
-        daily_collect_finished = db.is_daily_collect_completed()
-        daily_collect_enabled = _container.config_loader.is_daily_collect_enabled()
-
-        if completed_count >= total_selected and (not daily_collect_enabled or daily_collect_finished):
+        if completed_count >= total_selected:
             logger.info("✅ 无需启动模拟器，脚本退出")
             return
 
@@ -1681,12 +1395,6 @@ def main():
     else:
         logger.info("⚠️ 未配置角色职业，跳过角色选择")
         state_machine.ensure_main()
-
-    # 执行每日收集
-    if _container.config_loader.is_daily_collect_enabled():
-        logger.info("🚀 检查每日收集任务")
-        if state_machine.claim_daily_rewards():
-            state_machine.return_to_main_state()
 
     # 执行副本遍历
     with DungeonProgressDB(config_name=_container.config_loader.get_config_name()) as db:

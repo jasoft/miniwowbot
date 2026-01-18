@@ -14,8 +14,10 @@ from vibe_ocr import OCRHelper
 from auto_dungeon_config import CLICK_INTERVAL
 from emulator_manager import EmulatorManager
 from game_actions import GameActions
-from logger_config import logger
 from project_paths import resolve_project_path
+
+logger = logging.getLogger(__name__)
+
 
 # 设备管理器错误
 

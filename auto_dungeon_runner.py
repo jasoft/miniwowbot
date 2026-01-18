@@ -18,7 +18,10 @@ from auto_dungeon_daily import DailyCollectManager
 from auto_dungeon_device import DeviceManager
 from auto_dungeon_state import DungeonStateMachine
 from database import DungeonProgressDB
-from logger_config import logger
+
+import logging
+logger = logging.getLogger(__name__)
+
 
 
 @dataclass
@@ -189,6 +192,14 @@ class DungeonBot:
         """
         self.logger.info(f"\n🎯 [{index}/{total}] 处理副本: {dungeon_name}")
 
+        # 处理日常任务
+        if zone_name == "日常任务":
+            self.logger.info(f"📋 执行日常任务: {dungeon_name}")
+            if self.daily_collect_manager.execute_task(dungeon_name):
+                self.db.mark_dungeon_completed(zone_name, dungeon_name)
+                return True
+            return False
+
         if not self.state_machine.prepare_dungeon_state(
             zone_name=zone_name, dungeon_name=dungeon_name, max_attempts=3
         ):
@@ -234,14 +245,6 @@ class DungeonBot:
             self.logger.error("❌ 区域副本配置未初始化")
             return 0
 
-        daily_collect_finished = self.db.is_daily_collect_completed()
-        daily_collect_enabled = self.config_loader.is_daily_collect_enabled()
-        self.logger.info(
-            f"🔍 每日收集检查: enabled={daily_collect_enabled}, finished={daily_collect_finished}"
-        )
-        if daily_collect_finished and daily_collect_enabled:
-            self.logger.info("⏭️ 今日每日收集任务已完成，跳过 daily_collect 步骤")
-
         dungeon_index = 0
         processed_dungeons = 0
 
@@ -254,16 +257,6 @@ class DungeonBot:
         self.logger.info(f"📊 今天已完成的副本数: {completed_today}")
 
         self.state_machine.ensure_main()
-
-        # 在遍历副本之前，先执行每日收集（如果需要且未完成）
-        if not daily_collect_finished and daily_collect_enabled:
-            self.logger.info("🚀 开始执行每日收集任务")
-            if self.state_machine.claim_daily_rewards():
-                self.logger.info("✅ 每日收集任务状态机调用成功")
-                daily_collect_finished = True
-                self.state_machine.return_to_main_state()
-            else:
-                self.logger.error("❌ 每日收集任务状态机调用失败")
 
         # 遍历所有区域
         for zone_idx, (zone_name, dungeons) in enumerate(zone_dungeons.items(), 1):
@@ -405,18 +398,9 @@ class DungeonBot:
         # 显示进度统计
         completed_count, total_selected, total = self.show_progress_statistics()
 
-        # 检查是否需要启动游戏（副本未完成 或 每日收集未完成）
-        daily_collect_finished = self.db.is_daily_collect_completed()
-        daily_collect_enabled = self.config_loader.is_daily_collect_enabled()
-        self.logger.info(
-            f"🔍 每日收集检查: enabled={daily_collect_enabled}, finished={daily_collect_finished}"
-        )
-        need_run = completed_count < total_selected or (
-            daily_collect_enabled and not daily_collect_finished
-        )
-
-        if not need_run:
-            self.logger.info("✅ 副本和每日收集都已完成，无需启动模拟器，脚本退出")
+        # 检查是否需要启动游戏（副本未完成）
+        if completed_count >= total_selected:
+            self.logger.info("✅ 所有任务都已完成，无需启动模拟器，脚本退出")
             return
 
         # 启动游戏

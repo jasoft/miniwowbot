@@ -16,6 +16,21 @@ logger = setup_logger_from_config(use_color=True)
 
 T = TypeVar("T")
 
+# 默认每日任务列表
+DEFAULT_DAILY_TASKS = [
+    {"name": "领取挂机奖励", "selected": True},
+    {"name": "购买商店每日", "selected": True},
+    {"name": "随从派遣", "selected": True},
+    {"name": "每日免费地下城", "selected": True},
+    {"name": "开启宝箱", "selected": True},
+    {"name": "世界BOSS", "selected": True},
+    {"name": "领取邮件", "selected": True},
+    {"name": "领取主题奖励", "selected": True},
+    {"name": "领取礼包", "selected": True},
+    {"name": "领取广告奖励", "selected": True},
+    {"name": "猎魔试炼", "selected": True},
+]
+
 
 class ConfigLoader:
     """配置加载器类"""
@@ -36,6 +51,7 @@ class ConfigLoader:
         self.enable_daily_collect = False
         self.enable_quick_afk = False
         self.chest_name = None
+        self.daily_tasks = []
         self._load_config()
 
     def _get_config_name(self) -> str:
@@ -76,6 +92,18 @@ class ConfigLoader:
             # 加载宝箱名称选项
             self.chest_name = config.get("chestname", None)
 
+            # 加载自定义每日任务，如果未配置则使用默认列表（当 enable_daily_collect 为 True 时）
+            self.daily_tasks = config.get("daily_tasks", [])
+            if not self.daily_tasks and self.enable_daily_collect:
+                self.daily_tasks = DEFAULT_DAILY_TASKS
+
+            # 将每日任务合并到 zone_dungeons 中，作为一个特殊的区域
+            if self.daily_tasks:
+                # 确保 "日常任务" 区域在最前面（通过创建新字典）
+                new_zone_dungeons = {"日常任务": self.daily_tasks}
+                new_zone_dungeons.update(self.zone_dungeons)
+                self.zone_dungeons = new_zone_dungeons
+
             # 验证配置格式
             self._validate_config()
 
@@ -89,6 +117,8 @@ class ConfigLoader:
                 logger.info("⚡ 快速挂机: 启用")
             if self.chest_name:
                 logger.info(f"🎁 指定宝箱: {self.chest_name}")
+            if self.daily_tasks:
+                 logger.info(f"📋 每日任务数: {len(self.daily_tasks)}")
             logger.info(f"🌍 区域数量: {len(self.zone_dungeons)}")
             logger.info(
                 f"🎯 副本总数: {sum(len(dungeons) for dungeons in self.zone_dungeons.values())}"
