@@ -8,8 +8,9 @@
 import json
 import os
 from typing import Dict, List, Optional, TypeVar
-from project_paths import ensure_project_path
+
 from logger_config import setup_logger_from_config
+from project_paths import ensure_project_path
 
 # 配置日志（从系统配置文件加载通用日志配置）
 logger = setup_logger_from_config(use_color=True)
@@ -114,11 +115,11 @@ class ConfigLoader:
             if self.enable_daily_collect:
                 logger.info("🎁 每日领取: 启用")
             if self.enable_quick_afk:
-                logger.info("⚡ 快速挂机: 启用")
+                logger.info("⚡ 免广告快速挂机: 启用")
             if self.chest_name:
                 logger.info(f"🎁 指定宝箱: {self.chest_name}")
             if self.daily_tasks:
-                 logger.info(f"📋 每日任务数: {len(self.daily_tasks)}")
+                logger.info(f"📋 每日任务数: {len(self.daily_tasks)}")
             logger.info(f"🌍 区域数量: {len(self.zone_dungeons)}")
             logger.info(
                 f"🎯 副本总数: {sum(len(dungeons) for dungeons in self.zone_dungeons.values())}"

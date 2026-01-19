@@ -8,10 +8,11 @@ import logging
 import subprocess
 from typing import Optional
 
-from airtest.core.api import auto_setup, connect_device, snapshot
+from airtest.core.api import auto_setup, snapshot
 from vibe_ocr import OCRHelper
 
 from auto_dungeon_config import CLICK_INTERVAL
+from device_utils import connect_device_with_timeout
 from emulator_manager import EmulatorManager
 from game_actions import GameActions
 from project_paths import resolve_project_path
@@ -114,9 +115,11 @@ class DeviceManager:
             auto_setup(__file__)
             logger.info("自动配置设备中...")
             if connection_string:
-                connect_device(connection_string)
+                connect_device_with_timeout(connection_string, timeout=30)
             logger.info("   ✅ 成功连接到设备")
             return True
+        except TimeoutError:
+            raise  # 抛出让主循环处理重试
         except Exception as e:
             logger.error(f"   ❌ 连接设备失败: {e}")
             return False
@@ -146,7 +149,7 @@ class DeviceManager:
                 )
                 self.emulator_manager.ensure_adb_connection()
                 if connection_string:
-                    connect_device(connection_string)
+                    connect_device_with_timeout(connection_string, timeout=30)
                 logger.info("   ✅ 重试连接成功")
                 return True
             else:
@@ -155,6 +158,8 @@ class DeviceManager:
         except subprocess.TimeoutExpired:
             logger.error("   ❌ ADB 命令超时")
             return False
+        except TimeoutError:
+            raise  # 抛出让主循环处理重试
         except Exception as retry_err:
             logger.error(f"   ❌ 重试连接失败: {retry_err}")
             return False

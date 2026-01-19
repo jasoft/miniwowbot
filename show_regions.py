@@ -13,9 +13,10 @@ from typing import Optional
 
 import cv2
 import numpy as np
-from airtest.core.api import auto_setup, connect_device, snapshot
+from airtest.core.api import auto_setup, snapshot
 from PIL import Image, ImageDraw, ImageFont
 
+from device_utils import connect_device_with_timeout
 from emulator_manager import EmulatorManager
 from logger_config import setup_logger_from_config
 from vibe_ocr import OCRHelper
@@ -443,7 +444,7 @@ def main():
     try:
         connection_string = _get_connection_string(args.emulator)
         auto_setup(__file__)
-        connect_device(connection_string)
+        connect_device_with_timeout(connection_string, timeout=30)
         print("✅ 设备连接成功\n")
     except Exception as e:
         logger.error(f"❌ 设备连接失败: {e}")

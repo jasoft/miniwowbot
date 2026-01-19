@@ -11,12 +11,12 @@ from typing import Optional, Tuple
 
 from airtest.core.api import (
     auto_setup,
-    connect_device,
     touch,
     sleep,
 )
 
 # 导入通用日志配置模块
+from device_utils import connect_device_with_timeout
 from logger_config import setup_logger_from_config
 from vibe_ocr import OCRHelper
 from emulator_manager import EmulatorManager
@@ -72,7 +72,7 @@ def initialize_device_and_ocr(emulator_name: Optional[str] = None):
     try:
         auto_setup(__file__)
         logger.info("自动配置设备中...")
-        connect_device(connection_string)
+        connect_device_with_timeout(connection_string, timeout=30)
         logger.info("   ✅ 成功连接到设备")
     except Exception as e:
         logger.error(f"   ❌ 连接设备失败: {e}")

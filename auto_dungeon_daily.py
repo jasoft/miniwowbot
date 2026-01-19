@@ -66,7 +66,7 @@ class DailyCollectManager:
             "领取邮件": (self._receive_mails, "receive_mails"),
             "领取主题奖励": (self._small_cookie, "small_cookie"),
             "领取礼包": (self._collect_gifts, "collect_gifts"),
-            "领取广告奖励": (self._buy_ads_items, "buy_ads_items"),
+            # "领取广告奖励": (self._buy_ads_items, "buy_ads_items"),
             "猎魔试炼": (self._demonhunter_exam, "demonhunter_exam"),
         }
 
@@ -283,10 +283,11 @@ class DailyCollectManager:
                     touch(QUICK_AFK_COLLECT_BUTTON)
                     sleep(1)
             else:  # 点击广告
-                for i in range(3):
-                    touch(QUICK_AFK_COLLECT_BUTTON)
-                    self._close_ads()
-                    sleep(3)
+                self.logger.info("广告无法点击跳过")
+                # for i in range(3):
+                #     touch(QUICK_AFK_COLLECT_BUTTON)
+                #     self._close_ads()
+                #     sleep(3)
 
             self.logger.info("✅ 快速挂机领取完成")
         else:

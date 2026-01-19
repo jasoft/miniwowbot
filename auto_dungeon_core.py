@@ -12,6 +12,8 @@ import urllib.parse
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
+
+from device_utils import connect_device_with_timeout
 from airtest.core.api import (
     exists,
     keyevent,
@@ -672,12 +674,15 @@ class DeviceManager:
 
         # 连接设备
         try:
-            from airtest.core.api import auto_setup, connect_device, snapshot
+            from airtest.core.api import auto_setup, snapshot
 
             auto_setup(__file__)
             if self.connection_string:
-                connect_device(self.connection_string)
+                connect_device_with_timeout(self.connection_string, timeout=30)
             logger.info("   ✅ 成功连接到设备")
+        except TimeoutError:
+            # 连接超时，抛出让主循环处理重试
+            raise
         except Exception as e:
             logger.error(f"   ❌ 连接设备失败: {e}")
             # 重试
@@ -696,10 +701,12 @@ class DeviceManager:
                     )
                     self._emulator_manager.ensure_adb_connection()
                     if self.connection_string:
-                        connect_device(self.connection_string)
+                        connect_device_with_timeout(self.connection_string, timeout=30)
                     logger.info("   ✅ 重试连接成功")
                 else:
                     raise RuntimeError("EmulatorManager 未正确初始化")
+            except TimeoutError:
+                raise  # 重试也超时，让主循环处理
             except Exception as retry_err:
                 logger.error(f"   ❌ 重试连接失败: {retry_err}")
                 raise
