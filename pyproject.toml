@@ -21,7 +21,7 @@ dependencies = [
     "python-dotenv>=1.2.1",
     "tqdm>=4.67.1",
     "typer>=0.21.0",
-    "vibe-ocr>=0.1.0",
+    "vibe-ocr>=0.1.5",
     "vibe-colored-logger>=0.1.0",
 ]
 
