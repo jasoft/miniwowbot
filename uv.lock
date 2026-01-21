@@ -560,7 +560,7 @@ requires-dist = [
     { name = "transitions", specifier = ">=0.9.0" },
     { name = "typer", specifier = ">=0.21.0" },
     { name = "vibe-colored-logger", specifier = ">=0.1.0" },
-    { name = "vibe-ocr", specifier = ">=0.1.0" },
+    { name = "vibe-ocr", specifier = ">=0.1.5" },
 ]
 
 [package.metadata.requires-dev]
@@ -1610,7 +1610,7 @@ wheels = [
 
 [[package]]
 name = "vibe-ocr"
-version = "0.1.3"
+version = "0.1.6"
 source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
 dependencies = [
     { name = "imagehash" },
@@ -1620,9 +1620,9 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "requests" },
 ]
-sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/a6/ab/69e55f5c15b22bbf87a47423137347fa886cebf23d85e79d7567fedd8c19/vibe_ocr-0.1.3.tar.gz", hash = "sha256:95eb28239d6a3419bdefdcd26e0ab04c6220b76ad3ba3d9e5350c87b1b0ca007", size = 126040, upload-time = "2026-01-20T04:50:58.464Z" }
+sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/11/b9/9e088e3b403065ba3febe18d7a507e01aab7f4a462fb5d890d25dfa4cf14/vibe_ocr-0.1.6.tar.gz", hash = "sha256:3079ef2c644728f5d21354ce5ac02cef5a4cdb863323028684b87526c58cd494", size = 126567, upload-time = "2026-01-20T13:55:06.688Z" }
 wheels = [
-    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/df/ed/d94d36d50ab152039a3b8182a93d1d939e3a0ad308d7f19e6711095efabb/vibe_ocr-0.1.3-py3-none-any.whl", hash = "sha256:4ca05da423cc971eaebcdd590d5f981ef14eb56aa717684c8ed59072d3cbee63", size = 18138, upload-time = "2026-01-20T04:50:56.66Z" },
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/d3/18/4ee57c4334b10cf27febde750babb2af97d0a8075744662347a3a16a1b28/vibe_ocr-0.1.6-py3-none-any.whl", hash = "sha256:03be5ed4eb29463d046d4a482241a6b75119be724d36c191840f37033e56a4a6", size = 18656, upload-time = "2026-01-20T13:55:05.695Z" },
 ]
 
 [[package]]

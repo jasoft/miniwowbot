@@ -8,7 +8,7 @@
 import logging
 import time
 from functools import wraps
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from vibe_ocr.game_actions import GameActions as BaseGameActions
 

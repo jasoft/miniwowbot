@@ -206,7 +206,7 @@ class DailyCollectManager:
         find_text_and_click("活动", regions=[3])
         res = text_exists(
             ["海盗船", "法师塔", "野蛮角斗场", "火焰塔", "狗头人世界", "冰霜骑士团"],
-            regions=[2, 3, 5, 6],
+            regions=[2, 3, 5, 6, 8, 9],
         )
         if res:
             touch(res["center"])
