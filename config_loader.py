@@ -17,21 +17,6 @@ logger = setup_logger_from_config(use_color=True)
 
 T = TypeVar("T")
 
-# 默认每日任务列表
-DEFAULT_DAILY_TASKS = [
-    {"name": "领取挂机奖励", "selected": True},
-    {"name": "购买商店每日", "selected": True},
-    {"name": "随从派遣", "selected": True},
-    {"name": "每日免费地下城", "selected": True},
-    {"name": "开启宝箱", "selected": True},
-    {"name": "世界BOSS", "selected": True},
-    {"name": "领取邮件", "selected": True},
-    {"name": "领取主题奖励", "selected": True},
-    {"name": "领取礼包", "selected": True},
-    {"name": "领取广告奖励", "selected": True},
-    {"name": "猎魔试炼", "selected": True},
-]
-
 
 class ConfigLoader:
     """配置加载器类"""
@@ -93,10 +78,8 @@ class ConfigLoader:
             # 加载宝箱名称选项
             self.chest_name = config.get("chestname", None)
 
-            # 加载自定义每日任务，如果未配置则使用默认列表（当 enable_daily_collect 为 True 时）
+            # 加载自定义每日任务
             self.daily_tasks = config.get("daily_tasks", [])
-            if not self.daily_tasks and self.enable_daily_collect:
-                self.daily_tasks = DEFAULT_DAILY_TASKS
 
             # 将每日任务合并到 zone_dungeons 中，作为一个特殊的区域
             if self.daily_tasks:

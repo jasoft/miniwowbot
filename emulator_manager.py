@@ -191,11 +191,6 @@ class EmulatorManager:
                 logger.info(f"✅ 模拟器 {emulator_name} 已在运行")
                 return True
 
-            instance_name = self.EMULATOR_TO_INSTANCE.get(emulator_name)
-            if not instance_name:
-                logger.error(f"❌ 未找到模拟器 {emulator_name} 对应的 BlueStacks 实例")
-                return False
-
             # 验证模拟器地址格式
             try:
                 int(emulator_name.split(":")[1])
@@ -206,23 +201,24 @@ class EmulatorManager:
             # 第一步：尝试 adb connect
             logger.info(f"📡 第一步：尝试通过 adb connect 连接到 {emulator_name}...")
             if self.try_adb_connect(emulator_name):
-                logger.info(
-                    f"✅ 通过 adb connect 成功连接到 {emulator_name}，无需启动模拟器"
-                )
+                logger.info(f"✅ 通过 adb connect 成功连接到 {emulator_name}，无需启动模拟器")
                 return True
+
+            instance_name = self.EMULATOR_TO_INSTANCE.get(emulator_name)
+            if not instance_name:
+                logger.error(
+                    f"❌ 未找到模拟器 {emulator_name} 对应的 BlueStacks 实例，且 adb connect 失败"
+                )
+                return False
 
             # 第二步：如果 adb connect 失败，启动 BlueStacks 实例
             logger.info("📱 第二步：adb connect 失败，准备启动 BlueStacks 实例...")
 
-            logger.info(
-                f"🚀 正在启动 BlueStacks 实例: {instance_name} (对应 {emulator_name})"
-            )
+            logger.info(f"🚀 正在启动 BlueStacks 实例: {instance_name} (对应 {emulator_name})")
 
             if self.system == "Darwin":  # macOS
                 # macOS 上直接启动 BlueStacks 可执行文件并传递 --instance 参数
-                bluestacks_exe = (
-                    "/Applications/BlueStacks.app/Contents/MacOS/BlueStacks"
-                )
+                bluestacks_exe = "/Applications/BlueStacks.app/Contents/MacOS/BlueStacks"
                 if not os.path.exists(bluestacks_exe):
                     logger.error(f"❌ 未找到 BlueStacks 可执行文件: {bluestacks_exe}")
                     return False

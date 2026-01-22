@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npm root -g)",
       "Bash(dir \"C:\\Users\\11885\\scoop\\persist\\nvm\\nodejs\\v22.13.0\\node_modules\\@google\\gemini-cli\\node_modules\\@google\")",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(powershell -Command:*)"
     ],
     "deny": []
   }
