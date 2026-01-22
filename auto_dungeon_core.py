@@ -3,6 +3,7 @@ auto_dungeon 核心功能模块
 
 包含所有核心功能函数，消除全局变量。
 """
+
 import logging
 import os
 import subprocess
@@ -12,25 +13,29 @@ import urllib.parse
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
-
-from device_utils import connect_device_with_timeout
 from airtest.core.api import (
     exists,
     keyevent,
-    log as airtest_log,
     shell,
-    sleep as airtest_sleep,
     start_app,
     stop_app,
     swipe,
     touch,
     wait,
 )
+from airtest.core.api import (
+    log as airtest_log,
+)
+from airtest.core.api import (
+    sleep as airtest_sleep,
+)
 from airtest.core.error import TargetNotFoundError
 from airtest.core.settings import Settings as ST
 from tqdm import tqdm
 from transitions import Machine, MachineError
 from vibe_ocr import OCRHelper
+
+from auto_dungeon_device import DeviceManager, DeviceConnectionError
 
 # 初始化模块级 logger
 logger = logging.getLogger(__name__)
@@ -54,14 +59,8 @@ from coordinates import (
     ACCOUNT_LIST_SWIPE_START,
     BACK_BUTTON,
     CLOSE_ZONE_MENU,
-    DAILY_REWARD_BOX_OFFSET_Y,
-    DAILY_REWARD_CONFIRM,
-    DEPLOY_CONFIRM_BUTTON,
     LOGIN_BUTTON,
     MAP_BUTTON,
-    ONE_KEY_DEPLOY,
-    ONE_KEY_REWARD,
-    QUICK_AFK_COLLECT_BUTTON,
     SKILL_POSITIONS,
 )
 from database import DungeonProgressDB
@@ -83,6 +82,7 @@ logging.getLogger("ocr_helper").setLevel(logging.DEBUG)
 
 
 # ====== 依赖容器 ======
+
 
 class DependencyContainer:
     """依赖注入容器"""
@@ -195,6 +195,7 @@ def get_container() -> DependencyContainer:
 
 # ====== 基础工具函数 ======
 
+
 def sleep(seconds: float, reason: str = "[需要填写原因]") -> None:
     """sleep 的封装"""
     logger.info(f"💤 等待 {seconds} 秒, 原因是: {reason}")
@@ -231,6 +232,7 @@ def check_stop_signal() -> bool:
 
 
 # ====== 文本查找函数 ======
+
 
 def find_text(*args, **kwargs) -> Optional[Dict[str, Any]]:
     """文本查找"""
@@ -286,6 +288,7 @@ def find_all(*args, **kwargs):
 
 # ====== UI 交互函数 ======
 
+
 def click_back() -> bool:
     """点击返回按钮"""
     try:
@@ -316,6 +319,7 @@ def switch_to(section_name: str) -> Optional[Dict[str, Any]]:
 
 
 # ====== 地图和导航函数 ======
+
 
 def open_map() -> None:
     """打开地图"""
@@ -506,6 +510,7 @@ def wait_for_main(timeout: int = 300) -> None:
 
 # ====== 战斗函数 ======
 
+
 def auto_combat(completed_dungeons: int = 0, total_dungeons: int = 0) -> None:
     """自动战斗"""
     logger.info("⚔️ 开始自动战斗")
@@ -574,6 +579,7 @@ def auto_combat(completed_dungeons: int = 0, total_dungeons: int = 0) -> None:
 
 # ====== 通知函数 ======
 
+
 def send_bark_notification(title: str, message: str, level: str = "active") -> bool:
     """发送 Bark 通知"""
     sc = _container.system_config
@@ -628,105 +634,7 @@ def send_bark_notification(title: str, message: str, level: str = "active") -> b
 
 
 # ====== 设备管理 ======
-
-class DeviceManager:
-    """设备连接管理器"""
-
-    def __init__(self, emulator_name: Optional[str] = None, low_mem: bool = False):
-        self.emulator_name = emulator_name
-        self.low_mem = low_mem
-        self.connection_string: Optional[str] = None
-        self._emulator_manager: Optional[EmulatorManager] = None
-
-    def initialize(self) -> None:
-        """初始化设备连接"""
-        emulator_name = self.emulator_name
-        low_mem = self.low_mem
-
-        if emulator_name:
-            normalized = normalize_emulator_name(emulator_name)
-            if normalized is None:
-                raise RuntimeError("❌ 模拟器名称规范化失败")
-            emulator_name = normalized
-            _container.target_emulator = emulator_name
-
-            self._emulator_manager = EmulatorManager()
-            _container.emulator_manager = self._emulator_manager
-
-            devices = self._emulator_manager.get_adb_devices()
-            if emulator_name not in devices:
-                logger.warning(f"⚠️ 模拟器 {emulator_name} 未运行或未连接")
-                if not self._emulator_manager.ensure_device_connected(emulator_name):
-                    send_bark_notification(
-                        "副本助手 - 错误",
-                        f"模拟器 {emulator_name} 未运行或未连接",
-                        level="timeSensitive",
-                    )
-                    raise RuntimeError(f"模拟器 {emulator_name} 未运行或未连接")
-            else:
-                logger.info(f"✅ 模拟器 {emulator_name} 已在设备列表中")
-
-            self.connection_string = self._emulator_manager.get_emulator_connection_string(emulator_name)
-            logger.info(f"📱 连接到模拟器: {emulator_name}")
-        else:
-            self.connection_string = "Android:///"
-            logger.info("📱 使用默认连接字符串")
-
-        # 连接设备
-        try:
-            from airtest.core.api import auto_setup, snapshot
-
-            auto_setup(__file__)
-            if self.connection_string:
-                connect_device_with_timeout(self.connection_string, timeout=30)
-            logger.info("   ✅ 成功连接到设备")
-        except TimeoutError:
-            # 连接超时，抛出让主循环处理重试
-            raise
-        except Exception as e:
-            logger.error(f"   ❌ 连接设备失败: {e}")
-            # 重试
-            try:
-                logger.warning("🔁 尝试重置 ADB 并重新连接设备…")
-                if self._emulator_manager and self._emulator_manager.adb_path:
-                    subprocess.run(
-                        [self._emulator_manager.adb_path, "kill-server"],
-                        timeout=5,
-                        capture_output=True,
-                    )
-                    subprocess.run(
-                        [self._emulator_manager.adb_path, "start-server"],
-                        timeout=10,
-                        capture_output=True,
-                    )
-                    self._emulator_manager.ensure_adb_connection()
-                    if self.connection_string:
-                        connect_device_with_timeout(self.connection_string, timeout=30)
-                    logger.info("   ✅ 重试连接成功")
-                else:
-                    raise RuntimeError("EmulatorManager 未正确初始化")
-            except TimeoutError:
-                raise  # 重试也超时，让主循环处理
-            except Exception as retry_err:
-                logger.error(f"   ❌ 重试连接失败: {retry_err}")
-                raise
-
-        # 初始化 OCR
-        correction_map = None
-        if _container.config_loader:
-            correction_map = _container.config_loader.get_ocr_correction_map()
-
-        _container.ocr_helper = OCRHelper(
-            output_dir="output",
-            max_cache_size=50 if low_mem else 200,
-            max_width=640 if low_mem else 960,
-            delete_temp_screenshots=True,
-            correction_map=correction_map,
-            snapshot_func=snapshot,
-        )
-
-        # 初始化 GameActions
-        _container.game_actions = GameActions(_container.ocr_helper, click_interval=CLICK_INTERVAL)
+# DeviceManager 已迁移至 auto_dungeon_device.py
 
 
 # ====== 状态机 ======
@@ -840,7 +748,9 @@ class DungeonStateMachine:
         self._safe_trigger("ensure_main_menu")
         return self.state == "main_menu"
 
-    def prepare_dungeon_state(self, zone_name: str, dungeon_name: str, max_attempts: int = 3) -> bool:
+    def prepare_dungeon_state(
+        self, zone_name: str, dungeon_name: str, max_attempts: int = 3
+    ) -> bool:
         self._safe_trigger(
             "prepare_dungeon",
             zone_name=zone_name,
@@ -958,6 +868,7 @@ class DungeonStateMachine:
 
 # ====== 核心业务函数 ======
 
+
 def focus_and_click_dungeon(dungeon_name: str, zone_name: str, max_attempts: int = 2) -> bool:
     """尝试聚焦到指定副本并点击"""
     for attempt in range(max_attempts):
@@ -1001,6 +912,7 @@ def process_dungeon(
     # 处理日常任务
     if zone_name == "日常任务":
         from auto_dungeon_daily import DailyCollectManager
+
         logger.info(f"📋 执行日常任务: {dungeon_name}")
         manager = DailyCollectManager(_container.config_loader, db)
         if manager.execute_task(dungeon_name):
@@ -1058,7 +970,9 @@ def daily_collect() -> bool:
 
 def count_remaining_selected_dungeons(db: DungeonProgressDB) -> int:
     """统计未完成的选定副本数量"""
-    zone_dungeons = _container.config_loader.get_zone_dungeons() if _container.config_loader else None
+    zone_dungeons = (
+        _container.config_loader.get_zone_dungeons() if _container.config_loader else None
+    )
     if zone_dungeons is None:
         logger.warning("⚠️ 配置未初始化，无法计算剩余副本")
         return 0
@@ -1089,8 +1003,7 @@ def show_progress_statistics(db: DungeonProgressDB) -> Tuple[int, int, int]:
 
     zone_dungeons = _container.config_loader.get_zone_dungeons() if _container.config_loader else {}
     total_selected_dungeons = sum(
-        sum(1 for d in dungeons if d.get("selected", True))
-        for dungeons in zone_dungeons.values()
+        sum(1 for d in dungeons if d.get("selected", True)) for dungeons in zone_dungeons.values()
     )
     total_dungeons = sum(len(dungeons) for dungeons in zone_dungeons.values())
 
@@ -1124,7 +1037,9 @@ def show_progress_statistics(db: DungeonProgressDB) -> Tuple[int, int, int]:
     return completed_count, total_selected_dungeons, total_dungeons
 
 
-def run_dungeon_traversal(db: DungeonProgressDB, total_dungeons: int, state_machine: DungeonStateMachine) -> int:
+def run_dungeon_traversal(
+    db: DungeonProgressDB, total_dungeons: int, state_machine: DungeonStateMachine
+) -> int:
     """执行副本遍历主循环"""
     if _container.config_loader is None or state_machine is None:
         logger.error("❌ 配置未初始化")
@@ -1196,17 +1111,22 @@ def run_dungeon_traversal(db: DungeonProgressDB, total_dungeons: int, state_mach
 
 # ====== 命令行参数解析 ======
 
+
 def parse_arguments():
     """解析命令行参数"""
     import argparse
 
     parser = argparse.ArgumentParser(description="副本自动遍历脚本")
-    parser.add_argument("-c", "--config", type=str, default="configs/default.json", help="配置文件路径")
+    parser.add_argument(
+        "-c", "--config", type=str, default="configs/default.json", help="配置文件路径"
+    )
     parser.add_argument("--load-account", type=str, help="加载指定账号后退出")
     parser.add_argument("--emulator", type=str, help="指定模拟器网络地址")
     parser.add_argument("--memlog", action="store_true", help="启用内存监控日志")
     parser.add_argument("--low-mem", action="store_true", help="启用低内存模式")
-    parser.add_argument("-e", "--env", type=str, action="append", dest="env_overrides", help="环境变量覆盖")
+    parser.add_argument(
+        "-e", "--env", type=str, action="append", dest="env_overrides", help="环境变量覆盖"
+    )
     parser.add_argument("--max-iterations", type=int, default=1, help="限制副本遍历的最大轮数")
     return parser.parse_args()
 
@@ -1239,7 +1159,9 @@ def apply_env_overrides(env_overrides: List[str]) -> Dict[str, Any]:
     return overrides
 
 
-def handle_load_account_mode(account_name: str, emulator_name: Optional[str] = None, low_mem: bool = False):
+def handle_load_account_mode(
+    account_name: str, emulator_name: Optional[str] = None, low_mem: bool = False
+):
     """处理账号加载模式"""
     logger.info("\n" + "=" * 60)
     logger.info("🔄 账号加载模式")
@@ -1247,8 +1169,15 @@ def handle_load_account_mode(account_name: str, emulator_name: Optional[str] = N
     logger.info(f"📱 目标账号: {account_name}")
 
     try:
-        device_manager = DeviceManager(emulator_name, low_mem)
-        device_manager.initialize()
+        device_manager = DeviceManager()
+        device_manager.initialize(emulator_name=emulator_name, low_mem=low_mem)
+
+        # 注入依赖
+        _container.emulator_manager = device_manager.emulator_manager
+        _container.ocr_helper = device_manager.get_ocr_helper()
+        _container.game_actions = device_manager.get_game_actions()
+        _container.target_emulator = device_manager.get_target_emulator()
+
     except Exception as e:
         logger.error(f"❌ {e}")
         send_bark_notification(
@@ -1285,7 +1214,7 @@ def initialize_configs(config_path: str, env_overrides: Optional[List[str]] = No
 
         # 重新初始化日志
         new_logger = setup_logger_from_config(use_color=True)
-        globals()['logger'] = new_logger
+        globals()["logger"] = new_logger
 
         # 更新全局日志上下文
         from logger_config import update_log_context
@@ -1337,6 +1266,7 @@ def stop_error_monitor():
 
 # ====== 主函数 ======
 
+
 def main():
     """主函数"""
     args = parse_arguments()
@@ -1357,7 +1287,6 @@ def main():
 
     attach_file_logger(args.emulator)
 
-    # 处理加载账号模式
     if args.load_account:
         handle_load_account_mode(args.load_account, args.emulator, low_mem=args.low_mem)
         return
@@ -1377,8 +1306,37 @@ def main():
             return
 
     # 初始化设备
-    device_manager = DeviceManager(args.emulator, args.low_mem)
-    device_manager.initialize()
+    try:
+        # 创建 DeviceManager 实例
+        device_manager = DeviceManager()
+
+        # 获取 OCR 纠错映射
+        correction_map = None
+        if _container.config_loader:
+            correction_map = _container.config_loader.get_ocr_correction_map()
+
+        # 初始化设备
+        device_manager.initialize(
+            emulator_name=args.emulator, low_mem=args.low_mem, correction_map=correction_map
+        )
+
+        # 将组件注入到依赖容器
+        _container.emulator_manager = device_manager.emulator_manager
+        _container.ocr_helper = device_manager.get_ocr_helper()
+        _container.game_actions = device_manager.get_game_actions()
+        _container.target_emulator = device_manager.get_target_emulator()
+
+    except DeviceConnectionError as e:
+        logger.error(f"❌ 设备连接错误: {e}")
+        send_bark_notification(
+            "副本助手 - 错误",
+            f"设备连接失败: {e}",
+            level="timeSensitive",
+        )
+        sys.exit(1)
+    except Exception as e:
+        logger.error(f"❌ 设备初始化失败: {e}")
+        sys.exit(1)
 
     state_machine = DungeonStateMachine()
 
@@ -1491,6 +1449,7 @@ def main_wrapper():
 
 
 # ====== 日志切面 ======
+
 
 def setup_logging_slices():
     """设置日志切面"""

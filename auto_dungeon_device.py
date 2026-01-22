@@ -4,6 +4,7 @@ auto_dungeon 设备管理模块
 本模块提供统一的设备连接和OCR初始化管理。
 合并了原 auto_dungeon.py 中的设备初始化逻辑。
 """
+
 import logging
 import subprocess
 from typing import Optional
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 class DeviceConnectionError(Exception):
     """设备连接错误"""
+
     pass
 
 
@@ -36,9 +38,16 @@ class DeviceManager:
         初始化设备管理器
 
         Args:
-            adb_path: ADB 可执行文件路径
+            adb_path: ADB 可执行文件路径 (已弃用，EmulatorManager 会自动查找)
         """
-        self.emulator_manager = EmulatorManager(adb_path=adb_path)
+        self.emulator_manager = EmulatorManager()
+        if adb_path:
+            # 如果传入了 adb_path，尝试设置给 emulator_manager (如果支持)
+            # 目前 EmulatorManager 自动查找，这里仅记录日志
+            logger.debug(
+                f"DeviceManager received adb_path={adb_path}, but EmulatorManager auto-detects it."
+            )
+
         self.ocr_helper: Optional[OCRHelper] = None
         self.game_actions: Optional[GameActions] = None
         self.connection_string: Optional[str] = None
@@ -126,43 +135,109 @@ class DeviceManager:
 
     def _retry_connection(self, connection_string: str) -> bool:
         """
-        重试连接设备
+        重试连接设备 - 非破坏性重连
 
-        Args:
-            connection_string: 连接字符串
-
-        Returns:
-            bool: 是否重试成功
+        不再使用 kill-server，而是尝试断开重连指定设备
         """
         try:
-            logger.warning("🔁 尝试重置 ADB 并重新连接设备…")
+            logger.warning(f"🔁 尝试重连设备: {connection_string}")
+
+            # 解析设备序列号
+            serial = None
+            if connection_string and "Android://" in connection_string:
+                parts = connection_string.split("/")
+                if parts:
+                    serial = parts[-1]
+
+            if not serial:
+                logger.warning("⚠️ 无法从连接字符串解析设备序列号")
+                return False
+
             if self.emulator_manager.adb_path:
+                # 尝试断开连接
+                logger.info(f"🔌 断开连接: {serial}")
                 subprocess.run(
-                    [self.emulator_manager.adb_path, "kill-server"],
+                    [self.emulator_manager.adb_path, "disconnect", serial],
                     timeout=5,
                     capture_output=True,
                 )
-                subprocess.run(
-                    [self.emulator_manager.adb_path, "start-server"],
-                    timeout=10,
-                    capture_output=True,
-                )
-                self.emulator_manager.ensure_adb_connection()
-                if connection_string:
+
+                # 等待一小会儿
+                import time
+
+                time.sleep(2)
+
+                # 尝试重新连接
+                logger.info(f"🔌 重新连接: {serial}")
+                if self.emulator_manager.try_adb_connect(serial):
+                    logger.info("   ✅ 重连成功")
+                    # 重新初始化 Airtest 连接
                     connect_device_with_timeout(connection_string, timeout=30)
-                logger.info("   ✅ 重试连接成功")
-                return True
+                    return True
+                else:
+                    logger.error("   ❌ 重连失败")
+                    return False
             else:
                 logger.error("   ❌ EmulatorManager 未正确初始化")
                 return False
-        except subprocess.TimeoutExpired:
-            logger.error("   ❌ ADB 命令超时")
-            return False
-        except TimeoutError:
-            raise  # 抛出让主循环处理重试
+
         except Exception as retry_err:
-            logger.error(f"   ❌ 重试连接失败: {retry_err}")
+            logger.error(f"   ❌ 重试连接异常: {retry_err}")
             return False
+
+    def check_connection(self) -> bool:
+        """
+        检查设备连接状态
+
+        Returns:
+            bool: 连接是否正常
+        """
+        if not self.target_emulator:
+            return False
+
+        try:
+            # 使用 adb shell echo 1 测试连接
+            if self.emulator_manager.adb_path:
+                result = subprocess.run(
+                    [
+                        self.emulator_manager.adb_path,
+                        "-s",
+                        self.target_emulator,
+                        "shell",
+                        "echo",
+                        "1",
+                    ],
+                    timeout=5,
+                    capture_output=True,
+                    text=True,
+                )
+                return result.returncode == 0 and "1" in result.stdout
+            return False
+        except Exception:
+            return False
+
+    def ensure_emulator_running(self) -> bool:
+        """
+        确保目标模拟器正在运行
+
+        Returns:
+            bool: 是否成功运行
+        """
+        if not self.target_emulator:
+            return False
+
+        # 1. 检查是否已连接且响应
+        if self.check_connection():
+            return True
+
+        # 2. 检查是否在 adb devices 列表中
+        if self.emulator_manager.is_emulator_running(self.target_emulator):
+            logger.info(f"✅ 模拟器 {self.target_emulator} 在线，尝试连接...")
+            return self.emulator_manager.try_adb_connect(self.target_emulator)
+
+        # 3. 尝试启动模拟器
+        logger.info(f"🚀 模拟器 {self.target_emulator} 未运行，尝试启动...")
+        return self.emulator_manager.start_bluestacks_instance(self.target_emulator)
 
     def initialize(
         self,
@@ -186,11 +261,9 @@ class DeviceManager:
             self.target_emulator = normalized_name
             emulator_name = normalized_name
 
-            # 确保模拟器已连接
-            if not self._ensure_emulator_connected(emulator_name):
-                raise DeviceConnectionError(
-                    f"模拟器 {emulator_name} 未运行或未连接"
-                )
+            # 确保模拟器已运行并连接
+            if not self.ensure_emulator_running():
+                raise DeviceConnectionError(f"无法启动或连接模拟器 {emulator_name}")
 
             self.connection_string = self._get_connection_string(emulator_name)
             logger.info(f"📱 连接到模拟器: {emulator_name}")

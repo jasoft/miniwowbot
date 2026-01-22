@@ -18,6 +18,8 @@ from logger_config import setup_logger, update_log_context, attach_emulator_file
 from auto_dungeon import send_bark_notification
 
 
+from auto_dungeon_device import DeviceManager, DeviceConnectionError
+
 SCRIPT_DIR = Path(__file__).parent
 os.environ["PATH"] = f"/opt/homebrew/bin:{os.environ.get('PATH', '')}"
 
@@ -88,41 +90,30 @@ def _invoke_auto_dungeon_once(config_name: str, emulator: str, session: str) -> 
         sys.argv = argv_backup
 
 
-def _read_start_cmd_from_config() -> Optional[str]:
-    """读取系统配置中的模拟器启动命令。
+def _ensure_emulator_ready(emulator: str, logger) -> bool:
+    """确保模拟器已就绪。
 
-    Returns:
-        配置中的启动命令字符串，若不存在或解析失败则返回 None。
+    使用 DeviceManager 检查并启动模拟器。
     """
-    config_path = SCRIPT_DIR / "system_config.json"
     try:
-        with open(config_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        cmd = str(data.get("emulators", {}).get("startCmd", "")).strip()
-        return cmd or None
-    except Exception:
-        return None
+        logger.info(f"🛠️ 检查模拟器状态: {emulator}")
+        device_manager = DeviceManager()
+        # initialize 会自动处理连接和启动
+        device_manager.initialize(emulator_name=emulator)
+        logger.info(f"✅ 模拟器 {emulator} 已就绪")
+        return True
+    except Exception as e:
+        logger.error(f"❌ 模拟器准备失败: {e}")
+        return False
 
 
-def _try_start_emulator(logger) -> None:
-    """尝试执行系统配置中的模拟器启动命令并等待完成。
-
-    Args:
-        logger: 日志记录器。
-    """
-    cmd = _read_start_cmd_from_config()
-    if not cmd:
-        logger.warning("⚠️ 未找到模拟器启动命令(startCmd)，跳过自动启动")
-        return
-    logger.info("🛠️ 正在执行模拟器启动命令…")
-    try:
-        rc = subprocess.run(cmd, shell=True).returncode
-        logger.info(f"🛠️ 启动命令已结束，退出码: {rc}")
-    except Exception:
-        logger.error("❌ 执行启动命令失败")
-
-
-def run_configs(configs: Iterable[str], emulator: str, session: str, retries: int = 3, logfile: Optional[Path] = None) -> int:
+def run_configs(
+    configs: Iterable[str],
+    emulator: str,
+    session: str,
+    retries: int = 3,
+    logfile: Optional[Path] = None,
+) -> int:
     """按顺序运行配置列表（带重试与汇总）。
 
     Args:
@@ -138,10 +129,21 @@ def run_configs(configs: Iterable[str], emulator: str, session: str, retries: in
     if logfile is None:
         logfile = SCRIPT_DIR / "log" / f"autodungeon_{session}.log"
     try:
-        attach_emulator_file_handler(emulator_name=emulator, config_name=None, log_dir=str(logfile.parent))
+        attach_emulator_file_handler(
+            emulator_name=emulator, config_name=None, log_dir=str(logfile.parent)
+        )
     except Exception:
         pass
     logger = setup_logger(name="run_dungeons", level="INFO", use_color=False)
+
+    # 确保模拟器已启动
+    if not _ensure_emulator_ready(emulator, logger):
+        logger.error("❌ 无法启动或连接模拟器，任务终止")
+        try:
+            send_bark_notification("副本运行错误", f"无法启动模拟器 {emulator}")
+        except Exception:
+            pass
+        return 1
 
     cfgs: List[str] = [c for c in configs if str(c).strip()]
     if not cfgs:
@@ -175,7 +177,8 @@ def run_configs(configs: Iterable[str], emulator: str, session: str, retries: in
                 logger.info(f"✅ 配置 {cfg} 运行成功")
                 break
             if attempt == 0:
-                _try_start_emulator(logger)
+                # 第一次失败尝试重新检查模拟器状态
+                _ensure_emulator_ready(emulator, logger)
             attempt += 1
             if attempt < retries:
                 wait_sec = attempt * 10
@@ -206,6 +209,7 @@ def run_configs(configs: Iterable[str], emulator: str, session: str, retries: in
         pass
 
     return 0 if failed == 0 else 1
+
 
 app = typer.Typer(add_completion=False)
 
