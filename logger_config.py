@@ -4,11 +4,41 @@
 提供统一的日志配置功能，支持多种日志格式和输出方式
 """
 
+import io
 import logging
 import os
 import json
+import sys
 from typing import Optional, Dict
 from project_paths import resolve_project_path
+
+
+def _is_windows() -> bool:
+    return os.name == "nt"
+
+
+def ensure_utf8_output() -> None:
+    """在 Windows 上强制标准输出/错误为 UTF-8，避免 GBK 编码错误。"""
+    if not _is_windows():
+        return
+
+    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+    for attr in ("stdout", "stderr"):
+        stream = getattr(sys, attr, None)
+        if stream is None:
+            continue
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+            continue
+        except Exception:
+            pass
+        try:
+            stream = io.TextIOWrapper(
+                stream.buffer, encoding="utf-8", errors="replace", line_buffering=True
+            )
+            setattr(sys, attr, stream)
+        except Exception:
+            continue
 
 # Import from the installed package
 from vibe_logger import (
@@ -42,11 +72,14 @@ __all__ = [
     "DEFAULT_SIMPLE_FORMAT",
     "LOG_LEVELS",
     "apply_logging_slice",
+    "ensure_utf8_output",
 ]
 
 DEFAULT_COLOR_FORMAT = DEFAULT_LOG_FORMAT
 DEFAULT_COLOR_DATE_FORMAT = DEFAULT_DATE_FORMAT
 DEFAULT_SIMPLE_FORMAT = "%(asctime)s.%(msecs)03d %(levelname)s %(filename)s:%(lineno)d %(config)s %(emulator)s %(message)s"
+
+ensure_utf8_output()
 
 LOG_LEVELS = {
     "DEBUG": logging.DEBUG,
