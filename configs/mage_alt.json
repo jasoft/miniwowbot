@@ -5,17 +5,17 @@
     "enable_quick_afk": false,
     "chestname": "风暴宝箱",
     "daily_tasks": [
-        {"name": "领取挂机奖励", "selected": true},
-        {"name": "购买商店每日", "selected": true},
-        {"name": "随从派遣", "selected": true},
-        {"name": "每日免费地下城", "selected": true},
-        {"name": "开启宝箱", "selected": true},
-        {"name": "世界BOSS", "selected": true},
-        {"name": "领取邮件", "selected": true},
-        {"name": "领取主题奖励", "selected": true},
-        {"name": "领取礼包", "selected": true},
-        {"name": "领取广告奖励", "selected": false}
-        {"name": "猎魔试炼", "selected": true}
+        { "name": "领取挂机奖励", "selected": true },
+        { "name": "购买商店每日", "selected": true },
+        { "name": "随从派遣", "selected": true },
+        { "name": "每日免费地下城", "selected": true },
+        { "name": "开启宝箱", "selected": true },
+        { "name": "世界BOSS", "selected": true },
+        { "name": "领取邮件", "selected": true },
+        { "name": "领取主题奖励", "selected": true },
+        { "name": "领取礼包", "selected": true },
+        { "name": "领取广告奖励", "selected": false },
+        { "name": "猎魔试炼", "selected": true }
     ],
     "ocr_correction_map": {
         "梦魔丛林": "梦魇丛林"
