@@ -262,7 +262,10 @@ def run(
     logfile: Optional[Path] = typer.Option(None, "--logfile", help="日志文件路径（追加写入）"),
 ) -> None:
     """运行指定的配置列表。"""
-    rc = run_configs(config, emulator, session, retries=max(1, retries), logfile=logfile)
+    try:
+        rc = run_configs(config, emulator, session, retries=max(1, retries), logfile=logfile)
+    finally:
+        _set_windows_sleep_state(False)
     raise typer.Exit(rc)
 
 

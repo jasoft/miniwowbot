@@ -1,3 +1,5 @@
+import pytest
+
 import run_dungeons
 
 
@@ -19,3 +21,28 @@ def test_prevent_system_sleep_calls_kernel32(monkeypatch):
     assert calls[0] & run_dungeons.ES_CONTINUOUS
     assert calls[0] & run_dungeons.ES_SYSTEM_REQUIRED
     assert calls[1] == run_dungeons.ES_CONTINUOUS
+
+
+def test_run_restores_sleep_on_error(monkeypatch):
+    calls = []
+
+    def fake_set_sleep_state(keep_awake: bool) -> bool:
+        calls.append(keep_awake)
+        return True
+
+    def fake_run_configs(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(run_dungeons, "_set_windows_sleep_state", fake_set_sleep_state)
+    monkeypatch.setattr(run_dungeons, "run_configs", fake_run_configs)
+
+    with pytest.raises(RuntimeError):
+        run_dungeons.run(
+            emulator="127.0.0.1:5555",
+            session="test",
+            config=["mage"],
+            retries=1,
+            logfile=None,
+        )
+
+    assert calls and calls[-1] is False
