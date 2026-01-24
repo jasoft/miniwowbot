@@ -14,7 +14,7 @@
         { "name": "领取邮件", "selected": true },
         { "name": "领取主题奖励", "selected": true },
         { "name": "领取礼包", "selected": true },
-        { "name": "领取广告奖励", "selected": true },
+        { "name": "领取广告奖励", "selected": false },
         { "name": "猎魔试炼", "selected": true }
     ],
     "ocr_correction_map": {
