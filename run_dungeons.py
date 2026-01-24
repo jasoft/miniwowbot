@@ -264,6 +264,9 @@ def run(
     """运行指定的配置列表。"""
     try:
         rc = run_configs(config, emulator, session, retries=max(1, retries), logfile=logfile)
+    except KeyboardInterrupt:
+        _set_windows_sleep_state(False)
+        raise
     finally:
         _set_windows_sleep_state(False)
     raise typer.Exit(rc)

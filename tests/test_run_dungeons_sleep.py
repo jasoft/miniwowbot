@@ -46,3 +46,28 @@ def test_run_restores_sleep_on_error(monkeypatch):
         )
 
     assert calls and calls[-1] is False
+
+
+def test_run_restores_sleep_on_keyboard_interrupt(monkeypatch):
+    calls = []
+
+    def fake_set_sleep_state(keep_awake: bool) -> bool:
+        calls.append(keep_awake)
+        return True
+
+    def fake_run_configs(*args, **kwargs):
+        raise KeyboardInterrupt()
+
+    monkeypatch.setattr(run_dungeons, "_set_windows_sleep_state", fake_set_sleep_state)
+    monkeypatch.setattr(run_dungeons, "run_configs", fake_run_configs)
+
+    with pytest.raises(KeyboardInterrupt):
+        run_dungeons.run(
+            emulator="127.0.0.1:5555",
+            session="test",
+            config=["mage"],
+            retries=1,
+            logfile=None,
+        )
+
+    assert calls and calls[-1] is False
