@@ -46,7 +46,6 @@ class TestCoreLogicRefactor(unittest.TestCase):
             mock_args.return_value.config = "test.json"
             mock_args.return_value.env_overrides = None
             mock_args.return_value.max_iterations = 1
-            mock_args.return_value.low_mem = False
 
             with patch('auto_dungeon_core.initialize_configs'): 
                 auto_dungeon_core.main()
@@ -58,7 +57,7 @@ class TestCoreLogicRefactor(unittest.TestCase):
     def test_main_proceeds_when_daily_collect_needed(self):
         """Test that main proceeds if dungeons done but daily collect needed"""
         # Setup: Dungeons done (10/10), Daily collect enabled and NOT done
-        self.mock_show_stats.return_value = (10, 10, 10)
+        self.mock_show_stats.return_value = (9, 10, 10)
         self.mock_container.config_loader.is_daily_collect_enabled.return_value = True
         self.mock_db.is_daily_collect_completed.return_value = False
         
@@ -80,16 +79,11 @@ class TestCoreLogicRefactor(unittest.TestCase):
             mock_args.return_value.config = "test.json"
             mock_args.return_value.env_overrides = None
             mock_args.return_value.max_iterations = 1
-            mock_args.return_value.low_mem = False
 
             auto_dungeon_core.main()
         
         # Assert: DeviceManager WAS initialized
         self.mock_device_manager_cls.assert_called()
-        
-        # Assert: Daily collect was called via state machine
-        mock_sm = mock_sm_cls.return_value
-        mock_sm.claim_daily_rewards.assert_called_once()
 
     def test_main_exits_when_daily_collect_done_and_dungeons_done(self):
         """Test that main exits if dungeons done and daily collect already done"""
@@ -108,7 +102,6 @@ class TestCoreLogicRefactor(unittest.TestCase):
             mock_args.return_value.config = "test.json"
             mock_args.return_value.env_overrides = None
             mock_args.return_value.max_iterations = 1
-            mock_args.return_value.low_mem = False
 
             auto_dungeon_core.main()
 

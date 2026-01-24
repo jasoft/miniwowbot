@@ -30,7 +30,6 @@ class DungeonBotConfig:
 
     config_path: str = "configs/default.json"
     emulator_name: Optional[str] = None
-    low_mem: bool = False
     env_overrides: List[str] = field(default_factory=list)
     max_iterations: int = 1
 
@@ -75,8 +74,7 @@ class DungeonBot:
             self._device_manager = DeviceManager()
             self._device_manager.initialize(
                 self.config.emulator_name,
-                self.config.low_mem,
-                self._config_loader,
+                correction_map=self._config_loader,
             )
         return self._device_manager
 

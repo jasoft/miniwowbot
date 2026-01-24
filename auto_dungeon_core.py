@@ -1123,7 +1123,6 @@ def parse_arguments():
     parser.add_argument("--load-account", type=str, help="加载指定账号后退出")
     parser.add_argument("--emulator", type=str, help="指定模拟器网络地址")
     parser.add_argument("--memlog", action="store_true", help="启用内存监控日志")
-    parser.add_argument("--low-mem", action="store_true", help="启用低内存模式")
     parser.add_argument(
         "-e", "--env", type=str, action="append", dest="env_overrides", help="环境变量覆盖"
     )
@@ -1160,7 +1159,7 @@ def apply_env_overrides(env_overrides: List[str]) -> Dict[str, Any]:
 
 
 def handle_load_account_mode(
-    account_name: str, emulator_name: Optional[str] = None, low_mem: bool = False
+    account_name: str, emulator_name: Optional[str] = None
 ):
     """处理账号加载模式"""
     logger.info("\n" + "=" * 60)
@@ -1170,7 +1169,7 @@ def handle_load_account_mode(
 
     try:
         device_manager = DeviceManager()
-        device_manager.initialize(emulator_name=emulator_name, low_mem=low_mem)
+        device_manager.initialize(emulator_name=emulator_name)
 
         # 注入依赖
         _container.emulator_manager = device_manager.emulator_manager
@@ -1288,7 +1287,7 @@ def main():
     attach_file_logger(args.emulator)
 
     if args.load_account:
-        handle_load_account_mode(args.load_account, args.emulator, low_mem=args.low_mem)
+        handle_load_account_mode(args.load_account, args.emulator)
         return
 
     # 初始化配置
@@ -1317,7 +1316,7 @@ def main():
 
         # 初始化设备
         device_manager.initialize(
-            emulator_name=args.emulator, low_mem=args.low_mem, correction_map=correction_map
+            emulator_name=args.emulator, correction_map=correction_map
         )
 
         # 将组件注入到依赖容器

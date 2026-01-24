@@ -224,7 +224,6 @@ class EmulatorManager:
     def initialize(
         self,
         emulator_name: Optional[str] = None,
-        low_mem: bool = False,
         correction_map: Optional[dict] = None,
     ) -> None:
         """
@@ -232,7 +231,6 @@ class EmulatorManager:
 
         Args:
             emulator_name: 模拟器地址，如 '192.168.1.150:5555'
-            low_mem: 是否使用低内存模式
             correction_map: OCR 纠错映射表
 
         Raises:
@@ -262,8 +260,8 @@ class EmulatorManager:
         # 初始化 OCR
         self.ocr_helper = OCRHelper(
             output_dir="output",
-            max_cache_size=50 if low_mem else 200,
-            max_width=640 if low_mem else 960,
+            max_cache_size=200,
+            max_width=960,
             delete_temp_screenshots=True,
             correction_map=correction_map,
             snapshot_func=snapshot,
@@ -319,7 +317,6 @@ class EmulatorManager:
 # 便捷函数
 def create_emulator_manager(
     emulator: Optional[str] = None,
-    low_mem: bool = False,
     correction_map: Optional[dict] = None,
 ) -> EmulatorManager:
     """
@@ -327,14 +324,13 @@ def create_emulator_manager(
 
     Args:
         emulator: 模拟器地址
-        low_mem: 低内存模式
         correction_map: OCR 纠错映射
 
     Returns:
         EmulatorManager: 初始化后的管理器
     """
     manager = EmulatorManager()
-    manager.initialize(emulator, low_mem, correction_map)
+    manager.initialize(emulator, correction_map=correction_map)
     return manager
 
 
