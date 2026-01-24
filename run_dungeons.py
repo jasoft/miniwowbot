@@ -10,6 +10,7 @@ import sys
 import time
 import json
 import subprocess
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterable, List, Optional
 import typer
@@ -22,6 +23,43 @@ from auto_dungeon_device import DeviceManager, DeviceConnectionError
 
 SCRIPT_DIR = Path(__file__).parent
 os.environ["PATH"] = f"/opt/homebrew/bin:{os.environ.get('PATH', '')}"
+
+ES_CONTINUOUS = 0x80000000
+ES_SYSTEM_REQUIRED = 0x00000001
+
+
+def _is_windows() -> bool:
+    return os.name == "nt"
+
+
+def _get_kernel32():
+    import ctypes
+
+    return ctypes.windll.kernel32
+
+
+def _set_windows_sleep_state(keep_awake: bool) -> bool:
+    if not _is_windows():
+        return True
+    try:
+        kernel32 = _get_kernel32()
+        flags = ES_CONTINUOUS
+        if keep_awake:
+            flags |= ES_SYSTEM_REQUIRED
+        return bool(kernel32.SetThreadExecutionState(flags))
+    except Exception:
+        return False
+
+
+@contextmanager
+def prevent_system_sleep(logger=None):
+    ok = _set_windows_sleep_state(True)
+    if logger and not ok:
+        logger.warning("⚠️ 无法设置系统休眠抑制，运行期间可能进入休眠")
+    try:
+        yield
+    finally:
+        _set_windows_sleep_state(False)
 
 
 def format_duration_zh(seconds: float) -> str:
@@ -136,79 +174,80 @@ def run_configs(
         pass
     logger = setup_logger(name="run_dungeons", level="INFO", use_color=False)
 
-    # 确保模拟器已启动
-    if not _ensure_emulator_ready(emulator, logger):
-        logger.error("❌ 无法启动或连接模拟器，任务终止")
-        try:
-            send_bark_notification("副本运行错误", f"无法启动模拟器 {emulator}")
-        except Exception:
-            pass
-        return 1
+    with prevent_system_sleep(logger):
+        # 确保模拟器已启动
+        if not _ensure_emulator_ready(emulator, logger):
+            logger.error("❌ 无法启动或连接模拟器，任务终止")
+            try:
+                send_bark_notification("副本运行错误", f"无法启动模拟器 {emulator}")
+            except Exception:
+                pass
+            return 1
 
-    cfgs: List[str] = [c for c in configs if str(c).strip()]
-    if not cfgs:
-        logger = setup_logger(name="run_dungeons", level="INFO", use_color=False)
-        logger.error("❌ 未提供任何配置，必须显式传入 --config")
-        try:
-            send_bark_notification("副本运行汇总", "未提供任何配置，任务未执行")
-        except Exception:
-            pass
-        return 2
-    total = len(cfgs)
-    success = 0
-    failed = 0
-    start_ts = int(time.time())
-    per_durations: List[tuple[str, float]] = []
+        cfgs: List[str] = [c for c in configs if str(c).strip()]
+        if not cfgs:
+            logger = setup_logger(name="run_dungeons", level="INFO", use_color=False)
+            logger.error("❌ 未提供任何配置，必须显式传入 --config")
+            try:
+                send_bark_notification("副本运行汇总", "未提供任何配置，任务未执行")
+            except Exception:
+                pass
+            return 2
+        total = len(cfgs)
+        success = 0
+        failed = 0
+        start_ts = int(time.time())
+        per_durations: List[tuple[str, float]] = []
 
-    logger.info("=" * 50)
-    logger.info(f"🎮 目标模拟器: {emulator}")
-    logger.info(f"📋 将顺序运行 {total} 个配置: {', '.join(cfgs) if cfgs else '全部(空列表)'}")
-    logger.info("=" * 50)
+        logger.info("=" * 50)
+        logger.info(f"🎮 目标模拟器: {emulator}")
+        logger.info(f"📋 将顺序运行 {total} 个配置: {', '.join(cfgs) if cfgs else '全部(空列表)'}")
+        logger.info("=" * 50)
 
-    for idx, cfg in enumerate(cfgs, start=1):
+        for idx, cfg in enumerate(cfgs, start=1):
+            logger.info("")
+            logger.info(f"▶️ [{idx}/{total}] 运行配置: {cfg}")
+            attempt = 0
+            cfg_start = time.time()
+            while attempt < max(1, retries):
+                rc = _invoke_auto_dungeon_once(cfg, emulator, session)
+                if rc == 0:
+                    success += 1
+                    logger.info(f"✅ 配置 {cfg} 运行成功")
+                    break
+                if attempt == 0:
+                    # 第一次失败尝试重新检查模拟器状态
+                    _ensure_emulator_ready(emulator, logger)
+                attempt += 1
+                if attempt < retries:
+                    wait_sec = attempt * 10
+                    logger.warning(f"⏳ 配置 {cfg} 失败，{wait_sec}s 后重试… ({attempt}/{retries})")
+                    time.sleep(wait_sec)
+            else:
+                failed += 1
+                logger.error(f"❌ 配置 {cfg} 多次重试仍失败")
+            per_durations.append((cfg, time.time() - cfg_start))
+
+        duration = int(time.time()) - start_ts
         logger.info("")
-        logger.info(f"▶️ [{idx}/{total}] 运行配置: {cfg}")
-        attempt = 0
-        cfg_start = time.time()
-        while attempt < max(1, retries):
-            rc = _invoke_auto_dungeon_once(cfg, emulator, session)
-            if rc == 0:
-                success += 1
-                logger.info(f"✅ 配置 {cfg} 运行成功")
-                break
-            if attempt == 0:
-                # 第一次失败尝试重新检查模拟器状态
-                _ensure_emulator_ready(emulator, logger)
-            attempt += 1
-            if attempt < retries:
-                wait_sec = attempt * 10
-                logger.warning(f"⏳ 配置 {cfg} 失败，{wait_sec}s 后重试… ({attempt}/{retries})")
-                time.sleep(wait_sec)
-        else:
-            failed += 1
-            logger.error(f"❌ 配置 {cfg} 多次重试仍失败")
-        per_durations.append((cfg, time.time() - cfg_start))
+        logger.info("=" * 50)
+        logger.info(f"📊 总计: {total}，成功: {success}，失败: {failed}，耗时: {duration}s")
+        logger.info("=" * 50)
 
-    duration = int(time.time()) - start_ts
-    logger.info("")
-    logger.info("=" * 50)
-    logger.info(f"📊 总计: {total}，成功: {success}，失败: {failed}，耗时: {duration}s")
-    logger.info("=" * 50)
+        summary_lines = [
+            f"成功: {success}/{total}",
+            f"失败: {failed}",
+            "配置耗时:",
+        ]
+        for name, dur in per_durations:
+            summary_lines.append(f"• {name}: {format_duration_zh(dur)}")
+        summary_lines.append(f"总耗时: {format_duration_zh(duration)}")
+        try:
+            send_bark_notification("副本运行汇总", "\n".join(summary_lines))
+        except Exception:
+            pass
 
-    summary_lines = [
-        f"成功: {success}/{total}",
-        f"失败: {failed}",
-        "配置耗时:",
-    ]
-    for name, dur in per_durations:
-        summary_lines.append(f"• {name}: {format_duration_zh(dur)}")
-    summary_lines.append(f"总耗时: {format_duration_zh(duration)}")
-    try:
-        send_bark_notification("副本运行汇总", "\n".join(summary_lines))
-    except Exception:
-        pass
-
-    return 0 if failed == 0 else 1
+        return 0 if failed == 0 else 1
 
 
 app = typer.Typer(add_completion=False)
