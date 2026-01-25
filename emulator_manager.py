@@ -14,38 +14,20 @@ import os
 import subprocess
 import time
 from shutil import which
-from typing import Any, Optional, Protocol
+from typing import Optional
 
-
-class LoggerLike(Protocol):
-    def info(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        pass
-
-    def warning(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        pass
-
-    def debug(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        pass
-
-    def error(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        pass
-
-
-def _create_default_logger() -> logging.Logger:
-    logger = logging.getLogger(__name__)
-    if not logger.handlers:
-        handler = logging.StreamHandler()
-        formatter = logging.Formatter(
-            "%(asctime)s %(levelname)s %(module)s %(filename)s:%(lineno)d - %(message)s"
-        )
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-        logger.setLevel(logging.INFO)
-        logger.propagate = False
-    return logger
-
-
-_DEFAULT_LOGGER = _create_default_logger()
+# ==================== 模块级 Logger ====================
+# 外部可通过 `from emulator_manager import logger` 导入并修改此 logger
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "%(asctime)s %(levelname)s %(module)s %(filename)s:%(lineno)d - %(message)s"
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
 
 
 class EmulatorConnectionError(Exception):
@@ -67,16 +49,15 @@ class EmulatorConnectionManager:
     def __init__(
         self,
         start_cmd: Optional[str] = None,
-        logger: Optional[LoggerLike] = None,
     ):
         """
         初始化模拟器连接管理器
 
         Args:
             start_cmd: 启动模拟器的命令行字符串
-            logger: 标准 logger 接口（info/warning/debug/error），可覆盖默认格式
+            logger: 可选的自定义 logger，默认为模块级 logger
         """
-        self.logger = logger or _DEFAULT_LOGGER
+        self.logger = logger
         self.adb_path = self._resolve_adb_path()
         self.start_cmd = start_cmd
 
@@ -190,9 +171,7 @@ class EmulatorConnectionManager:
 
         # 尝试直接连接
         for attempt in range(max_retries):
-            self.logger.info(
-                f"[Emulator] 第 {attempt + 1}/{max_retries} 次尝试连接 {emulator}"
-            )
+            self.logger.info(f"[Emulator] 第 {attempt + 1}/{max_retries} 次尝试连接 {emulator}")
 
             if self.connect(emulator):
                 # 验证连接
@@ -273,14 +252,14 @@ EmulatorManager = EmulatorConnectionManager
 
 def create_connection_manager(
     emulator: Optional[str] = None,
-    logger: Optional[LoggerLike] = None,
+    logger: Optional[logging.Logger] = None,
 ) -> EmulatorConnectionManager:
     """
     创建模拟器连接管理器的便捷函数
 
     Args:
         emulator: 模拟器地址
-        logger: 标准 logger 接口（info/warning/debug/error），可覆盖默认格式
+        logger: 可选的自定义 logger，默认为模块级 logger
 
     Returns:
         EmulatorConnectionManager: 初始化后的管理器
@@ -292,6 +271,7 @@ def create_connection_manager(
 
 
 __all__ = [
+    "logger",
     "EmulatorConnectionManager",
     "EmulatorManager",
     "EmulatorConnectionError",
