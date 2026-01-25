@@ -96,8 +96,11 @@ class ErrorDialogMonitor:
     def _run(self):
         while not self._stop_event.is_set():
             self._handle_dialogs()
-            if self._stop_event.wait(self.check_interval):
-                break
+            # 使用更短的间隔频繁检查 stop_event
+            for _ in range(int(self.check_interval / 0.1)):
+                if self._stop_event.is_set():
+                    break
+                time.sleep(0.1)
 
     def _requires_relogin(self, template: Template) -> bool:
         """根据弹窗模板判断是否需要重新点击进入游戏"""
