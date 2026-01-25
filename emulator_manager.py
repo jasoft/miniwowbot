@@ -123,7 +123,8 @@ class EmulatorConnectionManager:
                 timeout=10,
             )
             if result.returncode != 0:
-                self.logger.error(f"[ADB] devices 失败: {result.stderr}")
+                error_detail = result.stderr.strip() or result.stdout.strip()
+                self.logger.error(f"[ADB] devices 失败: {error_detail}")
                 return {}
             devices = {}
             for line in result.stdout.strip().split("\n")[1:]:
@@ -151,13 +152,15 @@ class EmulatorConnectionManager:
                 timeout=10,
             )
             if result.returncode != 0:
-                self.logger.warning(f"[ADB] 连接失败: {result.stdout.strip()}")
+                error_detail = result.stderr.strip() or result.stdout.strip()
+                self.logger.warning(f"[ADB] 连接失败: {error_detail}")
                 return False
             output = result.stdout.strip().lower()
             if "connected" in output or "already connected" in output:
                 self.logger.info(f"[ADB] 已连接: {emulator}")
                 return True
-            self.logger.warning(f"[ADB] 连接失败: {result.stdout.strip()}")
+            error_detail = result.stderr.strip() or result.stdout.strip()
+            self.logger.warning(f"[ADB] 连接失败: {error_detail}")
             return False
         except Exception as exc:
             self.logger.warning(f"[ADB] 连接异常: {exc}")
@@ -282,6 +285,8 @@ def create_connection_manager(
         EmulatorConnectionManager: 初始化后的管理器
     """
     manager = EmulatorConnectionManager(logger=logger)
+    if emulator:
+        manager.target_emulator = manager._normalize_emulator(emulator)
     return manager
 
 
