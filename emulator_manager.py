@@ -9,15 +9,43 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 import time
 from shutil import which
-from typing import Optional
+from typing import Any, Optional, Protocol
 
-from logger_config import setup_logger_from_config
 
-logger = setup_logger_from_config(use_color=True)
+class LoggerLike(Protocol):
+    def info(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        pass
+
+    def warning(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        pass
+
+    def debug(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        pass
+
+    def error(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        pass
+
+
+def _create_default_logger() -> logging.Logger:
+    logger = logging.getLogger(__name__)
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter(
+            "%(asctime)s %(levelname)s %(module)s %(filename)s:%(lineno)d - %(message)s"
+        )
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+        logger.propagate = False
+    return logger
+
+
+_DEFAULT_LOGGER = _create_default_logger()
 
 
 class EmulatorConnectionError(Exception):
@@ -35,13 +63,19 @@ class EmulatorConnectionManager:
     3. 确保交给调用者的端口是可用的（用 ADB 命令测试通过）
     """
 
-    def __init__(self, start_cmd: Optional[str] = None):
+    def __init__(
+        self,
+        start_cmd: Optional[str] = None,
+        logger: Optional[LoggerLike] = None,
+    ):
         """
         初始化模拟器连接管理器
 
         Args:
             start_cmd: 启动模拟器的命令行字符串
+            logger: 标准 logger 接口（info/warning/debug/error），可覆盖默认格式
         """
+        self.logger = logger or _DEFAULT_LOGGER
         self.adb_path = self._resolve_adb_path()
         self.start_cmd = start_cmd
 
@@ -54,18 +88,18 @@ class EmulatorConnectionManager:
         adb_name = "adb.exe" if os.name == "nt" else "adb"
         adb_path = which(adb_name)
         if adb_path:
-            logger.info(f"[ADB] 使用系统 ADB: {adb_path}")
+            self.logger.info(f"[ADB] 使用系统 ADB: {adb_path}")
             return adb_path
-        logger.warning("[ADB] 未找到 ADB，使用默认命令")
+        self.logger.warning("[ADB] 未找到 ADB，使用默认命令")
         return "adb"
 
     def _run_start_cmd(self) -> bool:
         """执行启动命令"""
         if not self.start_cmd:
-            logger.error("[Start] 未配置启动命令")
+            self.logger.error("[Start] 未配置启动命令")
             return False
         try:
-            logger.info(f"[Start] 执行: {self.start_cmd}")
+            self.logger.info(f"[Start] 执行: {self.start_cmd}")
             subprocess.Popen(
                 self.start_cmd,
                 shell=True,
@@ -74,7 +108,7 @@ class EmulatorConnectionManager:
             )
             return True
         except Exception as exc:
-            logger.error(f"[Start] 执行失败: {exc}")
+            self.logger.error(f"[Start] 执行失败: {exc}")
             return False
 
     # ==================== ADB 设备列表操作 ====================
@@ -89,7 +123,7 @@ class EmulatorConnectionManager:
                 timeout=10,
             )
             if result.returncode != 0:
-                logger.error(f"[ADB] devices 失败: {result.stderr}")
+                self.logger.error(f"[ADB] devices 失败: {result.stderr}")
                 return {}
             devices = {}
             for line in result.stdout.strip().split("\n")[1:]:
@@ -99,7 +133,7 @@ class EmulatorConnectionManager:
                         devices[parts[0]] = parts[1]
             return devices
         except Exception as exc:
-            logger.error(f"[ADB] 获取设备列表失败: {exc}")
+            self.logger.error(f"[ADB] 获取设备列表失败: {exc}")
             return {}
 
     def is_connected(self, emulator: str) -> bool:
@@ -117,16 +151,16 @@ class EmulatorConnectionManager:
                 timeout=10,
             )
             if result.returncode != 0:
-                logger.warning(f"[ADB] 连接失败: {result.stdout.strip()}")
+                self.logger.warning(f"[ADB] 连接失败: {result.stdout.strip()}")
                 return False
             output = result.stdout.strip().lower()
             if "connected" in output or "already connected" in output:
-                logger.info(f"[ADB] 已连接: {emulator}")
+                self.logger.info(f"[ADB] 已连接: {emulator}")
                 return True
-            logger.warning(f"[ADB] 连接失败: {result.stdout.strip()}")
+            self.logger.warning(f"[ADB] 连接失败: {result.stdout.strip()}")
             return False
         except Exception as exc:
-            logger.warning(f"[ADB] 连接异常: {exc}")
+            self.logger.warning(f"[ADB] 连接异常: {exc}")
             return False
 
     # ==================== 模拟器连接保障 ====================
@@ -147,39 +181,41 @@ class EmulatorConnectionManager:
         """
         # 快速检查是否已连接
         if self.is_connected(emulator):
-            logger.info(f"[Emulator] {emulator} 已连接")
+            self.logger.info(f"[Emulator] {emulator} 已连接")
             return True
 
         # 尝试直接连接
         for attempt in range(max_retries):
-            logger.info(f"[Emulator] 第 {attempt + 1}/{max_retries} 次尝试连接 {emulator}")
+            self.logger.info(
+                f"[Emulator] 第 {attempt + 1}/{max_retries} 次尝试连接 {emulator}"
+            )
 
             if self.connect(emulator):
                 # 验证连接
                 if self.is_connected(emulator):
-                    logger.info(f"[Emulator] {emulator} 连接验证成功")
+                    self.logger.info(f"[Emulator] {emulator} 连接验证成功")
                     return True
 
             # 如果还有重试次数，尝试启动模拟器
             if attempt < max_retries - 1:
                 if not self.start_cmd:
-                    logger.critical("[Emulator] 未配置启动模拟器命令，无法自动恢复")
+                    self.logger.error("[Emulator] 未配置启动模拟器命令，无法自动恢复")
                     raise EmulatorConnectionError("启动模拟器命令未配置，无法自动连接模拟器")
 
-                logger.info("[Emulator] 连接失败，尝试启动模拟器...")
+                self.logger.info("[Emulator] 连接失败，尝试启动模拟器...")
                 if not self._run_start_cmd():
-                    logger.critical(f"[Emulator] 启动模拟器命令执行失败: {self.start_cmd}")
+                    self.logger.error(f"[Emulator] 启动模拟器命令执行失败: {self.start_cmd}")
                     raise EmulatorConnectionError(f"无法启动模拟器: {self.start_cmd}")
 
                 wait_time = (attempt + 1) * 10
-                logger.info(f"[Emulator] 等待 {wait_time} 秒...")
+                self.logger.info(f"[Emulator] 等待 {wait_time} 秒...")
                 time.sleep(wait_time)
 
         # 最后检查一次
         if self.is_connected(emulator):
             return True
 
-        logger.error(f"[Emulator] 无法连接 {emulator}")
+        self.logger.error(f"[Emulator] 无法连接 {emulator}")
         return False
 
     def test_connection(self, emulator: str) -> bool:
@@ -200,12 +236,12 @@ class EmulatorConnectionManager:
                 timeout=10,
             )
             if result.returncode == 0:
-                logger.info(f"[ADB] 连接测试成功: {emulator}")
+                self.logger.info(f"[ADB] 连接测试成功: {emulator}")
                 return True
-            logger.warning(f"[ADB] 连接测试失败: {emulator}, 输出: {result.stderr}")
+            self.logger.warning(f"[ADB] 连接测试失败: {emulator}, 输出: {result.stderr}")
             return False
         except Exception as exc:
-            logger.warning(f"[ADB] 连接测试异常: {exc}")
+            self.logger.warning(f"[ADB] 连接测试异常: {exc}")
             return False
 
     def _normalize_emulator(self, name: str) -> str:
@@ -233,17 +269,19 @@ EmulatorManager = EmulatorConnectionManager
 
 def create_connection_manager(
     emulator: Optional[str] = None,
+    logger: Optional[LoggerLike] = None,
 ) -> EmulatorConnectionManager:
     """
     创建模拟器连接管理器的便捷函数
 
     Args:
         emulator: 模拟器地址
+        logger: 标准 logger 接口（info/warning/debug/error），可覆盖默认格式
 
     Returns:
         EmulatorConnectionManager: 初始化后的管理器
     """
-    manager = EmulatorConnectionManager()
+    manager = EmulatorConnectionManager(logger=logger)
     return manager
 
 
