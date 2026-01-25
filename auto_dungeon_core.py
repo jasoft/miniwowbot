@@ -542,11 +542,18 @@ def auto_combat(completed_dungeons: int = 0, total_dungeons: int = 0) -> None:
     ) as pbar:
         start_time = time.time()
         last_update = start_time
+        combat_start = time.monotonic()
+        combat_timeout_seconds = 180
 
         while not is_main_world():
             if check_stop_signal():
                 pbar.close()
                 raise KeyboardInterrupt("检测到停止信号，退出自动战斗")
+
+            if time.monotonic() - combat_start >= combat_timeout_seconds:
+                pbar.close()
+                logger.error("⏱️ 自动战斗超时（180秒），抛出异常")
+                raise TimeoutError("自动战斗超时（180秒）")
 
             current_time = time.time()
 
