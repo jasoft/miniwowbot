@@ -4,15 +4,16 @@
 测试数据库模块
 """
 
-import sys
 import os
+import sys
 import tempfile
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # 添加父目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
+
 from database import DungeonProgressDB
 
 
@@ -45,7 +46,12 @@ class TestDatabaseBasic:
     def test_get_today_date(self, temp_db):
         """测试获取今天日期"""
         today = temp_db.get_today_date()
-        expected = datetime.now().strftime("%Y-%m-%d")
+        # 用相同的逻辑计算期望值
+        now = datetime.now()
+        if now.hour < 6:
+            expected = (now.date() - timedelta(days=1)).isoformat()
+        else:
+            expected = now.date().isoformat()
         assert today == expected
 
 
