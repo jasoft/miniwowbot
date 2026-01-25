@@ -5,19 +5,23 @@
 需要连接真实设备才能运行
 """
 
-import json
 import logging
 import os
 import time
+from typing import Any
 
-import pytest
+import pytest  # type: ignore[reportMissingImports]
+pytest.importorskip("airtest.core.api")
+pytest.importorskip("vibe_ocr")
+
 import vibe_ocr  # noqa: E402
 
 # 添加父目录到路径
 # sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from airtest.core.api import auto_setup, connect_device, snapshot  # noqa: E402
+from airtest.core.api import auto_setup, connect_device, snapshot  # type: ignore[reportMissingImports]  # noqa: E402
 
-import auto_dungeon  # noqa: E402
+import auto_dungeon as _auto_dungeon  # noqa: E402
+auto_dungeon: Any = _auto_dungeon
 from auto_dungeon import (
     DailyCollectManager,
     daily_collect,
@@ -26,40 +30,13 @@ from auto_dungeon import (
     switch_account,
 )  # noqa: E402
 from config_loader import ConfigLoader  # noqa: E402
+from tests.utils import load_test_accounts  # noqa: E402
 
 # 配置日志
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-
-def load_test_accounts():
-    """
-    从配置文件加载测试账号
-
-    Returns:
-        list: 账号列表
-    """
-    config_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "test_accounts.json",
-    )
-
-    try:
-        with open(config_path, "r", encoding="utf-8") as f:
-            config = json.load(f)
-            accounts = config.get("accounts", [])
-            logger.info(f"✅ 成功加载 {len(accounts)} 个测试账号")
-            return accounts
-    except FileNotFoundError:
-        logger.warning(f"⚠️ 未找到配置文件: {config_path}")
-        logger.info("💡 请复制 test_accounts.json.example 为 test_accounts.json 并填入真实账号")
-        pytest.skip("未找到测试账号配置文件")
-    except json.JSONDecodeError as e:
-        logger.error(f"❌ 配置文件格式错误: {e}")
-        pytest.skip(f"配置文件格式错误: {e}")
-    except Exception as e:
-        logger.error(f"❌ 加载配置文件失败: {e}")
-        pytest.skip(f"加载配置文件失败: {e}")
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(scope="module")
@@ -729,7 +706,8 @@ class TestDailyCollectIntegration:
 
         # 验证副本配置
         zone_dungeons = auto_dungeon.config_loader.get_zone_dungeons()
-        assert len(zone_dungeons) == 8, "应该有8个区域"
+        assert len(zone_dungeons) == 9, "应该有9个区域（含日常任务）"
+        assert "日常任务" in zone_dungeons, "应该包含日常任务"
         assert "风暴群岛" in zone_dungeons, "应该包含风暴群岛"
 
         # 验证 OCR 纠正映射
