@@ -7,6 +7,7 @@ DeviceManager 负责组合 EmulatorConnectionManager 和设备初始化（OCR、
 
 from __future__ import annotations
 
+import os
 from typing import Optional
 
 from airtest.core.api import auto_setup, connect_device, snapshot
@@ -47,7 +48,9 @@ class DeviceManager:
             config_file: 系统配置文件路径
         """
         self.config_file = str(ensure_project_path(config_file))
-        self.connection_manager = EmulatorConnectionManager(config_file)
+        self.connection_manager = EmulatorConnectionManager(
+            start_cmd=self._load_emulator_start_cmd()
+        )
 
         # 初始化状态
         self.ocr_helper: Optional[OCRHelper] = None
@@ -128,6 +131,39 @@ class DeviceManager:
     def emulator_manager(self) -> EmulatorConnectionManager:
         """返回内部连接管理器"""
         return self.connection_manager
+
+    def _load_emulator_start_cmd(self) -> Optional[str]:
+        """从环境变量中读取模拟器启动命令"""
+        self._load_env()
+        start_cmd = os.environ.get("EMULATOR_START_CMD")
+        if start_cmd:
+            logger.info(f"[Device] 读取到模拟器启动命令: {start_cmd}")
+        else:
+            logger.warning("[Device] 未配置 EMULATOR_START_CMD，自动启动不可用")
+        return start_cmd
+
+    def _load_env(self) -> None:
+        """加载 .env 环境变量（尽量避免额外依赖）"""
+        try:
+            from dotenv import load_dotenv  # type: ignore
+            load_dotenv()
+            return
+        except Exception as exc:
+            logger.debug(f"[Device] dotenv 不可用，尝试解析 .env: {exc}")
+
+        env_path = ensure_project_path(".env")
+        if not os.path.exists(env_path):
+            return
+        try:
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    key, value = line.split("=", 1)
+                    os.environ.setdefault(key.strip(), value.strip())
+        except Exception as exc:
+            logger.debug(f"[Device] 解析 .env 失败: {exc}")
 
 
 # 向后兼容的别名

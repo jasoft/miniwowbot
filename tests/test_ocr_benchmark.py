@@ -13,14 +13,14 @@ import pytest
 # 添加父目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from tests.quick_test_ocr_api import benchmark_ocr, ocr_request_once
+from scripts.quick_test_ocr_api import benchmark_ocr, ocr_request_once
 
 
 class TestOCRBenchmark:
     """测试 OCR 基准测试功能"""
 
-    @patch("tests.quick_test_ocr_api.time.time")
-    @patch("tests.quick_test_ocr_api.requests.post")
+    @patch("scripts.quick_test_ocr_api.time.time")
+    @patch("scripts.quick_test_ocr_api.requests.post")
     @patch("builtins.open", create=True)
     @patch("os.path.exists")
     def test_ocr_once_success(self, mock_exists, mock_open, mock_post, mock_time):
@@ -64,7 +64,7 @@ class TestOCRBenchmark:
 
         assert elapsed is None
 
-    @patch("tests.quick_test_ocr_api.requests.post")
+    @patch("scripts.quick_test_ocr_api.requests.post")
     @patch("builtins.open", create=True)
     @patch("os.path.exists")
     def test_ocr_once_server_error(self, mock_exists, mock_open, mock_post):
@@ -84,7 +84,7 @@ class TestOCRBenchmark:
 
         assert elapsed is None
 
-    @patch("tests.quick_test_ocr_api.requests.post")
+    @patch("scripts.quick_test_ocr_api.requests.post")
     @patch("builtins.open", create=True)
     @patch("os.path.exists")
     def test_ocr_once_ocr_error(self, mock_exists, mock_open, mock_post):
@@ -105,7 +105,7 @@ class TestOCRBenchmark:
 
         assert elapsed is None
 
-    @patch("tests.quick_test_ocr_api.requests.post")
+    @patch("scripts.quick_test_ocr_api.requests.post")
     @patch("builtins.open", create=True)
     @patch("os.path.exists")
     def test_ocr_once_network_exception(self, mock_exists, mock_open, mock_post):
@@ -123,7 +123,7 @@ class TestOCRBenchmark:
 
         assert elapsed is None
 
-    @patch("tests.quick_test_ocr_api.ocr_request_once")
+    @patch("scripts.quick_test_ocr_api.ocr_request_once")
     @patch("os.path.exists")
     @patch("time.sleep")
     def test_benchmark_ocr_all_success(self, mock_sleep, mock_exists, mock_test_ocr):
@@ -142,7 +142,7 @@ class TestOCRBenchmark:
         # 验证 sleep 被调用了 4 次（最后一次不需要 sleep）
         assert mock_sleep.call_count == 4
 
-    @patch("tests.quick_test_ocr_api.ocr_request_once")
+    @patch("scripts.quick_test_ocr_api.ocr_request_once")
     @patch("os.path.exists")
     @patch("time.sleep")
     def test_benchmark_ocr_partial_failure(self, mock_sleep, mock_exists, mock_test_ocr):
@@ -170,7 +170,7 @@ class TestOCRBenchmark:
         error_printed = any("找不到图片" in str(call) for call in mock_print.call_args_list)
         assert error_printed
 
-    @patch("tests.quick_test_ocr_api.ocr_request_once")
+    @patch("scripts.quick_test_ocr_api.ocr_request_once")
     @patch("os.path.exists")
     @patch("time.sleep")
     def test_benchmark_ocr_statistics(self, mock_sleep, mock_exists, mock_test_ocr):
@@ -196,7 +196,7 @@ class TestOCRBenchmark:
         assert "成功: 5" in print_output
         assert "失败: 0" in print_output
 
-    @patch("tests.quick_test_ocr_api.ocr_request_once")
+    @patch("scripts.quick_test_ocr_api.ocr_request_once")
     @patch("os.path.exists")
     @patch("time.sleep")
     def test_benchmark_ocr_custom_interval(self, mock_sleep, mock_exists, mock_test_ocr):

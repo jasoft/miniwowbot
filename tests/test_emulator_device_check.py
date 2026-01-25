@@ -12,7 +12,7 @@ from unittest.mock import Mock, patch
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from emulator_manager import EmulatorManager
+from emulator_manager import EmulatorConnectionManager
 
 
 class TestEmulatorDeviceCheck:
@@ -20,8 +20,8 @@ class TestEmulatorDeviceCheck:
 
     @pytest.fixture
     def manager(self):
-        """创建 EmulatorManager 实例"""
-        return EmulatorManager()
+        """创建 EmulatorConnectionManager 实例"""
+        return EmulatorConnectionManager()
 
     @patch("subprocess.run")
     def test_get_adb_devices_success(self, mock_run, manager):
@@ -31,7 +31,7 @@ class TestEmulatorDeviceCheck:
             stdout="List of devices attached\nemulator-5554\tdevice\nemulator-5555\tdevice\n",
         )
 
-        devices = manager.get_adb_devices()
+        devices = manager.get_devices()
         
         assert "emulator-5554" in devices
         assert devices["emulator-5554"] == "device"
@@ -47,7 +47,7 @@ class TestEmulatorDeviceCheck:
             stdout="List of devices attached\n",
         )
 
-        devices = manager.get_adb_devices()
+        devices = manager.get_devices()
         
         assert len(devices) == 0
         assert isinstance(devices, dict)
@@ -61,7 +61,7 @@ class TestEmulatorDeviceCheck:
             stderr="error: device not found",
         )
 
-        devices = manager.get_adb_devices()
+        devices = manager.get_devices()
         
         assert len(devices) == 0
         assert isinstance(devices, dict)
@@ -74,7 +74,7 @@ class TestEmulatorDeviceCheck:
             stdout="List of devices attached\nemulator-5554\tdevice\n",
         )
 
-        devices = manager.get_adb_devices()
+        devices = manager.get_devices()
         assert "emulator-5554" in devices
 
     @patch("subprocess.run")
@@ -85,7 +85,7 @@ class TestEmulatorDeviceCheck:
             stdout="List of devices attached\nemulator-5554\tdevice\n",
         )
 
-        devices = manager.get_adb_devices()
+        devices = manager.get_devices()
         assert "emulator-9999" not in devices
 
     @patch("subprocess.run")
@@ -96,7 +96,7 @@ class TestEmulatorDeviceCheck:
             stdout="List of devices attached\nemulator-5554\tdevice\nemulator-5555\tdevice\nemulator-5556\tdevice\n",
         )
 
-        devices = manager.get_adb_devices()
+        devices = manager.get_devices()
         
         assert len(devices) == 3
         assert "emulator-5554" in devices

@@ -50,6 +50,7 @@ _DEFAULT_LOGGER = _create_default_logger()
 
 class EmulatorConnectionError(Exception):
     """模拟器连接相关错误"""
+
     pass
 
 

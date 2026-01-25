@@ -151,6 +151,7 @@ def run_configs(
     session: str,
     retries: int = 3,
     logfile: Optional[Path] = None,
+    dryrun: bool = False,
 ) -> int:
     """按顺序运行配置列表（带重试与汇总）。
 
@@ -209,6 +210,11 @@ def run_configs(
             logger.info(f"▶️ [{idx}/{total}] 运行配置: {cfg}")
             attempt = 0
             cfg_start = time.time()
+            if dryrun:
+                logger.info("🧪 dryrun 模式：跳过实际脚本执行，模拟成功")
+                success += 1
+                per_durations.append((cfg, time.time() - cfg_start))
+                continue
             while attempt < max(1, retries):
                 rc = _invoke_auto_dungeon_once(cfg, emulator, session)
                 if rc == 0:
@@ -260,10 +266,18 @@ def run(
     config: List[str] = typer.Option(..., "--config", help="配置名称，可重复"),
     retries: int = typer.Option(3, "--retries", min=1, help="失败重试次数（每配置）"),
     logfile: Optional[Path] = typer.Option(None, "--logfile", help="日志文件路径（追加写入）"),
+    dryrun: bool = typer.Option(False, "--dryrun", help="只检查模拟器连接，后续流程模拟执行"),
 ) -> None:
     """运行指定的配置列表。"""
     try:
-        rc = run_configs(config, emulator, session, retries=max(1, retries), logfile=logfile)
+        rc = run_configs(
+            config,
+            emulator,
+            session,
+            retries=max(1, retries),
+            logfile=logfile,
+            dryrun=dryrun,
+        )
     except KeyboardInterrupt:
         _set_windows_sleep_state(False)
         raise

@@ -4,9 +4,13 @@
 测试快速挂机功能的集成
 """
 
-import os
-import pytest
 import logging
+import os
+
+import pytest
+
+pytest.importorskip("airtest.core.api")
+pytest.importorskip("vibe_ocr")
 
 from airtest.core.api import connect_device, auto_setup  # noqa: E402
 from auto_dungeon import (
@@ -19,6 +23,8 @@ from vibe_ocr import OCRHelper  # noqa: E402
 # 配置日志
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(scope="module")
@@ -33,7 +39,7 @@ def setup_device():
         logger.info("✅ 设备连接成功")
 
         # 初始化 OCR Helper
-        auto_dungeon.ocr_helper = vibe_ocr.OCRHelper(output_dir="output")
+        auto_dungeon.ocr_helper = OCRHelper(output_dir="output")
         logger.info("✅ OCR Helper 初始化成功")
 
         yield True
