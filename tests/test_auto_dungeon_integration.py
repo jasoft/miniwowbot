@@ -11,6 +11,7 @@ import time
 from typing import Any
 
 import pytest  # type: ignore[reportMissingImports]
+
 pytest.importorskip("airtest.core.api")
 pytest.importorskip("vibe_ocr")
 
@@ -18,9 +19,15 @@ import vibe_ocr  # noqa: E402
 
 # 添加父目录到路径
 # sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from airtest.core.api import auto_setup, connect_device, snapshot  # type: ignore[reportMissingImports]  # noqa: E402
+from airtest.core.api import (  # type: ignore[reportMissingImports]  # noqa: E402
+    auto_setup,
+    connect_device,
+    snapshot,
+)
 
 import auto_dungeon as _auto_dungeon  # noqa: E402
+from auto_dungeon_core import get_container  # noqa: E402
+
 auto_dungeon: Any = _auto_dungeon
 from auto_dungeon import (
     DailyCollectManager,
@@ -54,7 +61,8 @@ def setup_device():
         )
 
         warrior_config = ConfigLoader(config_path)
-        auto_dungeon.config_loader = warrior_config
+        container = get_container()
+        container.config_loader = warrior_config
         logger.info(f"✅ 成功加载 warrior 配置: {warrior_config.get_char_class()}")
         logger.info(
             f"🎁 每日领取: {'启用' if warrior_config.is_daily_collect_enabled() else '禁用'}"
@@ -66,14 +74,11 @@ def setup_device():
         auto_setup(__file__)
         logger.info("✅ 设备连接成功")
 
-        # 初始化 OCR Helper
-        auto_dungeon.ocr_helper = vibe_ocr.OCRHelper(output_dir="output", snapshot_func=snapshot)
-        logger.info("✅ OCR Helper 初始化成功")
-
-        # 初始化 GameActions (依赖于 ocr_helper)
+        # 初始化 OCR Helper 和 GameActions (都设置到 container 中)
         from game_actions import GameActions
 
-        auto_dungeon.game_actions = GameActions(auto_dungeon.ocr_helper, click_interval=1)
+        container.ocr_helper = vibe_ocr.OCRHelper(output_dir="output", snapshot_func=snapshot)
+        container.game_actions = GameActions(container.ocr_helper, click_interval=1)
         logger.info("✅ GameActions 初始化成功")
 
     except Exception as e:
@@ -84,8 +89,9 @@ def setup_device():
     yield True
 
     # 清理
-    auto_dungeon.game_actions = None
-    auto_dungeon.ocr_helper = None
+    container = get_container()
+    container.game_actions = None
+    container.ocr_helper = None
 
 
 @pytest.mark.integration
@@ -632,7 +638,7 @@ class TestDailyCollectIntegration:
         """
         测试 DailyCollectManager 各个方法的执行时间
         """
-        manager = DailyCollectManager(config_loader=auto_dungeon.config_loader)
+        manager = DailyCollectManager(config_loader=get_container().config_loader)
 
         methods_to_test = [
             ("_collect_idle_rewards", "领取挂机奖励"),
@@ -680,7 +686,7 @@ class TestDailyCollectIntegration:
         测试 DailyCollectManager._open_chests 方法
         单独测试开启宝箱功能
         """
-        manager = DailyCollectManager(config_loader=auto_dungeon.config_loader)
+        manager = DailyCollectManager(config_loader=get_container().config_loader)
         try:
             logger.info("🧪 开始测试开启宝箱功能")
             manager._open_chests("风暴宝箱")
@@ -695,24 +701,25 @@ class TestDailyCollectIntegration:
         测试配置加载器集成
         验证 warrior.json 配置是否正确加载并可以使用
         """
+        container = get_container()
         # 验证配置加载器已设置
-        assert auto_dungeon.config_loader is not None, "config_loader 应该已设置"
+        assert container.config_loader is not None, "config_loader 应该已设置"
 
         # 验证配置内容
-        assert auto_dungeon.config_loader.get_char_class() == "战士", "角色职业应该是战士"
-        assert auto_dungeon.config_loader.is_daily_collect_enabled() is True, "每日领取应该启用"
-        assert auto_dungeon.config_loader.is_quick_afk_enabled() is True, "快速挂机应该启用"
-        assert auto_dungeon.config_loader.get_chest_name() == "风暴宝箱", "宝箱名称应该是风暴宝箱"
+        assert container.config_loader.get_char_class() == "战士", "角色职业应该是战士"
+        assert container.config_loader.is_daily_collect_enabled() is True, "每日领取应该启用"
+        assert container.config_loader.is_quick_afk_enabled() is True, "快速挂机应该启用"
+        assert container.config_loader.get_chest_name() == "风暴宝箱", "宝箱名称应该是风暴宝箱"
 
         # 验证副本配置
-        zone_dungeons = auto_dungeon.config_loader.get_zone_dungeons()
+        zone_dungeons = container.config_loader.get_zone_dungeons()
         assert len(zone_dungeons) == 9, "应该有9个区域（含日常任务）"
         assert "日常任务" in zone_dungeons, "应该包含日常任务"
         assert "风暴群岛" in zone_dungeons, "应该包含风暴群岛"
 
         # 验证 OCR 纠正映射
         assert (
-            auto_dungeon.config_loader.correct_ocr_text("梦魔丛林") == "梦魇丛林"
+            container.config_loader.correct_ocr_text("梦魔丛林") == "梦魇丛林"
         ), "OCR 纠正应该工作"
 
         logger.info("✅ 配置加载器集成测试通过")
@@ -721,17 +728,18 @@ class TestDailyCollectIntegration:
         """
         测试使用 warrior 配置的每日领取功能
         """
+        container = get_container()
         # 验证配置已启用每日领取
         assert (
-            auto_dungeon.config_loader.is_daily_collect_enabled() is True
+            container.config_loader.is_daily_collect_enabled() is True
         ), "warrior 配置应该启用每日领取"
 
         # 创建 DailyCollectManager 并传入配置
-        manager = DailyCollectManager(config_loader=auto_dungeon.config_loader)
-        assert manager.config_loader == auto_dungeon.config_loader, "管理器应该使用相同的配置"
+        manager = DailyCollectManager(config_loader=container.config_loader)
+        assert manager.config_loader == container.config_loader, "管理器应该使用相同的配置"
 
         # 测试配置驱动的功能
-        if auto_dungeon.config_loader.is_quick_afk_enabled():
+        if container.config_loader.is_quick_afk_enabled():
             logger.info("🧪 测试挂机功能（warrior 配置启用）")
             try:
                 manager._collect_idle_rewards()

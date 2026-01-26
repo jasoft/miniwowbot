@@ -6,7 +6,6 @@ auto_dungeon 核心功能模块
 
 import logging
 import os
-import subprocess
 import sys
 import time
 import urllib.parse
@@ -33,9 +32,8 @@ from airtest.core.error import TargetNotFoundError
 from airtest.core.settings import Settings as ST
 from tqdm import tqdm
 from transitions import Machine, MachineError
-from vibe_ocr import OCRHelper
 
-from auto_dungeon_device import DeviceManager, DeviceConnectionError
+from auto_dungeon_device import DeviceConnectionError, DeviceManager
 
 # 初始化模块级 logger
 logger = logging.getLogger(__name__)
@@ -64,9 +62,7 @@ from coordinates import (
     SKILL_POSITIONS,
 )
 from database import DungeonProgressDB
-from emulator_manager import EmulatorManager
 from error_dialog_monitor import ErrorDialogMonitor
-from game_actions import GameActions
 from logger_config import GlobalLogContext, setup_logger_from_config
 from system_config_loader import load_system_config
 
@@ -182,6 +178,7 @@ class DependencyContainer:
         self._target_emulator = None
         self._config_name = None
         self._error_dialog_monitor = None
+        self._initialized = False
 
 
 # 全局依赖容器
@@ -398,20 +395,28 @@ def back_to_main(max_duration: float = 15, backoff_interval: float = 0.2) -> Non
         sleep(backoff_interval)
 
 
-def switch_to_zone(zone_name: str) -> bool:
-    """切换到指定区域"""
-    logger.info(f"\n{'=' * 50}")
-    logger.info(f"🌍 切换区域: {zone_name}")
-    logger.info(f"{'=' * 50}")
+def switch_to_zone(zone_name: str, max_attempts: int = 3) -> bool:
+    """切换到指定区域，最多重试max_attempts次"""
+    for attempt in range(max_attempts):
+        logger.info(f"\n{'=' * 50}")
+        logger.info(f"🌍 切换区域: {zone_name} (第 {attempt + 1}/{max_attempts} 次尝试)")
+        logger.info(f"{'=' * 50}")
 
-    find_text_and_click_safe("切换区域", timeout=10)
+        find_text_and_click_safe("切换区域", timeout=10)
 
-    if find_text_and_click_safe(zone_name, timeout=10, occurrence=2):
-        logger.info(f"✅ 成功切换到: {zone_name}")
-        touch(CLOSE_ZONE_MENU)
-        return True
+        if find_text_and_click_safe(zone_name, timeout=10, occurrence=2):
+            logger.info(f"✅ 成功切换到: {zone_name}")
+            touch(CLOSE_ZONE_MENU)
+            return True
 
-    logger.error(f"❌ 切换失败: {zone_name}")
+        logger.error(f"❌ 切换失败: {zone_name} (第 {attempt + 1}/{max_attempts} 次)")
+
+        if attempt < max_attempts - 1:
+            logger.info("🔄 关闭弹窗后重试...")
+            find_text_and_click_safe("切换区域", timeout=10)
+            sleep(1)
+
+    logger.error(f"❌ 切换区域失败，已重试 {max_attempts} 次: {zone_name}")
     return False
 
 
@@ -1165,9 +1170,7 @@ def apply_env_overrides(env_overrides: List[str]) -> Dict[str, Any]:
     return overrides
 
 
-def handle_load_account_mode(
-    account_name: str, emulator_name: Optional[str] = None
-):
+def handle_load_account_mode(account_name: str, emulator_name: Optional[str] = None):
     """处理账号加载模式"""
     logger.info("\n" + "=" * 60)
     logger.info("🔄 账号加载模式")
@@ -1322,9 +1325,7 @@ def main():
             correction_map = _container.config_loader.get_ocr_correction_map()
 
         # 初始化设备
-        device_manager.initialize(
-            emulator_name=args.emulator, correction_map=correction_map
-        )
+        device_manager.initialize(emulator_name=args.emulator, correction_map=correction_map)
 
         # 将组件注入到依赖容器
         _container.emulator_manager = device_manager.emulator_manager

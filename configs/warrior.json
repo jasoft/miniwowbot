@@ -3,7 +3,7 @@
     "class": "战士",
     "enable_daily_collect": true,
     "enable_quick_afk": true,
-    "chestname": "风暴宝箱",
+    "chestname": "暗影宝箱",
     "daily_tasks": [
         { "name": "领取挂机奖励", "selected": true },
         { "name": "购买商店每日", "selected": true },

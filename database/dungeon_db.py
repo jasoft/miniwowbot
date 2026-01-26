@@ -6,14 +6,16 @@
 """
 
 from datetime import datetime, timedelta
+
 from peewee import (
-    SqliteDatabase,
-    Model,
     CharField,
-    IntegerField,
     DateTimeField,
+    IntegerField,
+    Model,
+    SqliteDatabase,
     fn,
 )
+
 from logger_config import setup_logger_from_config
 
 # 配置日志（从系统配置文件加载通用日志配置）
@@ -45,11 +47,10 @@ class DungeonProgress(BaseModel):
     completed = IntegerField(default=0)  # 是否完成 (0/1)
     completed_at = DateTimeField(null=True)  # 完成时间
 
-    class Meta:
+    class Meta:  # type: ignore
+        database = db
         table_name = "dungeon_progress"
-        indexes = (
-            (("config_name", "date", "zone_name", "dungeon_name"), True),
-        )  # 唯一索引
+        indexes = ((("config_name", "date", "zone_name", "dungeon_name"), True),)  # 唯一索引
 
 
 class DungeonProgressDB:
@@ -100,7 +101,7 @@ class DungeonProgressDB:
                 & (DungeonProgress.dungeon_name == dungeon_name)
             )
             return record.completed == 1
-        except DungeonProgress.DoesNotExist:
+        except DungeonProgress.DoesNotExist:  # type: ignore
             return False
 
     def mark_dungeon_completed(self, zone_name, dungeon_name):
@@ -133,15 +134,11 @@ class DungeonProgressDB:
 
     def mark_daily_collect_completed(self):
         """标记每日收集任务为已完成"""
-        self.mark_dungeon_completed(
-            DAILY_COLLECT_ZONE_NAME, DAILY_COLLECT_DUNGEON_NAME
-        )
+        self.mark_dungeon_completed(DAILY_COLLECT_ZONE_NAME, DAILY_COLLECT_DUNGEON_NAME)
 
     def is_daily_collect_completed(self):
         """判断每日收集任务今天是否已完成"""
-        return self.is_dungeon_completed(
-            DAILY_COLLECT_ZONE_NAME, DAILY_COLLECT_DUNGEON_NAME
-        )
+        return self.is_dungeon_completed(DAILY_COLLECT_ZONE_NAME, DAILY_COLLECT_DUNGEON_NAME)
 
     def mark_daily_step_completed(self, step_name):
         """标记每日收集的某个步骤为已完成"""
@@ -190,9 +187,7 @@ class DungeonProgressDB:
         """清理旧记录，只保留最近N天的数据"""
         cutoff_date = (self._get_logic_date() - timedelta(days=days_to_keep)).isoformat()
 
-        deleted_count = (
-            DungeonProgress.delete().where(DungeonProgress.date < cutoff_date).execute()
-        )
+        deleted_count = DungeonProgress.delete().where(DungeonProgress.date < cutoff_date).execute()
 
         if deleted_count > 0:
             logger.info(f"🗑️ 清理了 {deleted_count} 条旧记录")
@@ -203,11 +198,11 @@ class DungeonProgressDB:
         query = (
             DungeonProgress.select(
                 DungeonProgress.zone_name,
-                fn.COUNT(DungeonProgress.id).alias("count"),
+                fn.COUNT(DungeonProgress.id).alias("count"),  # type: ignore
             )
             .where(self._build_completed_query(today, include_special))
             .group_by(DungeonProgress.zone_name)
-            .order_by(fn.COUNT(DungeonProgress.id).desc())
+            .order_by(fn.COUNT(DungeonProgress.id).desc())  # type: ignore
         )
         return [(r.zone_name, r.count) for r in query]
 
@@ -230,14 +225,11 @@ class DungeonProgressDB:
         deleted_count = (
             DungeonProgress.delete()
             .where(
-                (DungeonProgress.config_name == self.config_name)
-                & (DungeonProgress.date == today)
+                (DungeonProgress.config_name == self.config_name) & (DungeonProgress.date == today)
             )
             .execute()
         )
-        logger.info(
-            f"🗑️ 已清除今天的 {deleted_count} 条记录（配置: {self.config_name}）"
-        )
+        logger.debug(f"🗑️ 已清除今天的 {deleted_count} 条记录（配置: {self.config_name}）")
         return deleted_count
 
     def clear_all(self):
@@ -254,7 +246,7 @@ class DungeonProgressDB:
         """关闭数据库连接"""
         if not db.is_closed():
             db.close()
-            logger.info("📊 数据库连接已关闭")
+            logger.debug("📊 数据库连接已关闭")
 
     def __enter__(self):
         """支持 with 语句"""
@@ -302,7 +294,7 @@ class DungeonProgressDB:
         zone_stats = (
             DungeonProgress.select(
                 DungeonProgress.zone_name,
-                fn.COUNT(DungeonProgress.id).alias("count"),
+                fn.COUNT(DungeonProgress.id).alias("count"),  # type: ignore
             )
             .where(
                 (DungeonProgress.config_name == config_name)
@@ -310,7 +302,7 @@ class DungeonProgressDB:
                 & (DungeonProgress.completed == 1)
             )
             .group_by(DungeonProgress.zone_name)
-            .order_by(fn.COUNT(DungeonProgress.id).desc())
+            .order_by(fn.COUNT(DungeonProgress.id).desc())  # type: ignore
         )
 
         return {

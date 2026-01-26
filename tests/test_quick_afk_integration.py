@@ -16,8 +16,8 @@ from airtest.core.api import connect_device, auto_setup  # noqa: E402
 from auto_dungeon import (
     DailyCollectManager,
 )  # noqa: E402
+from auto_dungeon_core import get_container  # noqa: E402
 from config_loader import load_config  # noqa: E402
-import auto_dungeon  # noqa: E402
 from vibe_ocr import OCRHelper  # noqa: E402
 
 # 配置日志
@@ -38,9 +38,13 @@ def setup_device():
         auto_setup(__file__)
         logger.info("✅ 设备连接成功")
 
-        # 初始化 OCR Helper
-        auto_dungeon.ocr_helper = OCRHelper(output_dir="output")
-        logger.info("✅ OCR Helper 初始化成功")
+        # 初始化 OCR Helper (设置到 container 中)
+        from game_actions import GameActions
+
+        container = get_container()
+        container.ocr_helper = OCRHelper(output_dir="output")
+        container.game_actions = GameActions(container.ocr_helper, click_interval=1)
+        logger.info("✅ OCR Helper 和 GameActions 初始化成功")
 
         yield True
     except Exception as e:
