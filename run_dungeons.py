@@ -15,9 +15,9 @@ import typer
 
 from logger_config import setup_logger, update_log_context, attach_emulator_file_handler
 from auto_dungeon import send_bark_notification
-
-
 from auto_dungeon_device import DeviceManager
+from config_loader import load_config
+from database import DungeonProgressDB
 
 SCRIPT_DIR = Path(__file__).parent
 os.environ["PATH"] = f"/opt/homebrew/bin:{os.environ.get('PATH', '')}"
@@ -82,6 +82,53 @@ def format_duration_zh(seconds: float) -> str:
     if hours > 0:
         return f"{hours} 小时"
     return f"{minutes} 分钟"
+
+
+def _get_config_path(config_name: str) -> Path:
+    """获取配置文件路径。
+
+    Args:
+        config_name: 配置名称（不含扩展名）。
+
+    Returns:
+        配置文件的绝对路径。
+    """
+    return SCRIPT_DIR / "configs" / f"{config_name}.json"
+
+
+def _is_config_completed(config_name: str, logger) -> Optional[bool]:
+    """检查指定配置当日任务是否已完成。
+
+    Args:
+        config_name: 配置名称（不含扩展名）。
+        logger: 日志记录器。
+
+    Returns:
+        True 表示已完成或无选定副本；False 表示仍有未完成任务；None 表示检查失败。
+    """
+    try:
+        config_path = _get_config_path(config_name)
+        config_loader = load_config(str(config_path))
+        total_selected = config_loader.get_selected_dungeon_count()
+
+        if total_selected <= 0:
+            logger.info(f"ℹ️ 配置 {config_name} 未选定任何副本，跳过执行")
+            return True
+
+        with DungeonProgressDB(config_name=config_loader.get_config_name()) as db:
+            db.cleanup_old_records(days_to_keep=7)
+            completed = db.get_today_completed_count()
+
+        if completed >= total_selected:
+            logger.info(f"✅ 配置 {config_name} 今日已完成 {completed}/{total_selected}")
+            return True
+
+        remaining = total_selected - completed
+        logger.info(f"📌 配置 {config_name} 今日剩余 {remaining}/{total_selected}")
+        return False
+    except Exception as exc:
+        logger.warning(f"⚠️ 预检查配置 {config_name} 失败: {exc}，将继续执行以避免误判")
+        return None
 
 
 def _invoke_auto_dungeon_once(config_name: str, emulator: str, session: str) -> int:
@@ -173,6 +220,27 @@ def run_configs(
         pass
     logger = setup_logger(name="run_dungeons", level="INFO", use_color=False)
 
+    cfgs: List[str] = [c for c in configs if str(c).strip()]
+    if not cfgs:
+        logger = setup_logger(name="run_dungeons", level="INFO", use_color=False)
+        logger.error("❌ 未提供任何配置，必须显式传入 --config")
+        try:
+            send_bark_notification("副本运行汇总", "未提供任何配置，任务未执行")
+        except Exception:
+            pass
+        return 2
+
+    pending_cfgs: List[str] = []
+    for cfg in cfgs:
+        completed = _is_config_completed(cfg, logger)
+        if completed is True:
+            continue
+        pending_cfgs.append(cfg)
+
+    if not pending_cfgs:
+        logger.info("✅ 所有配置当日任务已完成，无需启动模拟器，脚本退出")
+        return 0
+
     with prevent_system_sleep(logger):
         # 确保模拟器已启动
         if not _ensure_emulator_ready(emulator, logger):
@@ -183,16 +251,7 @@ def run_configs(
                 pass
             return 1
 
-        cfgs: List[str] = [c for c in configs if str(c).strip()]
-        if not cfgs:
-            logger = setup_logger(name="run_dungeons", level="INFO", use_color=False)
-            logger.error("❌ 未提供任何配置，必须显式传入 --config")
-            try:
-                send_bark_notification("副本运行汇总", "未提供任何配置，任务未执行")
-            except Exception:
-                pass
-            return 2
-        total = len(cfgs)
+        total = len(pending_cfgs)
         success = 0
         failed = 0
         start_ts = int(time.time())
@@ -200,10 +259,12 @@ def run_configs(
 
         logger.info("=" * 50)
         logger.info(f"🎮 目标模拟器: {emulator}")
-        logger.info(f"📋 将顺序运行 {total} 个配置: {', '.join(cfgs) if cfgs else '全部(空列表)'}")
+        logger.info(
+            f"📋 将顺序运行 {total} 个配置: {', '.join(pending_cfgs) if pending_cfgs else '全部(空列表)'}"
+        )
         logger.info("=" * 50)
 
-        for idx, cfg in enumerate(cfgs, start=1):
+        for idx, cfg in enumerate(pending_cfgs, start=1):
             logger.info("")
             logger.info(f"▶️ [{idx}/{total}] 运行配置: {cfg}")
             attempt = 0
