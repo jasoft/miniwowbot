@@ -15,9 +15,8 @@ from vibe_ocr import OCRHelper
 
 from auto_dungeon_config import CLICK_INTERVAL
 from emulator_manager import (
-    EmulatorConnectionManager,
     EmulatorConnectionError,
-    create_connection_manager,
+    EmulatorConnectionManager,
 )
 from game_actions import GameActions
 from logger_config import setup_logger_from_config
@@ -146,6 +145,7 @@ class DeviceManager:
         """加载 .env 环境变量（尽量避免额外依赖）"""
         try:
             from dotenv import load_dotenv  # type: ignore
+
             load_dotenv()
             return
         except Exception as exc:
@@ -179,5 +179,4 @@ __all__ = [
     "EmulatorConnectionError",
     "DeviceConnectionError",
     "create_device_manager",
-    "create_connection_manager",
 ]
