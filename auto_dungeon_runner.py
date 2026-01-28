@@ -16,7 +16,7 @@ from auto_dungeon_core import (
 )
 from auto_dungeon_daily import DailyCollectManager
 from auto_dungeon_device import DeviceManager
-from auto_dungeon_state import DungeonStateMachine
+from auto_dungeon_state_machine import DungeonStateMachine
 from database import DungeonProgressDB
 
 import logging

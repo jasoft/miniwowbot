@@ -7,20 +7,19 @@ auto_dungeon 每日收集模块
 import logging
 
 from auto_dungeon_config import CLICK_INTERVAL
-from auto_dungeon_core import (
-    back_to_main,
+from auto_dungeon_container import get_container
+from auto_dungeon_navigation import back_to_main, open_map
+from auto_dungeon_notification import send_bark_notification
+from auto_dungeon_ui import (
     click_back,
     find_text,
     find_text_and_click,
     find_text_and_click_safe,
-    get_container,
-    open_map,
-    send_bark_notification,
-    sleep,
     switch_to,
     text_exists,
-    touch,
 )
+from auto_dungeon_utils import sleep
+from airtest.core.api import touch
 
 # 坐标常量
 from coordinates import (
@@ -502,3 +501,26 @@ class DailyCollectManager:
         向后兼容的函数名
         """
         self.collect_daily_rewards()
+
+
+def execute_daily_collect() -> bool:
+    """领取每日挂机奖励"""
+    from database import DungeonProgressDB
+
+    _container = get_container()
+    if _container.config_loader is None:
+        raise RuntimeError("配置加载器未初始化，无法执行每日收集")
+
+    config_name = _container.config_loader.get_config_name() or "default"
+    logger = logging.getLogger(__name__)
+
+    with DungeonProgressDB(config_name=config_name) as db:
+        if db.is_daily_collect_completed():
+            logger.info("⏭️ 今日每日收集已完成，跳过重复执行")
+            return False
+
+        manager = DailyCollectManager(_container.config_loader, db)
+        manager.collect_daily_rewards()
+        db.mark_daily_collect_completed()
+        logger.info("💾 已记录今日每日收集完成")
+        return True

@@ -5,6 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import auto_dungeon_core
+import auto_dungeon_notification
 
 
 class _FakeSystemConfig:
@@ -44,8 +45,9 @@ def test_send_bark_notification_lazy_load(monkeypatch) -> None:
         calls["timeout"] = timeout
         return SimpleNamespace(status_code=200)
 
-    monkeypatch.setattr(auto_dungeon_core, "load_system_config", fake_load_system_config)
-    monkeypatch.setattr(auto_dungeon_core.requests, "get", fake_get)
+    # Mock requests.get in the notification module
+    monkeypatch.setattr(auto_dungeon_notification, "load_system_config", fake_load_system_config)
+    monkeypatch.setattr(auto_dungeon_notification.requests, "get", fake_get)
 
     try:
         result = auto_dungeon_core.send_bark_notification("test-title", "test-message")
