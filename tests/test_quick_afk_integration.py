@@ -4,6 +4,8 @@
 测试快速挂机功能的集成
 """
 
+# ruff: noqa: E402
+
 import logging
 import os
 

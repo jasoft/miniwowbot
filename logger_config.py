@@ -4,12 +4,24 @@
 提供统一的日志配置功能，支持多种日志格式和输出方式
 """
 
+import json
 import io
 import logging
 import os
-import json
 import sys
-from typing import Optional, Dict
+from typing import Dict, Optional
+
+from vibe_logger import (
+    DEFAULT_DATE_FORMAT,
+    DEFAULT_LOG_FORMAT,
+    GlobalLogContext,
+    LoggerConfig as BaseLoggerConfig,
+    _ContextFilter,
+    attach_file_handler,
+    log_calls,
+    setup_logger,
+)
+
 from project_paths import resolve_project_path
 
 
@@ -39,18 +51,6 @@ def ensure_utf8_output() -> None:
             setattr(sys, attr, stream)
         except Exception:
             continue
-
-# Import from the installed package
-from vibe_logger import (
-    GlobalLogContext,
-    LoggerConfig as BaseLoggerConfig,
-    setup_logger,
-    log_calls,
-    attach_file_handler,
-    DEFAULT_LOG_FORMAT,
-    DEFAULT_DATE_FORMAT,
-    _ContextFilter,
-)
 
 # Re-export these
 __all__ = [

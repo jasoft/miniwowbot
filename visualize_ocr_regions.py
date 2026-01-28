@@ -13,7 +13,7 @@ import numpy as np
 # 添加父目录到路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from vibe_ocr import OCRHelper
+import vibe_ocr
 
 
 def draw_text_boxes(image, ocr_results, region_id, color):

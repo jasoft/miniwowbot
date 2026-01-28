@@ -1,3 +1,7 @@
+"""Tests for detect_first_match behavior."""
+
+# ruff: noqa: E402
+
 import asyncio
 import sys
 from pathlib import Path

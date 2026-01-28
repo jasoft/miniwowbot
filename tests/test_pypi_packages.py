@@ -1,9 +1,8 @@
-import sys
+"""Tests for OCR and logger package availability."""
+
 import os
 import cv2
 import numpy as np
-import time
-import logging
 
 # Standard imports (installed via uv add)
 import vibe_ocr

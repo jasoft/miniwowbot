@@ -8,8 +8,6 @@
 import os
 import sys
 import time
-import json
-import subprocess
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterable, List, Optional
@@ -19,7 +17,7 @@ from logger_config import setup_logger, update_log_context, attach_emulator_file
 from auto_dungeon import send_bark_notification
 
 
-from auto_dungeon_device import DeviceManager, DeviceConnectionError
+from auto_dungeon_device import DeviceManager
 
 SCRIPT_DIR = Path(__file__).parent
 os.environ["PATH"] = f"/opt/homebrew/bin:{os.environ.get('PATH', '')}"

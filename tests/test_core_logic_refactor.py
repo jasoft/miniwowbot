@@ -1,7 +1,9 @@
+"""Tests for core logic refactor main flow."""
+
 import sys
 import os
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -69,7 +71,7 @@ class TestCoreLogicRefactor(unittest.TestCase):
              patch('auto_dungeon_core.start_app'), \
              patch('auto_dungeon_core.sleep'), \
              patch('auto_dungeon_core.is_on_character_selection', return_value=False), \
-             patch('auto_dungeon_core.DungeonStateMachine') as mock_sm_cls, \
+             patch('auto_dungeon_core.DungeonStateMachine') as _, \
              patch('auto_dungeon_core.run_dungeon_traversal'), \
              patch('auto_dungeon_core.count_remaining_selected_dungeons', return_value=0):
 

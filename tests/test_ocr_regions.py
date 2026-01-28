@@ -5,7 +5,6 @@
 import pytest
 import cv2
 import numpy as np
-from vibe_ocr import OCRHelper
 import vibe_ocr
 
 

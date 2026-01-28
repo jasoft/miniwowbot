@@ -34,10 +34,6 @@ from tqdm import tqdm
 from transitions import Machine, MachineError
 
 from auto_dungeon_device import DeviceConnectionError, DeviceManager
-
-# 初始化模块级 logger
-logger = logging.getLogger(__name__)
-
 from auto_dungeon_config import (
     AUTOCOMBAT_TEMPLATE,
     CLICK_INTERVAL,
@@ -65,6 +61,9 @@ from database import DungeonProgressDB
 from error_dialog_monitor import ErrorDialogMonitor
 from logger_config import GlobalLogContext, setup_logger_from_config
 from system_config_loader import load_system_config
+
+# 初始化模块级 logger
+logger = logging.getLogger(__name__)
 
 # 配置 Airtest 图像识别策略
 ST.CVSTRATEGY = OCR_STRATEGY
@@ -595,6 +594,13 @@ def auto_combat(completed_dungeons: int = 0, total_dungeons: int = 0) -> None:
 def send_bark_notification(title: str, message: str, level: str = "active") -> bool:
     """发送 Bark 通知"""
     sc = _container.system_config
+    if sc is None:
+        try:
+            sc = load_system_config()
+            _container.system_config = sc
+        except Exception as exc:
+            logger.warning(f"⚠️ 加载系统配置失败，无法发送 Bark 通知: {exc}")
+            return False
     if not sc or not sc.is_bark_enabled():
         logger.debug("🔕 Bark 通知未启用，跳过发送")
         return False

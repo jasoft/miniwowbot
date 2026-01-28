@@ -1,4 +1,4 @@
-import types
+"""Tests for UTF-8 stream configuration."""
 
 import logger_config
 

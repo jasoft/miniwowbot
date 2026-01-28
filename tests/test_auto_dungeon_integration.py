@@ -5,6 +5,8 @@
 需要连接真实设备才能运行
 """
 
+# ruff: noqa: E402
+
 import logging
 import os
 import time

@@ -1,3 +1,7 @@
+"""Tests for GameActions declarative API."""
+
+# ruff: noqa: E402
+
 import sys
 import os
 from unittest.mock import MagicMock, patch

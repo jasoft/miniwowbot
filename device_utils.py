@@ -5,7 +5,6 @@
 """
 import logging
 import threading
-from typing import Optional
 
 from airtest.core.api import connect_device
 

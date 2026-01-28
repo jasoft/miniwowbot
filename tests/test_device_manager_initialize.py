@@ -1,3 +1,7 @@
+"""Tests for DeviceManager initialization defaults."""
+
+# ruff: noqa: E402
+
 import pytest
 
 pytest.importorskip("airtest.core.api")

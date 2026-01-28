@@ -1,3 +1,7 @@
+"""Tests for timeout job behavior in levelup."""
+
+# ruff: noqa: E402
+
 import asyncio
 import sys
 import time

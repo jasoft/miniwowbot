@@ -1,4 +1,7 @@
-# simple_airtest_test.py
+"""Simple Airtest connectivity and tap smoke test."""
+
+# ruff: noqa: F403, F405
+
 import logging
 import sys
 
@@ -18,6 +21,7 @@ if not logger.handlers:
 
 
 def run_test():
+    """Run a basic connection and tap test against the emulator."""
     try:
         print("尝试连接模拟器 127.0.0.1:5555...")
 

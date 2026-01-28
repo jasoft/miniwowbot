@@ -150,7 +150,7 @@ class EmulatorConnectionManager:
 
     # ==================== 模拟器连接保障 ====================
 
-    def ensure_connected(self, emulator: str, max_retries: int = 3) -> bool:
+    def ensure_connected(self, emulator: str, max_retries: int = 100) -> bool:
         """
         确保模拟器已连接
 
@@ -250,30 +250,9 @@ class EmulatorConnectionManager:
 EmulatorManager = EmulatorConnectionManager
 
 
-def create_connection_manager(
-    emulator: Optional[str] = None,
-    logger: Optional[logging.Logger] = None,
-) -> EmulatorConnectionManager:
-    """
-    创建模拟器连接管理器的便捷函数
-
-    Args:
-        emulator: 模拟器地址
-        logger: 可选的自定义 logger，默认为模块级 logger
-
-    Returns:
-        EmulatorConnectionManager: 初始化后的管理器
-    """
-    manager = EmulatorConnectionManager(logger=logger)
-    if emulator:
-        manager.target_emulator = manager._normalize_emulator(emulator)
-    return manager
-
-
 __all__ = [
     "logger",
     "EmulatorConnectionManager",
     "EmulatorManager",
     "EmulatorConnectionError",
-    "create_connection_manager",
 ]

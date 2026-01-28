@@ -95,10 +95,9 @@ except ImportError:
 
 
 # Skip all tests in this module if levelup functions are not available
-import pytest
 pytestmark = pytest.mark.skipif(
     not HAS_LEVELUP_FUNCTIONS,
-    reason="levelup functions (DetectionJob, detect_first_match, etc.) not available in current version"
+    reason="levelup functions (DetectionJob, detect_first_match, etc.) not available in current version",
 )
 
 
