@@ -8,7 +8,7 @@ import logging
 
 from auto_dungeon_config import CLICK_INTERVAL
 from auto_dungeon_container import get_container
-from auto_dungeon_navigation import back_to_main, open_map
+from auto_dungeon_navigation import back_to_main, open_map, save_error_screenshot
 from auto_dungeon_notification import send_bark_notification
 from auto_dungeon_ui import (
     click_back,
@@ -90,6 +90,7 @@ class DailyCollectManager:
             return True
         except Exception as e:
             self.logger.error(f"❌ 执行每日任务 {task_name} 失败: {e}")
+            save_error_screenshot(f"daily_{task_name}")
             return False
 
     def _open_chests_wrapper(self):

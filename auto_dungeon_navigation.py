@@ -3,7 +3,9 @@ auto_dungeon 导航模块
 """
 
 import logging
+import os
 import time
+from datetime import datetime
 from typing import Optional
 
 from airtest.core.api import (
@@ -12,6 +14,7 @@ from airtest.core.api import (
     touch,
     wait,
     exists,
+    snapshot,
 )
 from airtest.core.error import TargetNotFoundError
 
@@ -30,6 +33,21 @@ from coordinates import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def save_error_screenshot(operation_name: str) -> str:
+    """保存错误截图到log目录，返回文件路径"""
+    try:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        log_dir = os.path.join(os.getcwd(), "log")
+        os.makedirs(log_dir, exist_ok=True)
+        filename = os.path.join(log_dir, f"error_{operation_name}_{timestamp}.png")
+        snapshot(filename=filename)
+        logger.debug(f"📸 错误截图已保存: {filename}")
+        return filename
+    except Exception as e:
+        logger.debug(f"📸 保存错误截图失败: {e}")
+        return ""
 
 def open_map() -> None:
     """打开地图"""
@@ -130,6 +148,7 @@ def switch_to_zone(zone_name: str, max_attempts: int = 3) -> bool:
             sleep(1)
 
     logger.error(f"❌ 切换区域失败，已重试 {max_attempts} 次: {zone_name}")
+    save_error_screenshot("switch_to_zone")
     return False
 
 
@@ -153,4 +172,5 @@ def focus_and_click_dungeon(dungeon_name: str, zone_name: str, max_attempts: int
                 logger.warning(f"⚠️ 刷新区域失败: {zone_name}")
                 continue
             sleep(1)
+    save_error_screenshot("focus_and_click_dungeon")
     return False

@@ -16,10 +16,8 @@ from peewee import (
     fn,
 )
 
-from logger_config import setup_logger_from_config
-
-# 配置日志（从系统配置文件加载通用日志配置）
-logger = setup_logger_from_config(use_color=True)
+import logging
+logger = logging.getLogger(__name__)
 
 # 数据库实例
 db = SqliteDatabase(None)

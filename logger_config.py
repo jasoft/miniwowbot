@@ -145,7 +145,13 @@ def setup_logger_from_env(use_color: bool = True) -> logging.Logger:
     return setup_logger(name=name, level=level, log_format=fmt, date_format=datefmt, use_color=use_color)
 
 def setup_logger_from_config(config_file: str = "system_config.json", use_color: bool = True) -> logging.Logger:
-    return setup_logger_from_env(use_color=use_color)
+    """从系统环境配置初始化日志，使用包含 config 和 emulator 的格式。"""
+    name = os.environ.get("LOGGER_NAME", "root")
+    level = os.environ.get("LOG_LEVEL", "INFO")
+    # 使用包含 config 和 emulator 的格式
+    log_format = os.environ.get("LOG_FORMAT") or DEFAULT_SIMPLE_FORMAT
+    datefmt = os.environ.get("LOG_DATE_FORMAT") or DEFAULT_DATE_FORMAT
+    return setup_logger(name=name, level=level, log_format=log_format, date_format=datefmt, use_color=use_color)
 
 def update_log_context(labels: Dict[str, str]) -> None:
     GlobalLogContext.update(labels)

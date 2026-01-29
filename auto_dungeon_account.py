@@ -16,7 +16,7 @@ from airtest.core.error import TargetNotFoundError
 
 from auto_dungeon_container import get_container
 from auto_dungeon_ui import find_text, find_text_and_click_safe, find_text_and_click
-from auto_dungeon_navigation import is_on_character_selection
+from auto_dungeon_navigation import is_on_character_selection, save_error_screenshot
 from auto_dungeon_utils import sleep
 from coordinates import (
     ACCOUNT_AVATAR,
@@ -55,6 +55,7 @@ def switch_account(account_name: str) -> None:
         swipe(ACCOUNT_LIST_SWIPE_START, ACCOUNT_LIST_SWIPE_END)
 
     if not success:
+        save_error_screenshot("switch_account")
         raise Exception(f"Failed to find and click account '{account_name}' after 10 tries")
     touch(LOGIN_BUTTON)
 
@@ -70,6 +71,7 @@ def select_character(char_class: str) -> None:
     in_selection = is_on_character_selection(timeout=120)
     if not in_selection:
         logger.error("❌ 未在角色选择界面，无法选择角色")
+        save_error_screenshot("select_character")
         raise RuntimeError("未在角色选择界面，无法选择角色")
 
     sleep(3, "等待角色选择界面加载完毕")
@@ -86,6 +88,7 @@ def select_character(char_class: str) -> None:
         logger.info(f"✅ 成功选择角色: {char_class}")
     else:
         logger.error(f"❌ 未找到职业: {char_class}")
+        save_error_screenshot("select_character")
         raise RuntimeError(f"无法找到职业: {char_class}")
 
     find_text_and_click("进入游戏", regions=[5])

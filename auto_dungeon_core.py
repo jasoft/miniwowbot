@@ -452,6 +452,10 @@ def main():
     """主函数"""
     args = parse_arguments()
 
+    # 初始化配置（必须在使用 logger 之前）
+    initialize_configs(args.config, args.env_overrides)
+
+    # 现在 logger 已经正确设置了 config 上下文
     if not args.load_account:
         logger.info("\n" + "=" * 60)
         logger.info("🎮 副本自动遍历脚本")
@@ -471,9 +475,6 @@ def main():
     if args.load_account:
         handle_load_account_mode(args.load_account, args.emulator)
         return
-
-    # 初始化配置
-    initialize_configs(args.config, args.env_overrides)
 
     if _container.config_loader is None:
         logger.error("❌ 配置加载器未初始化")

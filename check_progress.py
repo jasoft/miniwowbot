@@ -1,15 +1,37 @@
 #!/usr/bin/env python3
 # -*- encoding=utf8 -*-
 """
-副本通关进度查看工具
-用于查看和管理副本通关记录
+副本进度检查工具
+用于检查当日副本完成情况并决定是否需要继续刷本
+
+返回值:
+  0 - 所有副本已完成，无需继续刷本
+  1 - 存在未完成副本，需要继续刷本
+  2 - 发生错误
 """
 
 import sys
 import os
 import json
+import logging
+
+# 强制 UTF-8 输出，解决 Windows GBK 编码问题
+if sys.platform == "win32":
+    os.environ["PYTHONIOENCODING"] = "utf-8"
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+
+# 先设置全局日志上下文，避免格式化错误
+try:
+    from vibe_logger import GlobalLogContext
+    GlobalLogContext.update({"config": "check_progress", "emulator": "local"})
+except Exception:
+    pass
+
 from datetime import datetime
 import argparse
+
 from database import DungeonProgressDB
 from wow_class_colors import get_class_ansi_color
 
@@ -41,28 +63,9 @@ class Colors:
     BRIGHT_CYAN = "\033[96m"
     BRIGHT_WHITE = "\033[97m"
 
-    # 背景色
-    BG_BLACK = "\033[40m"
-    BG_RED = "\033[41m"
-    BG_GREEN = "\033[42m"
-    BG_YELLOW = "\033[43m"
-    BG_BLUE = "\033[44m"
-    BG_MAGENTA = "\033[45m"
-    BG_CYAN = "\033[46m"
-    BG_WHITE = "\033[47m"
-
 
 def colored(text, color="", bold=False):
-    """给文本添加颜色
-
-    Args:
-        text: 要着色的文本
-        color: 颜色代码
-        bold: 是否加粗
-
-    Returns:
-        着色后的文本
-    """
+    """给文本添加颜色"""
     result = ""
     if bold:
         result += Colors.BOLD
@@ -72,21 +75,107 @@ def colored(text, color="", bold=False):
     return result
 
 
-class ProgressViewer:
-    """进度查看器"""
+class ProgressChecker:
+    """进度检查器"""
 
     def __init__(self, db_path="database/dungeon_progress.db", config_name="default"):
         """
-        初始化进度查看器
+        初始化进度检查器
 
         Args:
             db_path: 数据库文件路径
             config_name: 配置名称
         """
+        self.db_path = db_path
+        self.config_name = config_name
         self.db = DungeonProgressDB(db_path, config_name)
+        self.config_classes = self._load_config_classes()
+        self.all_configs = self._get_all_config_names()
+        # 为每个配置创建独立的 DB 实例
+        self._db_instances = {}
+
+    def _load_config_classes(self):
+        """加载所有配置文件的职业信息"""
+        config_classes = {}
+        configs_dir = "configs"
+
+        if not os.path.exists(configs_dir):
+            return config_classes
+
+        for filename in os.listdir(configs_dir):
+            if not filename.endswith(".json"):
+                continue
+
+            config_name = filename[:-5]  # 去掉 .json 后缀
+            config_path = os.path.join(configs_dir, filename)
+
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+                    class_name = config.get("class", "未知")
+                    config_classes[config_name] = class_name
+            except Exception:
+                pass
+
+        return config_classes
+
+    def _get_all_config_names(self):
+        """获取所有配置的名称列表"""
+        config_names = set()
+
+        # 从配置文件目录获取
+        configs_dir = "configs"
+        if os.path.exists(configs_dir):
+            for filename in os.listdir(configs_dir):
+                if filename.endswith(".json"):
+                    config_names.add(filename[:-5])
+
+        # 从数据库获取（包含可能有记录但配置文件已删除的配置）
+        db_configs = self.db.get_all_configs()
+        config_names.update(db_configs)
+
+        return sorted(list(config_names))
+
+    def _get_db(self, config_name) -> DungeonProgressDB:
+        """获取指定配置的数据库实例"""
+        if config_name not in self._db_instances:
+            self._db_instances[config_name] = DungeonProgressDB(
+                self.db_path, config_name=config_name
+            )
+        return self._db_instances[config_name]
+
+    def close(self):
+        """关闭所有数据库连接"""
+        self.db.close()
+        for db in self._db_instances.values():
+            db.close()
+
+    def _load_config_dungeons(self, config_name):
+        """加载指定配置的副本列表"""
+        config_path = f"configs/{config_name}.json"
+        if not os.path.exists(config_path):
+            return {}, []
+
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+
+            zone_dungeons = config.get("zone_dungeons", {})
+            all_dungeons = []
+
+            for zone, dungeons in zone_dungeons.items():
+                for d in dungeons:
+                    if isinstance(d, dict) and d.get("selected", True):
+                        all_dungeons.append((zone, d["name"]))
+                    elif isinstance(d, str):
+                        all_dungeons.append((zone, d))
+
+            return zone_dungeons, all_dungeons
+        except Exception:
+            return {}, []
 
     def show_today_progress(self):
-        """显示今天的通关进度"""
+        """显示今天的通关记录"""
         today = self.db.get_today_date()
         results = self.db.get_today_completed_dungeons()
 
@@ -107,12 +196,7 @@ class ProgressViewer:
         print()
 
     def show_recent_days(self, days=7, all_configs=False):
-        """显示最近几天的统计
-
-        Args:
-            days: 显示最近几天
-            all_configs: 是否显示所有配置的统计（默认只显示当前配置）
-        """
+        """显示最近几天的统计"""
         print(f"\n{colored('=' * 80, Colors.CYAN)}")
         if all_configs:
             print(
@@ -131,7 +215,6 @@ class ProgressViewer:
         print(f"{colored('=' * 80, Colors.CYAN)}\n")
 
         if all_configs:
-            # 获取所有配置的统计
             from datetime import date, timedelta
 
             stats = []
@@ -204,20 +287,6 @@ class ProgressViewer:
 
         print()
 
-    def clear_today(self):
-        """清除今天的记录"""
-        deleted_count = self.db.clear_today()
-        msg = colored(
-            f"✅ 已清除今天的 {deleted_count} 条记录", Colors.GREEN, bold=True
-        )
-        print(f"\n{msg}\n")
-
-    def clear_all(self):
-        """清除所有记录"""
-        deleted_count = self.db.clear_all()
-        msg = colored(f"✅ 已清除所有 {deleted_count} 条记录", Colors.GREEN, bold=True)
-        print(f"\n{msg}\n")
-
     def show_all_configs_progress(self):
         """显示所有职业的进度情况"""
         today = self.db.get_today_date()
@@ -233,9 +302,6 @@ class ProgressViewer:
             print(colored("❌ 今天还没有任何通关记录\n", Colors.YELLOW))
             return
 
-        # 加载配置文件获取职业信息
-        config_classes = self._load_config_classes()
-
         # 显示每个配置的统计
         total_dungeons = 0
         for stat in all_stats:
@@ -249,7 +315,7 @@ class ProgressViewer:
             total_dungeons += total_count
 
             # 获取职业名称和颜色
-            class_name = config_classes.get(config_name, "未知")
+            class_name = self.config_classes.get(config_name, "未知")
             class_color = get_class_ansi_color(class_name)
 
             config_colored = colored(config_name, class_color, bold=True)
@@ -302,9 +368,6 @@ class ProgressViewer:
             print(colored("❌ 今天还没有任何通关记录\n", Colors.YELLOW))
             return
 
-        # 加载配置文件获取职业信息
-        config_classes = self._load_config_classes()
-
         # 统计数据
         total_dungeons = 0
         config_counts = []
@@ -314,7 +377,7 @@ class ProgressViewer:
             total_count = stat["total_count"]
 
             if total_count > 0:
-                class_name = config_classes.get(config_name, "未知")
+                class_name = self.config_classes.get(config_name, "未知")
                 config_counts.append((config_name, class_name, total_count))
                 total_dungeons += total_count
 
@@ -372,58 +435,113 @@ class ProgressViewer:
         )
         print(f"{colored('=' * 80, Colors.BRIGHT_CYAN)}\n")
 
-    def _load_config_classes(self):
+    def check_incomplete_dungeons(self):
         """
-        加载所有配置文件的职业信息
+        检查各职业未完成的副本
 
         Returns:
-            dict: 配置名称到职业名称的映射
+            tuple: (all_completed: bool, incomplete_count: int)
         """
-        config_classes = {}
-        configs_dir = "configs"
+        total_incomplete = 0
 
-        if not os.path.exists(configs_dir):
-            return config_classes
+        print(f"\n{colored('=' * 70, Colors.CYAN)}")
+        print(colored("📊 各职业完成情况检查", Colors.CYAN, bold=True))
+        print(f"{colored('=' * 70, Colors.CYAN)}\n")
 
-        for filename in os.listdir(configs_dir):
-            if not filename.endswith(".json"):
+        for config_name in self.all_configs:
+            class_name = self.config_classes.get(config_name, "未知")
+            class_color = get_class_ansi_color(class_name)
+
+            # 加载该配置的副本列表
+            _, all_dungeons = self._load_config_dungeons(config_name)
+
+            if not all_dungeons:
                 continue
 
-            config_name = filename[:-5]  # 去掉 .json 后缀
-            config_path = os.path.join(configs_dir, filename)
+            # 使用对应配置的数据库实例
+            config_db = self._get_db(config_name)
 
-            try:
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-                    class_name = config.get("class", "未知")
-                    config_classes[config_name] = class_name
-            except Exception:
-                # 忽略读取错误
-                pass
+            # 获取已完成的副本
+            completed = set()
+            for zone, dungeon in all_dungeons:
+                if config_db.is_dungeon_completed(zone, dungeon):
+                    completed.add((zone, dungeon))
 
-        return config_classes
+            # 计算未完成
+            all_dungeons_set = set(all_dungeons)
+            incomplete = all_dungeons_set - completed
 
-    def close(self):
-        """关闭数据库连接"""
-        self.db.close()
+            completed_count = len(completed)
+            incomplete_count = len(incomplete)
+            total_count = len(all_dungeons)
+
+            config_colored = colored(config_name, class_color, bold=True)
+            class_colored = colored(class_name, class_color)
+
+            if incomplete_count == 0:
+                status = colored("✅ 全部完成", Colors.GREEN, bold=True)
+                completed_colored = colored(f"{completed_count}", Colors.GREEN)
+                print(f"⚔️  {config_colored} ({class_colored}): {status} ({completed_colored}/{total_count})")
+            elif completed_count == 0:
+                count_colored = colored(f"{incomplete_count}", Colors.RED, bold=True)
+                print(f"⚔️  {config_colored} ({class_colored}): {count_colored} 个未打")
+                print(colored("   未完成:", Colors.BRIGHT_BLACK))
+                for zone, dungeon in sorted(incomplete):
+                    zone_colored = colored(zone[:8], Colors.BLUE)
+                    dungeon_colored = colored(dungeon, Colors.WHITE)
+                    print(f"      - {zone_colored}: {dungeon_colored}")
+                print()
+            else:
+                count_colored = colored(f"{incomplete_count}", Colors.YELLOW, bold=True)
+                print(f"⚔️  {config_colored} ({class_colored}): {count_colored} 个未完成 ({completed_count}/{total_count})")
+
+                # 显示未完成的副本
+                if incomplete_count <= 10:
+                    print(colored("   未完成:", Colors.BRIGHT_BLACK))
+                    for zone, dungeon in sorted(incomplete):
+                        zone_colored = colored(zone[:8], Colors.BLUE)
+                        dungeon_colored = colored(dungeon, Colors.WHITE)
+                        print(f"      - {zone_colored}: {dungeon_colored}")
+                else:
+                    print(colored("   未完成 (前5个):", Colors.BRIGHT_BLACK))
+                    for zone, dungeon in sorted(incomplete)[:5]:
+                        zone_colored = colored(zone[:8], Colors.BLUE)
+                        dungeon_colored = colored(dungeon, Colors.WHITE)
+                        print(f"      - {zone_colored}: {dungeon_colored}")
+                    print(f"      ... 还有 {incomplete_count - 5} 个")
+                print()
+
+            total_incomplete += incomplete_count
+
+        return total_incomplete == 0, total_incomplete
 
 
 def main():
     """主函数"""
-    import logging
-
-    # 初始化日志
-    try:
-        from logger_config import setup_logger_from_config
-
-        logger = setup_logger_from_config(use_color=True)
-    except Exception:
-        # 如果无法导入日志配置，使用基础日志
-        logging.basicConfig(level=logging.INFO)
-        logger = logging.getLogger(__name__)
+    # 简单的日志记录器，不使用会出问题的 coloredlogs
+    logger = logging.getLogger("check_progress")
+    logger.setLevel(logging.INFO)
+    if not logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+        logger.addHandler(handler)
 
     try:
-        parser = argparse.ArgumentParser(description="副本通关进度查看工具")
+        parser = argparse.ArgumentParser(
+            description="副本进度检查工具",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            epilog="""
+返回值说明:
+  0 - 所有副本已完成，无需继续刷本
+ 1 - 存在未完成副本，需要继续刷本
+ 2 - 发生错误
+
+使用示例:
+  python check_progress.py              # 显示所有统计和未完成检查
+  python check_progress.py --quiet      # 安静模式，只返回退出码
+  python check_progress.py && echo "完成" || echo "继续刷本"
+            """
+        )
         parser.add_argument(
             "--db", default="database/dungeon_progress.db", help="数据库文件路径"
         )
@@ -441,61 +559,61 @@ def main():
         parser.add_argument("--zones", action="store_true", help="显示各区域统计")
         parser.add_argument("--all", action="store_true", help="显示所有职业的进度")
         parser.add_argument("--summary", action="store_true", help="显示总体统计摘要")
-        parser.add_argument("--clear-today", action="store_true", help="清除今天的记录")
-        parser.add_argument("--clear-all", action="store_true", help="清除所有记录")
+        parser.add_argument(
+            "--quiet", "-q", action="store_true", help="安静模式，只返回退出码"
+        )
 
         args = parser.parse_args()
 
-        viewer = ProgressViewer(args.db, args.config)
+        checker = ProgressChecker(args.db, args.config)
 
         try:
-            # 如果没有指定任何参数，显示默认信息（新版本：显示所有职业和总体统计）
+            # 如果没有指定任何参数，显示完整统计和未完成检查
             if len(sys.argv) == 1:
-                viewer.show_all_configs_progress()
-                viewer.show_summary()
-                viewer.show_recent_days(7, all_configs=True)
+                checker.show_all_configs_progress()
+                checker.show_summary()
+                checker.show_recent_days(7, all_configs=True)
+                all_completed, incomplete_count = checker.check_incomplete_dungeons()
             else:
                 if args.all:
-                    viewer.show_all_configs_progress()
+                    checker.show_all_configs_progress()
 
                 if args.summary:
-                    viewer.show_summary()
+                    checker.show_summary()
 
                 if args.today:
-                    viewer.show_today_progress()
+                    checker.show_today_progress()
 
                 if args.zones:
-                    viewer.show_zone_stats()
+                    checker.show_zone_stats()
 
                 if args.recent:
-                    viewer.show_recent_days(args.recent)
+                    checker.show_recent_days(args.recent)
 
-                if args.clear_today:
-                    confirm = input("⚠️  确定要清除今天的记录吗？(yes/no): ")
-                    if confirm.lower() == "yes":
-                        viewer.clear_today()
-                    else:
-                        print("\n❌ 已取消\n")
+                # 默认也显示未完成检查
+                all_completed, incomplete_count = checker.check_incomplete_dungeons()
 
-                if args.clear_all:
-                    confirm = input("⚠️  确定要清除所有记录吗？(yes/no): ")
-                    if confirm.lower() == "yes":
-                        viewer.clear_all()
-                    else:
-                        print("\n❌ 已取消\n")
+            # 根据结果返回退出码
+            if all_completed:
+                if not args.quiet:
+                    print(colored("退出码: 0 (全部完成)", Colors.GREEN))
+                return 0
+            else:
+                if not args.quiet:
+                    print(colored(f"退出码: 1 ({incomplete_count} 个未完成)", Colors.YELLOW))
+                return 1
 
         finally:
-            viewer.close()
+            checker.close()
 
     except Exception as e:
         import traceback
-
         error_traceback = traceback.format_exc()
         logger.critical(
-            f"进度查看工具异常退出: {type(e).__name__}: {str(e)}\n{error_traceback}"
+            f"进度检查工具异常退出: {type(e).__name__}: {str(e)}\n{error_traceback}"
         )
-        raise
+        return 2
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
