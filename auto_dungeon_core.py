@@ -9,78 +9,48 @@ import sys
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-import requests
 from airtest.core.api import (
     log as airtest_log,
+)
+from airtest.core.api import (
     start_app,
     stop_app,
-    wait,
-    touch,
-    exists,
-    keyevent,
-    shell,
-    swipe,
 )
 from airtest.core.settings import Settings as ST
 
-from auto_dungeon_device import DeviceConnectionError, DeviceManager
+import auto_dungeon_account
+import auto_dungeon_combat
+import auto_dungeon_navigation
+
+# Imports for logging slices references
+import auto_dungeon_ui
+from auto_dungeon_account import switch_account
 from auto_dungeon_config import (
     CLICK_INTERVAL,
     FIND_TIMEOUT,
     FIND_TIMEOUT_TMP,
     OCR_STRATEGY,
 )
-from coordinates import (
-    ACCOUNT_AVATAR,
-    ACCOUNT_DROPDOWN_ARROW,
-    ACCOUNT_LIST_SWIPE_END,
-    ACCOUNT_LIST_SWIPE_START,
-    BACK_BUTTON,
-    CLOSE_ZONE_MENU,
-    LOGIN_BUTTON,
-    MAP_BUTTON,
-    SKILL_POSITIONS,
+
+# Import from new modules
+from auto_dungeon_container import _container
+from auto_dungeon_daily import DailyCollectManager
+from auto_dungeon_device import DeviceConnectionError, DeviceManager
+from auto_dungeon_navigation import (
+    back_to_main,
+    is_on_character_selection,
 )
+from auto_dungeon_notification import send_bark_notification
+from auto_dungeon_state_machine import DungeonStateMachine
+from auto_dungeon_ui import (
+    click_back,
+    sell_trashes,
+)
+from auto_dungeon_utils import check_stop_signal, sleep
 from database import DungeonProgressDB
 from error_dialog_monitor import ErrorDialogMonitor
 from logger_config import setup_logger_from_config
 from system_config_loader import load_system_config
-
-# Import from new modules
-from auto_dungeon_container import get_container, _container, DependencyContainer
-from auto_dungeon_utils import sleep, check_stop_signal, normalize_emulator_name
-from auto_dungeon_notification import send_bark_notification
-from auto_dungeon_ui import (
-    click_back,
-    sell_trashes,
-    find_text,
-    text_exists,
-    find_text_and_click,
-    find_text_and_click_safe,
-    find_all_texts,
-    find_all,
-    click_free_button,
-    switch_to,
-)
-from auto_dungeon_navigation import (
-    back_to_main,
-    open_map,
-    is_on_character_selection,
-    is_on_map,
-    is_main_world,
-    switch_to_zone,
-    focus_and_click_dungeon,
-)
-from auto_dungeon_account import switch_account, select_character, wait_for_main
-from auto_dungeon_combat import auto_combat
-from auto_dungeon_state_machine import DungeonStateMachine
-from auto_dungeon_daily import DailyCollectManager, execute_daily_collect as daily_collect
-
-# Imports for logging slices references
-import auto_dungeon_ui
-import auto_dungeon_navigation
-import auto_dungeon_combat
-import auto_dungeon_account
 
 # 初始化模块级 logger
 logger = logging.getLogger(__name__)
@@ -445,7 +415,7 @@ def stop_error_monitor():
         _container.error_dialog_monitor = None
 
 
-# ====== 主函数 ====== 
+# ====== 主函数 ======
 
 
 def main():
@@ -628,7 +598,7 @@ def main_wrapper():
             stop_error_monitor()
 
 
-# ====== 日志切面 ====== 
+# ====== 日志切面 ======
 
 
 def setup_logging_slices():
