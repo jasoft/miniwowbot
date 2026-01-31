@@ -80,6 +80,7 @@ DEFAULT_COLOR_DATE_FORMAT = DEFAULT_DATE_FORMAT
 DEFAULT_SIMPLE_FORMAT = "%(asctime)s.%(msecs)03d %(levelname)s %(filename)s:%(lineno)d %(config)s %(emulator)s %(message)s"
 
 ensure_utf8_output()
+GlobalLogContext.set_defaults({"config": "unknown", "emulator": "unknown"})
 
 LOG_LEVELS = {
     "DEBUG": logging.DEBUG,

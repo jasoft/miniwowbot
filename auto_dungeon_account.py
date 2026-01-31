@@ -12,8 +12,6 @@ from airtest.core.api import (
     swipe,
     wait,
 )
-from airtest.core.error import TargetNotFoundError
-
 from auto_dungeon_container import get_container
 from auto_dungeon_ui import find_text, find_text_and_click_safe, find_text_and_click
 from auto_dungeon_navigation import is_on_character_selection, save_error_screenshot

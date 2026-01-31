@@ -16,8 +16,6 @@ from auto_dungeon_combat import auto_combat
 from auto_dungeon_ui import click_free_button, find_text_and_click_safe, sell_trashes
 from auto_dungeon_account import select_character
 from auto_dungeon_daily import execute_daily_collect
-from auto_dungeon_utils import sleep
-
 STATES = [
     "character_selection",
     "main_menu",
