@@ -520,6 +520,7 @@ dependencies = [
     { name = "opencv-python-headless" },
     { name = "pandas" },
     { name = "peewee" },
+    { name = "pushover-complete" },
     { name = "pytest" },
     { name = "pytest-timeout" },
     { name = "python-dotenv" },
@@ -549,6 +550,7 @@ requires-dist = [
     { name = "opencv-python-headless", specifier = ">=4.11.0.86" },
     { name = "pandas", specifier = ">=2.2.0" },
     { name = "peewee", specifier = ">=3.17.0" },
+    { name = "pushover-complete", specifier = ">=1.5.0" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-timeout", specifier = ">=2.4.0" },
     { name = "python-dotenv", specifier = ">=1.2.1" },
@@ -819,6 +821,18 @@ wheels = [
     { url = "https://pypi.tuna.tsinghua.edu.cn/packages/1c/15/dd6fd869753ce82ff64dcbc18356093471a5a5adf4f77ed1f805d473d859/psutil-7.2.1-cp36-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:99a4cd17a5fdd1f3d014396502daa70b5ec21bf4ffe38393e152f8e449757d67", size = 147402, upload-time = "2025-12-29T08:26:39.21Z" },
     { url = "https://pypi.tuna.tsinghua.edu.cn/packages/34/68/d9317542e3f2b180c4306e3f45d3c922d7e86d8ce39f941bb9e2e9d8599e/psutil-7.2.1-cp37-abi3-win_amd64.whl", hash = "sha256:b1b0671619343aa71c20ff9767eced0483e4fc9e1f489d50923738caf6a03c17", size = 136938, upload-time = "2025-12-29T08:26:41.036Z" },
     { url = "https://pypi.tuna.tsinghua.edu.cn/packages/3e/73/2ce007f4198c80fcf2cb24c169884f833fe93fbc03d55d302627b094ee91/psutil-7.2.1-cp37-abi3-win_arm64.whl", hash = "sha256:0d67c1822c355aa6f7314d92018fb4268a76668a536f133599b91edd48759442", size = 133836, upload-time = "2025-12-29T08:26:43.086Z" },
+]
+
+[[package]]
+name = "pushover-complete"
+version = "2.0.0"
+source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
+dependencies = [
+    { name = "requests" },
+]
+sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/db/ae/2ed5c277e22316d8a31e2f67c6c9fd5021189ed3754e144aad53d874d687/pushover_complete-2.0.0.tar.gz", hash = "sha256:24fc7d84d73426840e7678fee80d36f40df0114cb30352ba4f99ab3842ed21a7", size = 19035, upload-time = "2025-05-20T12:47:59.464Z" }
+wheels = [
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/9e/c2/7debacdeb30d5956e5c5573f129ea2a422eeaaba8993ddfc61c9c0e54c95/pushover_complete-2.0.0-py3-none-any.whl", hash = "sha256:9dbb540daf86b26375e0aaa4b798ad5936b27047ee82cf3213bafeee96929527", size = 9952, upload-time = "2025-05-20T12:47:58.248Z" },
 ]
 
 [[package]]

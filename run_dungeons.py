@@ -14,7 +14,7 @@ from typing import Iterable, List, Optional
 import typer
 
 from logger_config import setup_logger, update_log_context, attach_emulator_file_handler
-from auto_dungeon import send_bark_notification
+from auto_dungeon_notification import send_notification
 from auto_dungeon_device import DeviceManager
 from config_loader import load_config
 from database import DungeonProgressDB
@@ -225,7 +225,7 @@ def run_configs(
         logger = setup_logger(name="run_dungeons", level="INFO", use_color=False)
         logger.error("❌ 未提供任何配置，必须显式传入 --config")
         try:
-            send_bark_notification("副本运行汇总", "未提供任何配置，任务未执行")
+            send_notification("副本运行汇总", "未提供任何配置，任务未执行")
         except Exception:
             pass
         return 2
@@ -246,7 +246,7 @@ def run_configs(
         if not _ensure_emulator_ready(emulator, logger):
             logger.error("❌ 无法启动或连接模拟器，任务终止")
             try:
-                send_bark_notification("副本运行错误", f"无法启动模拟器 {emulator}")
+                send_notification("副本运行错误", f"无法启动模拟器 {emulator}")
             except Exception:
                 pass
             return 1
@@ -308,7 +308,7 @@ def run_configs(
             summary_lines.append(f"• {name}: {format_duration_zh(dur)}")
         summary_lines.append(f"总耗时: {format_duration_zh(duration)}")
         try:
-            send_bark_notification("副本运行汇总", "\n".join(summary_lines))
+            send_notification("副本运行汇总", "\n".join(summary_lines))
         except Exception:
             pass
 

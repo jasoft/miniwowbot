@@ -29,7 +29,12 @@ from auto_dungeon_navigation import (
     open_map,
     switch_to_zone,
 )
-from auto_dungeon_notification import send_bark_notification
+from auto_dungeon_notification import (
+    send_bark_notification,
+    send_notification,
+    send_pushover_notification,
+    send_pushover_html_notification,
+)
 from auto_dungeon_ui import (
     click_back,
     click_free_button,
@@ -94,6 +99,9 @@ __all__ = [
     "handle_load_account_mode",
     # 通知
     "send_bark_notification",
+    "send_notification",
+    "send_pushover_notification",
+    "send_pushover_html_notification",
     # 主入口
     "main_wrapper",
 ]

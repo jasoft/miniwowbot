@@ -23,6 +23,7 @@ dependencies = [
     "typer>=0.21.0",
     "vibe-ocr>=0.1.5",
     "vibe-colored-logger>=0.1.0",
+    "pushover-complete>=1.5.0",
 ]
 
 [dependency-groups]

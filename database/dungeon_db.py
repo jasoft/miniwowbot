@@ -263,13 +263,14 @@ class DungeonProgressDB:
         )
         return [r.config_name for r in query]
 
-    def get_config_stats(self, config_name, target_date=None):
+    def get_config_stats(self, config_name, target_date=None, include_special=False):
         """
         获取指定配置的统计信息
 
         Args:
             config_name: 配置名称
             target_date: 目标日期，默认为今天
+            include_special: 是否包含特殊副本（每日收集），默认为 False
 
         Returns:
             dict: 包含统计信息的字典
@@ -277,28 +278,29 @@ class DungeonProgressDB:
         if target_date is None:
             target_date = self.get_today_date()
 
+        # 构建查询条件（排除特殊区域）
+        query = (
+            (DungeonProgress.config_name == config_name)
+            & (DungeonProgress.date == target_date)
+            & (DungeonProgress.completed == 1)
+        )
+        if not include_special and SPECIAL_ZONE_NAMES:
+            query &= ~(DungeonProgress.zone_name.in_(SPECIAL_ZONE_NAMES))
+
         # 总通关数
         total_count = (
             DungeonProgress.select()
-            .where(
-                (DungeonProgress.config_name == config_name)
-                & (DungeonProgress.date == target_date)
-                & (DungeonProgress.completed == 1)
-            )
+            .where(query)
             .count()
         )
 
         # 各区域统计
-        zone_stats = (
+        zone_stats_query = (
             DungeonProgress.select(
                 DungeonProgress.zone_name,
                 fn.COUNT(DungeonProgress.id).alias("count"),  # type: ignore
             )
-            .where(
-                (DungeonProgress.config_name == config_name)
-                & (DungeonProgress.date == target_date)
-                & (DungeonProgress.completed == 1)
-            )
+            .where(query)
             .group_by(DungeonProgress.zone_name)
             .order_by(fn.COUNT(DungeonProgress.id).desc())  # type: ignore
         )
@@ -306,15 +308,16 @@ class DungeonProgressDB:
         return {
             "config_name": config_name,
             "total_count": total_count,
-            "zone_stats": [(r.zone_name, r.count) for r in zone_stats],
+            "zone_stats": [(r.zone_name, r.count) for r in zone_stats_query],
         }
 
-    def get_all_configs_stats(self, target_date=None):
+    def get_all_configs_stats(self, target_date=None, include_special=False):
         """
         获取所有配置的统计信息
 
         Args:
             target_date: 目标日期，默认为今天
+            include_special: 是否包含特殊副本（每日收集），默认为 False
 
         Returns:
             list: 包含所有配置统计信息的列表
@@ -325,7 +328,7 @@ class DungeonProgressDB:
         configs = self.get_all_configs()
         stats = []
         for config in configs:
-            config_stat = self.get_config_stats(config, target_date)
+            config_stat = self.get_config_stats(config, target_date, include_special)
             stats.append(config_stat)
 
         return stats

@@ -33,7 +33,8 @@ from datetime import datetime
 import argparse
 
 from database import DungeonProgressDB
-from wow_class_colors import get_class_ansi_color
+from wow_class_colors import get_class_ansi_color, get_class_hex_color
+from auto_dungeon_notification import send_pushover_html_notification
 
 
 # ANSI 颜色代码
@@ -73,6 +74,52 @@ def colored(text, color="", bold=False):
         result += color
     result += str(text) + Colors.RESET
     return result
+
+
+def escape_html(text):
+    """转义 HTML 特殊字符"""
+    return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def format_html_for_pushover(text, color_mapping=None):
+    """将带颜色的终端文本转换为 HTML 格式（Pushover 支持）
+
+    Args:
+        text: 原始文本（可能包含 ANSI 转义序列）
+        color_mapping: 颜色代码到 HTML 颜色的映射
+
+    Returns:
+        HTML 格式的字符串
+    """
+    if color_mapping is None:
+        color_mapping = {
+            Colors.RESET: "</span>",
+            Colors.BOLD: "<b>",
+            Colors.BLUE: "#3498db",
+            Colors.GREEN: "#2ecc71",
+            Colors.YELLOW: "#f1c40f",
+            Colors.RED: "#e74c3c",
+            Colors.CYAN: "#1abc9c",
+            Colors.MAGENTA: "#9b59b6",
+            Colors.WHITE: "#ecf0f1",
+            Colors.BRIGHT_BLACK: "#7f8c8d",
+            Colors.BRIGHT_GREEN: "#27ae60",
+            Colors.BRIGHT_YELLOW: "#f39c12",
+            Colors.BRIGHT_CYAN: "#16a085",
+            Colors.BRIGHT_WHITE: "#bdc3c7",
+        }
+
+    # 移除 ANSI 转义序列，保留纯文本用于初步处理
+    import re
+
+    # 先将 ANSI 序列转换为占位符
+    ansi_pattern = re.compile(r"\033\[[0-9;]*m")
+    text_without_ansi = ansi_pattern.sub("", text)
+
+    # 将纯文本转换为 HTML，保留换行
+    html = escape_html(text_without_ansi).replace("\n", "<br>")
+
+    return html
 
 
 class ProgressChecker:
@@ -287,7 +334,7 @@ class ProgressChecker:
 
         print()
 
-    def show_all_configs_progress(self):
+    def show_all_configs_progress(self, include_special=False):
         """显示所有职业的进度情况"""
         today = self.db.get_today_date()
 
@@ -296,7 +343,7 @@ class ProgressChecker:
         print(f"{colored('=' * 80, Colors.CYAN)}\n")
 
         # 获取所有配置的统计信息
-        all_stats = self.db.get_all_configs_stats()
+        all_stats = self.db.get_all_configs_stats(include_special=include_special)
 
         if not all_stats:
             print(colored("❌ 今天还没有任何通关记录\n", Colors.YELLOW))
@@ -353,7 +400,7 @@ class ProgressChecker:
         )
         print(f"{colored('=' * 80, Colors.BRIGHT_CYAN)}\n")
 
-    def show_summary(self):
+    def show_summary(self, include_special=False):
         """显示总体统计摘要"""
         today = self.db.get_today_date()
 
@@ -362,7 +409,7 @@ class ProgressChecker:
         print(f"{colored('=' * 80, Colors.CYAN)}\n")
 
         # 获取所有配置的统计信息
-        all_stats = self.db.get_all_configs_stats()
+        all_stats = self.db.get_all_configs_stats(include_special=include_special)
 
         if not all_stats:
             print(colored("❌ 今天还没有任何通关记录\n", Colors.YELLOW))
@@ -516,6 +563,66 @@ class ProgressChecker:
         return total_incomplete == 0, total_incomplete
 
 
+def _send_pushover_summary(checker, include_special, incomplete_count, all_completed, pushover_output):
+    """发送摘要到 Pushover
+
+    Args:
+        checker: ProgressChecker 实例
+        include_special: 是否包含特殊副本
+        incomplete_count: 未完成数量
+        all_completed: 是否全部完成
+        pushover_output: 收集的输出内容
+    """
+    try:
+        # 获取今日统计
+        all_stats = checker.db.get_all_configs_stats(include_special=include_special)
+
+        # 构建 HTML 消息
+        html_lines = [
+            "<b>副本进度检查报告</b>",
+            f"<b>日期:</b> {checker.db.get_today_date()}",
+            "<hr>",
+        ]
+
+        # 添加各职业统计（使用 WOW 职业颜色）
+        for stat in all_stats:
+            if stat["total_count"] > 0:
+                config_name = stat["config_name"]
+                class_name = checker.config_classes.get(config_name, "未知")
+                # 获取职业对应的颜色
+                class_color = get_class_hex_color(class_name)
+                html_lines.append(
+                    f"<b style='color: {class_color}'>{escape_html(config_name)}</b> "
+                    f"(<span style='color: {class_color}'>{escape_html(class_name)}</span>): "
+                    f"<b>{stat['total_count']}</b> 个副本"
+                )
+
+        # 添加总体结果
+        html_lines.append("<hr>")
+        if all_completed:
+            html_lines.append("<b><span style='color: #2ecc71'>✅ 全部完成</span></b>")
+        else:
+            html_lines.append(
+                f"<b><span style='color: #e74c3c'>{incomplete_count} 个未完成</span></b>"
+            )
+
+        # 添加详细输出（如果有）
+        if pushover_output:
+            html_lines.append("<hr>")
+            html_lines.append("<details><summary>详细输出</summary>")
+            html_lines.append(f"<pre>{escape_html(pushover_output)}</pre>")
+            html_lines.append("</details>")
+
+        html_message = "<br>".join(html_lines)
+
+        # 发送通知
+        title = f"副本进度 - {'全部完成' if all_completed else '未完成'}"
+        send_pushover_html_notification(title, html_message)
+
+    except Exception as e:
+        print(colored(f"⚠️ Pushover 通知发送失败: {e}", Colors.YELLOW))
+
+
 def main():
     """主函数"""
     # 简单的日志记录器，不使用会出问题的 coloredlogs
@@ -560,6 +667,16 @@ def main():
         parser.add_argument("--all", action="store_true", help="显示所有职业的进度")
         parser.add_argument("--summary", action="store_true", help="显示总体统计摘要")
         parser.add_argument(
+            "--include-special",
+            action="store_true",
+            help="包含特殊副本（每日收集）的统计",
+        )
+        parser.add_argument(
+            "--pushover",
+            action="store_true",
+            help="同时发送通知到 Pushover（HTML 格式）",
+        )
+        parser.add_argument(
             "--quiet", "-q", action="store_true", help="安静模式，只返回退出码"
         )
 
@@ -570,16 +687,16 @@ def main():
         try:
             # 如果没有指定任何参数，显示完整统计和未完成检查
             if len(sys.argv) == 1:
-                checker.show_all_configs_progress()
-                checker.show_summary()
+                checker.show_all_configs_progress(include_special=args.include_special)
+                checker.show_summary(include_special=args.include_special)
                 checker.show_recent_days(7, all_configs=True)
                 all_completed, incomplete_count = checker.check_incomplete_dungeons()
             else:
                 if args.all:
-                    checker.show_all_configs_progress()
+                    checker.show_all_configs_progress(include_special=args.include_special)
 
                 if args.summary:
-                    checker.show_summary()
+                    checker.show_summary(include_special=args.include_special)
 
                 if args.today:
                     checker.show_today_progress()
@@ -597,10 +714,20 @@ def main():
             if all_completed:
                 if not args.quiet:
                     print(colored("退出码: 0 (全部完成)", Colors.GREEN))
+                # 发送 Pushover 通知
+                if args.pushover:
+                    _send_pushover_summary(
+                        checker, args.include_special, incomplete_count, all_completed, ""
+                    )
                 return 0
             else:
                 if not args.quiet:
                     print(colored(f"退出码: 1 ({incomplete_count} 个未完成)", Colors.YELLOW))
+                # 发送 Pushover 通知
+                if args.pushover:
+                    _send_pushover_summary(
+                        checker, args.include_special, incomplete_count, all_completed, ""
+                    )
                 return 1
 
         finally:
