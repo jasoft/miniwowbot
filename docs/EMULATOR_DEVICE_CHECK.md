@@ -9,33 +9,33 @@
 ### 检查流程
 
 1. **获取设备列表**
-   - 调用 `EmulatorManager.get_adb_devices()` 获取所有已连接的 ADB 设备
-   - 返回格式：`{device_name: status}` 字典
+    - 调用 `EmulatorManager.get_adb_devices()` 获取所有已连接的 ADB 设备
+    - 返回格式：`{device_name: status}` 字典
 
 2. **验证模拟器存在**
-   - 检查指定的 `emulator_name` 是否在设备列表中
-   - 如果不存在，立即报错并退出
+    - 检查指定的 `emulator_name` 是否在设备列表中
+    - 如果不存在，立即报错并退出
 
 3. **发送通知**
-   - 使用 `send_bark_notification()` 发送 Bark 通知
-   - 通知级别设置为 `timeSensitive`（紧急）
-   - 通知内容包含错误信息和可用设备列表
+    - 使用 `send_notification()` 发送 Bark 通知
+    - 通知级别设置为 `timeSensitive`（紧急）
+    - 通知内容包含错误信息和可用设备列表
 
 ### 检查位置
 
 在以下三个关键函数中添加了设备检查：
 
 1. **`check_and_start_emulator(emulator_name)`**
-   - 在启动模拟器前检查
-   - 如果检查失败，返回 `False`
+    - 在启动模拟器前检查
+    - 如果检查失败，返回 `False`
 
 2. **`handle_load_account_mode(account_name, emulator_name)`**
-   - 在加载账号前检查
-   - 如果检查失败，调用 `sys.exit(1)` 退出
+    - 在加载账号前检查
+    - 如果检查失败，调用 `sys.exit(1)` 退出
 
 3. **`initialize_device_and_ocr(emulator_name)`**
-   - 在初始化设备前检查
-   - 如果检查失败，抛出 `RuntimeError` 异常
+    - 在初始化设备前检查
+    - 如果检查失败，抛出 `RuntimeError` 异常
 
 ## 使用示例
 
@@ -130,28 +130,29 @@ uv run python -m pytest tests/test_emulator_device_check.py::TestEmulatorDeviceC
 
 ### 常见错误
 
-| 错误信息 | 原因 | 解决方案 |
-|---------|------|--------|
+| 错误信息             | 原因                       | 解决方案                         |
+| -------------------- | -------------------------- | -------------------------------- |
 | 模拟器不在设备列表中 | 指定的模拟器未启动或不存在 | 检查模拟器名称，确保模拟器已启动 |
-| 可用设备为空 | 没有任何模拟器连接 | 启动 BlueStacks 模拟器 |
-| ADB 命令执行失败 | ADB 连接问题 | 检查 Android SDK 和 ADB 配置 |
+| 可用设备为空         | 没有任何模拟器连接         | 启动 BlueStacks 模拟器           |
+| ADB 命令执行失败     | ADB 连接问题               | 检查 Android SDK 和 ADB 配置     |
 
 ### 调试技巧
 
 1. **查看可用设备**
-   ```bash
-   adb devices
-   ```
+
+    ```bash
+    adb devices
+    ```
 
 2. **查看 Bark 通知日志**
-   - 检查 `system_config.json` 中的 Bark 配置
-   - 确保 `enabled` 为 `true`
-   - 确保设备密钥正确
+    - 检查 `system_config.json` 中的 Bark 配置
+    - 确保 `enabled` 为 `true`
+    - 确保设备密钥正确
 
 3. **查看详细日志**
-   ```bash
-   uv run auto_dungeon.py --emulator emulator-5554 2>&1 | tee debug.log
-   ```
+    ```bash
+    uv run auto_dungeon.py --emulator emulator-5554 2>&1 | tee debug.log
+    ```
 
 ## 相关文件
 
@@ -163,4 +164,3 @@ uv run python -m pytest tests/test_emulator_device_check.py::TestEmulatorDeviceC
 ## 更新日志
 
 详见 `CHANGELOG.md` 中的 "[新功能] 添加模拟器设备检查和 Bark 通知" 部分。
-

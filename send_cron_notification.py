@@ -3,18 +3,18 @@
 """
 发送 cron 任务完成通知的脚本。
 
-统一通过 auto_dungeon.send_bark_notification 发送 Bark 通知，避免重复实现。
+统一通过 auto_dungeon.send_notification 发送 Bark 通知，避免重复实现。
 """
 
 import sys
-from system_config_loader import load_system_config
-from logger_config import setup_simple_logger
+
 import auto_dungeon as ad
-from auto_dungeon import send_bark_notification as bark_send
+from auto_dungeon import send_notification as bark_send
+from logger_config import setup_simple_logger
+from system_config_loader import load_system_config
 
 # 设置日志
 logger = setup_simple_logger()
-
 
 
 def main():
@@ -44,9 +44,7 @@ def main():
         level = "timeSensitive"  # 失败时使用时间敏感级别
     else:
         title = "异世界勇者 - 副本运行成功"
-        message = (
-            f"副本运行完成\n总计: {total_count} 个账号\n✅ 全部成功: {success_count} 个"
-        )
+        message = f"副本运行完成\n总计: {total_count} 个账号\n✅ 全部成功: {success_count} 个"
         level = "active"
 
     # 发送通知

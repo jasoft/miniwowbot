@@ -436,6 +436,10 @@ class TestDailyCollectIntegration:
         manager._handle_retinue_deployment()
 
     def test_click_ads(self, setup_device):
+        """
+        测试点击广告功能 - 真机测试
+        """
+        # 执行点击广告功
         manager = DailyCollectManager()
         manager._buy_ads_items()
 
@@ -446,12 +450,12 @@ class TestDailyCollectIntegration:
         manager = DailyCollectManager()
         manager._demonhunter_exam()
 
-    def test_small_cookie(self, setup_device):
+    def test_claim_event_rewards(self, setup_device):
         """
         测试领取各种主题奖励功能 - 真机测试
         """
         manager = DailyCollectManager()
-        manager._small_cookie()
+        manager._claim_event_rewards()
 
     def test_collect_free_diamonds(self, setup_device):
         """

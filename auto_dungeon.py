@@ -30,10 +30,9 @@ from auto_dungeon_navigation import (
     switch_to_zone,
 )
 from auto_dungeon_notification import (
-    send_bark_notification,
     send_notification,
-    send_pushover_notification,
     send_pushover_html_notification,
+    send_pushover_notification,
 )
 from auto_dungeon_ui import (
     click_back,
@@ -98,7 +97,7 @@ __all__ = [
     "initialize_configs",
     "handle_load_account_mode",
     # 通知
-    "send_bark_notification",
+    "send_notification",
     "send_notification",
     "send_pushover_notification",
     "send_pushover_html_notification",

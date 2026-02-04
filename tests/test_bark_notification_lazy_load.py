@@ -29,7 +29,7 @@ class _FakeSystemConfig:
         return dict(self._bark_config)
 
 
-def test_send_bark_notification_lazy_load(monkeypatch) -> None:
+def test_send_notification_lazy_load(monkeypatch) -> None:
     """Load system config automatically when sending Bark notification."""
     original_system_config = auto_dungeon_core._container.system_config
     auto_dungeon_core._container.system_config = None
@@ -50,7 +50,7 @@ def test_send_bark_notification_lazy_load(monkeypatch) -> None:
     monkeypatch.setattr(auto_dungeon_notification.requests, "get", fake_get)
 
     try:
-        result = auto_dungeon_core.send_bark_notification("test-title", "test-message")
+        result = auto_dungeon_core.send_notification("test-title", "test-message")
         assert calls.get("loaded") is True
         assert auto_dungeon_core._container.system_config is not None
         assert result is True

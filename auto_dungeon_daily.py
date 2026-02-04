@@ -6,10 +6,12 @@ auto_dungeon 每日收集模块
 
 import logging
 
+from airtest.core.api import touch
+
 from auto_dungeon_config import CLICK_INTERVAL
 from auto_dungeon_container import get_container
 from auto_dungeon_navigation import back_to_main, open_map, save_error_screenshot
-from auto_dungeon_notification import send_bark_notification
+from auto_dungeon_notification import send_notification
 from auto_dungeon_ui import (
     click_back,
     find_text,
@@ -19,7 +21,6 @@ from auto_dungeon_ui import (
     text_exists,
 )
 from auto_dungeon_utils import sleep
-from airtest.core.api import touch
 
 # 坐标常量
 from coordinates import (
@@ -63,7 +64,7 @@ class DailyCollectManager:
             "开启宝箱": (self._open_chests_wrapper, "open_chests"),
             "世界BOSS": (self._kill_world_boss_wrapper, "world_boss"),
             "领取邮件": (self._receive_mails, "receive_mails"),
-            "领取主题奖励": (self._small_cookie, "small_cookie"),
+            "领取主题奖励": (self._claim_event_rewards, "small_cookie"),
             "领取礼包": (self._collect_gifts, "collect_gifts"),
             # "领取广告奖励": (self._buy_ads_items, "buy_ads_items"),
             "猎魔试炼": (self._demonhunter_exam, "demonhunter_exam"),
@@ -158,7 +159,7 @@ class DailyCollectManager:
             self._run_step("receive_mails", self._receive_mails)
 
             # 8. 领取各种主题奖励
-            self._run_step("small_cookie", self._small_cookie)
+            self._run_step("small_cookie", self._claim_event_rewards)
 
             # 9. 领取礼包
             self._run_step("collect_gifts", self._collect_gifts)
@@ -199,7 +200,7 @@ class DailyCollectManager:
         except Exception as e:
             self.logger.error(f"❌ 猎魔试炼失败: {e}, 活动可能已结束")
 
-    def _small_cookie(self):
+    def _claim_event_rewards(self):
         """领取各种主题奖励"""
         self.logger.info("领取各种主题奖励[海盗船,法师塔]")
         back_to_main()
@@ -224,17 +225,16 @@ class DailyCollectManager:
             # 兑换随从碎片
             game_actions = get_container().game_actions
 
-            buttons = game_actions.find_all().equals("兑换")
+            button = game_actions.find_all().equals("兑换").first()
             try:
-                for button in buttons:
-                    button.click()
+                button.click()
 
-                    game_actions.find_all(regions=[5]).equals("确定").first().click()
-                    if find_text_and_click_safe("确定", regions=[5], timeout=3):
-                        send_bark_notification("兑换碎片成功", "兑换成功, 请立即检查")
+                game_actions.find_all(regions=[5]).equals("确定").first().click()
+                if find_text_and_click_safe("确定", regions=[5], timeout=3):
+                    send_notification("兑换紫色碎片成功", "兑换成功, 请立即检查")
             except Exception as e:
                 self.logger.error(f"❌ 兑换碎片失败: {e}")
-                send_bark_notification("兑换碎片失败", "兑换失败, 请立即检查")
+                send_notification("兑换碎片失败", "兑换失败, 请立即检查")
 
         back_to_main()
 

@@ -40,7 +40,7 @@ from auto_dungeon_navigation import (
     back_to_main,
     is_on_character_selection,
 )
-from auto_dungeon_notification import send_bark_notification
+from auto_dungeon_notification import send_notification
 from auto_dungeon_state_machine import DungeonStateMachine
 from auto_dungeon_ui import (
     click_back,
@@ -331,7 +331,7 @@ def handle_load_account_mode(account_name: str, emulator_name: Optional[str] = N
 
     except Exception as e:
         logger.error(f"❌ {e}")
-        send_bark_notification(
+        send_notification(
             "副本助手 - 错误",
             f"模拟器 {emulator_name} 未运行或未连接",
             level="timeSensitive",
@@ -478,7 +478,7 @@ def main():
 
     except DeviceConnectionError as e:
         logger.error(f"❌ 设备连接错误: {e}")
-        send_bark_notification(
+        send_notification(
             "副本助手 - 错误",
             f"设备连接失败: {e}",
             level="timeSensitive",
@@ -561,7 +561,7 @@ def main_wrapper():
 
             if restart_count < max_restarts:
                 logger.warning(f"\n🔄 正在重启程序... (第 {restart_count}/{max_restarts} 次重启)")
-                send_bark_notification(
+                send_notification(
                     "副本助手 - 超时重启",
                     f"程序因超时重启 ({restart_count}/{max_restarts})",
                     level="timeSensitive",
@@ -571,7 +571,7 @@ def main_wrapper():
                 continue
             else:
                 logger.error(f"\n❌ 已达到最大重启次数 ({max_restarts})，程序退出")
-                send_bark_notification(
+                send_notification(
                     "副本助手 - 严重错误",
                     "程序因多次超时失败退出",
                     level="timeSensitive",
@@ -589,9 +589,7 @@ def main_wrapper():
             error_traceback = traceback.format_exc()
             logger.error(error_traceback)
             logger.critical(f"脚本异常退出: {type(e).__name__}: {str(e)}\n{error_traceback}")
-            send_bark_notification(
-                "副本助手 - 错误", f"程序发生错误: {str(e)}", level="timeSensitive"
-            )
+            send_notification("副本助手 - 错误", f"程序发生错误: {str(e)}", level="timeSensitive")
             sys.exit(1)
 
         finally:
