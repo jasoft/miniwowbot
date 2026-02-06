@@ -1,4 +1,4 @@
-"""Behavior tree construction for levelup."""
+"""构建升级行为树。"""
 
 from __future__ import annotations
 
@@ -20,13 +20,13 @@ from state import WorldState
 
 
 def build_behavior_tree(logger) -> BehaviorTree:
-    """Build the ordered behavior tree for levelup.
+    """构建有序的升级行为树。
 
     Args:
-        logger: Logger used by the behavior tree.
+        logger: 行为树使用的日志记录器。
 
     Returns:
-        BehaviorTree: Configured behavior tree instance.
+        BehaviorTree: 配置好的行为树实例。
     """
 
     def has_task_completion(state: WorldState) -> bool:
@@ -56,12 +56,12 @@ def build_behavior_tree(logger) -> BehaviorTree:
         return bool(state.signals.get("in_combat"))
 
     rules: Iterable[BehaviorRule] = [
-        BehaviorRule("task_completion", has_task_completion, action_task_completion),
-        BehaviorRule("task_timeout", should_timeout, action_timeout_recovery),
-        BehaviorRule("request_task", has_request_task, action_request_task),
-        BehaviorRule("next_dungeon", has_xp_full, action_dungeon_transition),
-        BehaviorRule("equip_item", has_equip_item, action_equip_item),
-        BehaviorRule("combat", is_in_combat, action_combat),
+        BehaviorRule("任务完成", has_task_completion, action_task_completion),
+        BehaviorRule("任务超时", should_timeout, action_timeout_recovery),
+        BehaviorRule("请求任务", has_request_task, action_request_task),
+        BehaviorRule("下一副本", has_xp_full, action_dungeon_transition),
+        BehaviorRule("装备物品", has_equip_item, action_equip_item),
+        BehaviorRule("战斗", is_in_combat, action_combat),
     ]
 
     return BehaviorTree(rules, logger)

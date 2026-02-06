@@ -5,16 +5,17 @@ auto_dungeon 战斗模块
 import logging
 import time
 
-from airtest.core.api import wait, touch
+from airtest.core.api import touch, wait
 from tqdm import tqdm
 
-from auto_dungeon_utils import sleep, check_stop_signal
-from auto_dungeon_ui import find_text_and_click_safe
-from auto_dungeon_navigation import is_main_world
 from auto_dungeon_config import AUTOCOMBAT_TEMPLATE
+from auto_dungeon_navigation import is_main_world
+from auto_dungeon_ui import find_text_and_click_safe
+from auto_dungeon_utils import check_stop_signal, sleep
 from coordinates import SKILL_POSITIONS
 
 logger = logging.getLogger(__name__)
+
 
 def auto_combat(completed_dungeons: int = 0, total_dungeons: int = 0) -> None:
     """自动战斗"""
@@ -76,7 +77,7 @@ def auto_combat(completed_dungeons: int = 0, total_dungeons: int = 0) -> None:
 
             positions = SKILL_POSITIONS.copy()
             touch(positions[4])
-            sleep(0.5)
+            sleep(1)
 
         if total_dungeons > 0:
             pbar.update(1)

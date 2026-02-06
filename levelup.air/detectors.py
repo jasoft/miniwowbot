@@ -1,4 +1,4 @@
-"""Detection helpers for the levelup behavior tree."""
+"""升级行为树的检测助手。"""
 
 from __future__ import annotations
 
@@ -12,21 +12,21 @@ from state import WorldState
 
 
 def _set_signal(signals: Dict[str, Any], key: str, value: Any) -> None:
-    """Update a signal value.
+    """更新信号值。
 
     Args:
-        signals: Signal dictionary to update.
-        key: Signal name.
-        value: Signal value.
+        signals: 要更新的信号字典。
+        key: 信号名称。
+        value: 信号值。
     """
     signals[key] = value
 
 
 async def scan_fast(state: WorldState) -> None:
-    """Run fast template-based detections.
+    """运行快速基于模板的检测。
 
     Args:
-        state: Shared world state.
+        state: 共享的世界状态。
     """
     loop = asyncio.get_running_loop()
     task_future = loop.run_in_executor(None, exists, state.templates["task_complete"])
@@ -41,11 +41,11 @@ async def scan_fast(state: WorldState) -> None:
 
 
 async def scan_workflow(state: WorldState, cooldown: float) -> None:
-    """Run slower workflow detections with cooldown.
+    """运行较慢的工作流检测（带冷却）。
 
     Args:
-        state: Shared world state.
-        cooldown: Minimum seconds between workflow scans.
+        state: 共享的世界状态。
+        cooldown: 工作流扫描之间的最小秒数。
     """
     now = time.time()
     if now - state.last_workflow_scan < cooldown:

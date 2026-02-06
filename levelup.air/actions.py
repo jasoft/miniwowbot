@@ -1,4 +1,4 @@
-"""Action handlers for the levelup behavior tree."""
+"""升级行为树的动作处理器。"""
 
 from __future__ import annotations
 
@@ -8,80 +8,80 @@ import time
 
 import requests
 from airtest.core.api import exists, sleep, snapshot, swipe, touch
-
-from color_helper import ColorHelper
 from config import BARK_URL
 from state import WorldState
+
+from color_helper import ColorHelper
 
 logger = logging.getLogger(__name__)
 
 
 def send_notification(title: str, content: str) -> None:
-    """Send a Bark notification.
+    """发送 Bark 通知。
 
     Args:
-        title: Notification title.
-        content: Notification content.
+        title: 通知标题。
+        content: 通知内容。
     """
     try:
         requests.get(f"{BARK_URL}/{title}/{content}", timeout=5)
     except Exception as exc:
-        logger.error("Bark notification failed: %s", exc)
+        logger.error("Bark 通知发送失败: %s", exc)
 
 
 def should_preempt(state: WorldState) -> bool:
-    """Check whether current action should be preempted.
+    """检查当前动作是否应被抢占。
 
     Args:
-        state: Shared world state.
+        state: 共享的世界状态。
 
     Returns:
-        True if a high-priority task completion is detected.
+        True 如果检测到高优先级任务完成。
     """
     return state.signals.get("task_complete_pos") is not None
 
 
 def clear_signal(state: WorldState, key: str) -> None:
-    """Clear a signal value.
+    """清除信号值。
 
     Args:
-        state: Shared world state.
-        key: Signal key to clear.
+        state: 共享的世界状态。
+        key: 要清除的信号键。
     """
     state.signals[key] = None
 
 
 def action_task_completion(state: WorldState) -> None:
-    """Handle task completion flow.
+    """处理任务完成流程。
 
     Args:
-        state: Shared world state.
+        state: 共享的世界状态。
     """
     pos = state.signals.get("task_complete_pos")
     if not pos:
         return
 
     touch(pos)
-    logger.info("Task completion icon tapped: %s", pos)
+    logger.info("点击任务完成图标: %s", pos)
 
     state.last_task_time = time.time()
-    sleep(0.5)
+    sleep(2)
     touch((363, 867))
-    logger.info("Task completed")
+    logger.info("任务已完成")
 
-    sleep(0.5)
+    sleep(2)
     touch((363, 867))
-    logger.info("Next task accepted")
+    logger.info("接受下一个任务")
     sleep(2)
 
     clear_signal(state, "task_complete_pos")
 
 
 def action_request_task(state: WorldState) -> None:
-    """Handle task request flow.
+    """处理任务请求流程。
 
     Args:
-        state: Shared world state.
+        state: 共享的世界状态。
     """
     request_el = state.signals.get("request_task_el")
     if not request_el:
@@ -102,12 +102,12 @@ def action_request_task(state: WorldState) -> None:
             swipe((360, 900), (360, 300))
 
     if not tasks_available:
-        logger.warning("No side tasks found, switching area")
+        logger.warning("未找到支线任务，正在切换区域")
         switch_el = state.actions.find("切换区域")
         if switch_el:
             switch_el.click()
         else:
-            logger.warning("Area switch element not found")
+            logger.warning("未找到切换区域元素")
             return
 
         temp_path = os.path.join(state.ocr.temp_dir, "task_request.png")
@@ -117,14 +117,14 @@ def action_request_task(state: WorldState) -> None:
         green_pos = ColorHelper.find_green_text(temp_path, ocr_results)
 
         if green_pos:
-            logger.info("Current area (green text) detected: %s", green_pos)
+            logger.info("检测到当前区域（绿色文字）: %s", green_pos)
             next_area_pos = (green_pos[0], green_pos[1] + 50)
-            logger.info("Tap next area: %s", next_area_pos)
+            logger.info("点击下一个区域: %s", next_area_pos)
             touch(next_area_pos)
             sleep(1)
         else:
-            logger.warning("Green text not found, manual selection needed")
-            send_notification("Dungeon Helper - Error", "Green text not found")
+            logger.warning("未找到绿色文字，需要手动选择")
+            send_notification("副本助手 - 错误", "未找到绿色文字")
 
         if os.path.exists(temp_path):
             os.remove(temp_path)
@@ -134,10 +134,10 @@ def action_request_task(state: WorldState) -> None:
 
 
 def action_combat(state: WorldState) -> None:
-    """Execute combat actions.
+    """执行战斗动作。
 
     Args:
-        state: Shared world state.
+        state: 共享的世界状态。
     """
     if not state.signals.get("in_combat"):
         return
@@ -146,12 +146,12 @@ def action_combat(state: WorldState) -> None:
 
 
 def action_dungeon_transition(state: WorldState) -> None:
-    """Advance to the next dungeon or area.
+    """前进到下一个副本或区域。
 
     Args:
-        state: Shared world state.
+        state: 共享的世界状态。
     """
-    logger.info("Advancing dungeon/area")
+    logger.info("推进副本/区域")
     touch((160, 112))
     sleep(1)
     goto_next_place(state)
@@ -159,12 +159,12 @@ def action_dungeon_transition(state: WorldState) -> None:
 
 
 def action_timeout_recovery(state: WorldState) -> None:
-    """Recover from task timeout.
+    """从任务超时中恢复。
 
     Args:
-        state: Shared world state.
+        state: 共享的世界状态。
     """
-    logger.warning("Task timeout, forcing navigation recovery")
+    logger.warning("任务超时，强制导航恢复")
 
     back_to_main(state)
     touch((65, 265))
@@ -173,10 +173,10 @@ def action_timeout_recovery(state: WorldState) -> None:
 
 
 def action_equip_item(state: WorldState) -> None:
-    """Equip items when available.
+    """当有可用物品时装备。
 
     Args:
-        state: Shared world state.
+        state: 共享的世界状态。
     """
     equip_el = state.signals.get("equip_el")
     if not equip_el:
@@ -186,16 +186,16 @@ def action_equip_item(state: WorldState) -> None:
 
 
 def goto_next_place(state: WorldState) -> None:
-    """Navigate to the next place.
+    """导航到下一个地点。
 
     Args:
-        state: Shared world state.
+        state: 共享的世界状态。
     """
     try:
         if not state.actions.find_all(use_cache=False).equals("前往").first().click():
             return
 
-        sleep(0.5)
+        sleep(1)
         for _ in range(5):
             if should_preempt(state):
                 return
@@ -203,47 +203,47 @@ def goto_next_place(state: WorldState) -> None:
             if not arrow:
                 continue
             touch((arrow[0], arrow[1] + 100))
-            sleep(0.5)
+            sleep(1)
             if state.actions.find("声望商店"):
                 touch((355, 780))
                 sleep(30)
             elif state.actions.find("免费", use_cache=False).click():
-                logger.info("Free dungeon detected, entering")
+                logger.info("检测到免费副本，正在进入")
                 sleep(3)
                 sell_trash(state)
                 touch((357, 1209))
             else:
                 state.failed_in_dungeon = True
-                fail_msg = "Free dungeon button not found"
+                fail_msg = "未找到免费副本按钮"
                 logger.warning(fail_msg)
-                send_notification("Dungeon Helper - Error", fail_msg)
+                send_notification("副本助手 - 错误", fail_msg)
                 back_to_main(state)
             return
     except Exception as exc:
-        logger.error("Navigation failed: %s", exc)
+        logger.error("导航失败: %s", exc)
         back_to_main(state)
 
 
 def sell_trash(state: WorldState) -> None:
-    """Sell trash items in the dungeon UI.
+    """在副本界面出售垃圾物品。
 
     Args:
-        state: Shared world state.
+        state: 共享的世界状态。
     """
     touch((226, 1213))
-    sleep(0.5)
+    sleep(1)
     touch((446, 1108))
-    sleep(0.5)
+    sleep(1)
     touch((469, 954))
     back_to_main(state)
 
 
 def back_to_main(state: WorldState, taps: int = 5) -> None:
-    """Return to the main screen by tapping back.
+    """通过点击返回回到主界面。
 
     Args:
-        state: Shared world state.
-        taps: Number of back taps.
+        state: 共享的世界状态。
+        taps: 返回点击次数。
     """
     for _ in range(taps):
         touch((719, 1))

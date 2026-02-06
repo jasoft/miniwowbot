@@ -1,4 +1,4 @@
-"""Engine wiring for the levelup behavior tree runtime."""
+"""升级行为树运行时的引擎接线。"""
 
 from __future__ import annotations
 
@@ -18,10 +18,10 @@ from vibe_ocr import OCRHelper
 
 
 class LevelUpEngine:
-    """Orchestrates sensors and behavior tree decisions.
+    """编排传感器和行为树决策。
 
     Args:
-        logger: Logger used for runtime diagnostics.
+        logger: 用于运行时诊断的日志记录器。
     """
 
     def __init__(self, logger: logging.Logger) -> None:
@@ -50,7 +50,7 @@ class LevelUpEngine:
         self._action_lock = asyncio.Lock()
 
     async def run(self) -> None:
-        """Run the engine loops."""
+        """运行引擎循环。"""
         await asyncio.gather(
             self._fast_sensor_loop(),
             self._workflow_sensor_loop(),
@@ -58,32 +58,32 @@ class LevelUpEngine:
         )
 
     async def _fast_sensor_loop(self) -> None:
-        """Run the fast sensor loop."""
-        self._logger.info("Fast sensor loop started")
+        """运行快速传感器循环。"""
+        self._logger.info("快速传感器循环已启动")
         while self._running:
             try:
                 await scan_fast(self._state)
             except Exception as exc:
-                self._logger.error("Fast sensor error: %s", exc)
+                self._logger.error("快速传感器错误: %s", exc)
                 await asyncio.sleep(1)
                 continue
             await asyncio.sleep(FAST_SCAN_INTERVAL)
 
     async def _workflow_sensor_loop(self) -> None:
-        """Run the workflow sensor loop."""
-        self._logger.info("Workflow sensor loop started")
+        """运行工作流传感器循环。"""
+        self._logger.info("工作流传感器循环已启动")
         while self._running:
             try:
                 await scan_workflow(self._state, WORKFLOW_SCAN_INTERVAL)
             except Exception as exc:
-                self._logger.error("Workflow sensor error: %s", exc)
+                self._logger.error("工作流传感器错误: %s", exc)
                 await asyncio.sleep(1)
                 continue
             await asyncio.sleep(WORKFLOW_SCAN_INTERVAL)
 
     async def _decision_loop(self) -> None:
-        """Run the decision loop."""
-        self._logger.info("Decision loop started")
+        """运行决策循环。"""
+        self._logger.info("决策循环已启动")
         while self._running:
             rule = self._tree.select(self._state)
             if rule is None:
@@ -94,12 +94,12 @@ class LevelUpEngine:
             await asyncio.sleep(DECISION_INTERVAL)
 
     async def _execute_rule(self, rule: BehaviorRule) -> None:
-        """Execute a behavior rule.
+        """执行行为规则。
 
         Args:
-            rule: Behavior rule to execute.
+            rule: 要执行的行为规则。
         """
         async with self._action_lock:
-            self._logger.info("Execute rule: %s", rule.name)
+            self._logger.info("执行规则: %s", rule.name)
             loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, rule.action, self._state)

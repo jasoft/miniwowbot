@@ -1,4 +1,4 @@
-"""Configuration helpers for the levelup behavior tree engine."""
+"""升级行为树引擎的配置助手。"""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ DECISION_INTERVAL = 0.1
 
 
 def configure_airtest() -> None:
-    """Configure Airtest CV strategy and timeouts."""
+    """配置 Airtest CV 策略和超时时间。"""
     ST.CVSTRATEGY = ["mstpl", "tpl"]
     ST.FIND_TIMEOUT = 10  # type: ignore[assignment]
     ST.FIND_TIMEOUT_TMP = 0.1  # type: ignore[assignment]

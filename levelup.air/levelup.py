@@ -1,5 +1,5 @@
 # -*- encoding=utf8 -*-
-"""Levelup behavior tree entrypoint."""
+"""升级行为树入口点。"""
 
 # ruff: noqa: E402
 
@@ -12,7 +12,7 @@ import sys
 
 from airtest.core.api import auto_setup
 
-# Add current directory and project root to sys.path for shared modules.
+# 添加当前目录和项目根目录到 sys.path 以便使用共享模块。
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
 if CURRENT_DIR not in sys.path:
@@ -25,7 +25,7 @@ from engine import LevelUpEngine
 
 
 def setup_logging() -> logging.Logger:
-    """Configure and return the levelup logger."""
+    """配置并返回升级日志记录器。"""
     logging.basicConfig(
         level=logging.DEBUG,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -37,7 +37,7 @@ def setup_logging() -> logging.Logger:
 
 
 async def main() -> None:
-    """Run the levelup behavior tree engine."""
+    """运行升级行为树引擎。"""
     auto_setup(__file__)
     configure_airtest()
     logger = setup_logging()

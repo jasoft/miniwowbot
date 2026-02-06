@@ -76,7 +76,7 @@ while True:
         complete_tasks()
         try:
             touch((158, 111))
-            sleep(0.5)
+            sleep(1)
             touch(
                 Template(r"tpl1761909274176.png", record_pos=(0.0, 0.319), resolution=(720, 1280))
             )

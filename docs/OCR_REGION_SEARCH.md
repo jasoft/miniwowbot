@@ -56,11 +56,13 @@ ocr.find_text_in_image("screenshot.png", "返回", regions=[1, 2, 4, 5])
 ### 为什么需要合并？
 
 如果不合并，分别对每个区域进行 OCR 会导致：
+
 - ❌ 跨区域的文字被切断，无法识别
 - ❌ 需要多次 OCR 调用，性能下降
 - ❌ 坐标处理复杂
 
 合并后的优势：
+
 - ✅ 保持文字完整性，识别准确
 - ✅ 只需一次 OCR 调用
 - ✅ 坐标处理简单
@@ -72,28 +74,32 @@ from vibe_ocr import OCRHelper
 ocr = OCRHelper()
 
 # 在整个图像中搜索（默认）
+
 result = ocr.find_text_in_image(
-    "screenshot.png",
-    "设置",
-    confidence_threshold=0.6
+"screenshot.png",
+"设置",
+confidence_threshold=0.6
 )
 
 # 只在右上角搜索（区域3）
+
 result = ocr.find_text_in_image(
-    "screenshot.png",
-    "设置",
-    confidence_threshold=0.6,
-    regions=[3]  # 指定区域
+"screenshot.png",
+"设置",
+confidence_threshold=0.6,
+regions=[3] # 指定区域
 )
 
 # 在屏幕上半部分搜索（区域1, 2, 3）
+
 result = ocr.find_text_in_image(
-    "screenshot.png",
-    "返回",
-    confidence_threshold=0.6,
-    regions=[1, 2, 3]
+"screenshot.png",
+"返回",
+confidence_threshold=0.6,
+regions=[1, 2, 3]
 )
-```
+
+````
 
 ### 2. capture_and_find_text
 
@@ -119,7 +125,7 @@ result = ocr.capture_and_find_text(
     confidence_threshold=0.6,
     regions=[7, 8, 9]
 )
-```
+````
 
 ### 3. find_and_click_text
 
@@ -158,12 +164,12 @@ success = ocr.find_and_click_text(
 
 ## 性能对比
 
-| 搜索范围 | 区域数量 | 相对速度 | 适用场景 |
-|---------|---------|---------|---------|
-| 全屏 | 无 (None) | 1x | 不确定位置 |
-| 单个区域 | 1 | 9x | 明确知道位置 |
-| 三个区域 | 3 | 3x | 大致知道位置 |
-| 半屏 | 3-6 | 2-3x | 上/下/左/右半屏 |
+| 搜索范围 | 区域数量  | 相对速度 | 适用场景        |
+| -------- | --------- | -------- | --------------- |
+| 全屏     | 无 (None) | 1x       | 不确定位置      |
+| 单个区域 | 1         | 9x       | 明确知道位置    |
+| 三个区域 | 3         | 3x       | 大致知道位置    |
+| 半屏     | 3-6       | 2-3x     | 上/下/左/右半屏 |
 
 ## 使用建议
 
@@ -262,7 +268,7 @@ def monitor_region(text, region, timeout=10):
         )
         if result["found"]:
             return True
-        time.sleep(0.5)
+        time.sleep(1)
 
     return False
 
@@ -326,8 +332,7 @@ A: 建议指定包含该文字的所有区域，或者使用全屏搜索。
 ## 更新日志
 
 - **v1.1.0** (2024-01-09)
-  - 新增区域搜索功能
-  - 支持3x3网格分割
-  - 自动坐标修正
-  - 性能提升3-9倍
-
+    - 新增区域搜索功能
+    - 支持3x3网格分割
+    - 自动坐标修正
+    - 性能提升3-9倍
