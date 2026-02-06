@@ -38,7 +38,7 @@ def should_preempt(state: WorldState) -> bool:
     Returns:
         True 如果检测到高优先级任务完成。
     """
-    return state.signals.get("task_complete_pos") is not None
+    return bool(state.signals.get("task_complete_pos"))
 
 
 def clear_signal(state: WorldState, key: str) -> None:
@@ -85,9 +85,16 @@ def action_request_task(state: WorldState) -> None:
     """
     request_el = state.signals.get("request_task_el")
     if not request_el:
+        logger.debug("领取任务动作跳过: request_task_el为空")
         return
 
-    request_el.click()
+    logger.info("执行领取任务动作: %s", request_el)
+    try:
+        clicked = request_el.click()
+    except Exception as exc:
+        logger.error("领取任务点击失败: %s", exc)
+        return
+    logger.info("领取任务点击结果: %s", clicked)
     sleep(1.5)
 
     tasks_available = False

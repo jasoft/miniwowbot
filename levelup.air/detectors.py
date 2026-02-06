@@ -39,6 +39,7 @@ async def scan_fast(state: WorldState) -> None:
     task_future = loop.run_in_executor(None, exists, state.templates["task_complete"])
     combat_future = loop.run_in_executor(None, exists, state.templates["in_dungeon"])
     task_pos, combat_pos = await asyncio.gather(task_future, combat_future)
+    task_pos = task_pos or None
 
     _set_signal(state.signals, "task_complete_pos", task_pos)
     _set_signal(state.signals, "in_combat", bool(combat_pos))
