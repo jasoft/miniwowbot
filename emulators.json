@@ -2,13 +2,13 @@
     "sessions": [
         {
             "name": "mage_alt",
-            "emulator": "192.168.1.150:5565",
+            "emulator": "127.0.0.1:5565",
             "configs": ["mage_alt"],
             "log": "log/autodungeon_mage_alt.log"
         },
         {
             "name": "main",
-            "emulator": "192.168.1.150:5555",
+            "emulator": "127.0.0.1:5555",
             "configs": [
                 "mage",
                 "rogue",

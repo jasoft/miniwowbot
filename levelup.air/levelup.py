@@ -23,9 +23,10 @@ from airtest.core.settings import Settings as ST
 # 添加父目录到路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from vibe_ocr import OCRHelper
+
 from color_helper import ColorHelper
 from game_actions import GameActions
-from vibe_ocr import OCRHelper
 
 # 配置 Airtest 图像识别策略：优先使用模板匹配，避免 SIFT/SURF 特征点不足导致的 OpenCV 报错
 # "tpl": 模板匹配 (Template Matching)
@@ -36,7 +37,10 @@ ST.FIND_TIMEOUT_TMP = 0.1  # type: ignore[assignment]
 
 # 配置日志
 logger = logging.getLogger("levelup")
-logger.setLevel(logging.INFO)
+logging.basicConfig(
+    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger.setLevel(logging.DEBUG)
 logging.getLogger("airtest").setLevel(logging.CRITICAL)
 
 # Bark通知配置
@@ -62,7 +66,7 @@ class GameEvent:
 
 class LevelUpEngine:
     def __init__(self):
-        self.ocr = OCRHelper()
+        self.ocr = OCRHelper(snapshot_func=snapshot)
         self.actions = GameActions(self.ocr)
         self.queue = PriorityQueue()
         self.running = True
@@ -259,6 +263,7 @@ class LevelUpEngine:
         pos = exists(self.templates["task_complete"])
         if pos:
             touch(pos)
+            logger.info(f"找到任务完成图标: {pos}, 点击")
         else:
             logger.warning("未找到任务完成图标，跳过")
             return
@@ -266,8 +271,11 @@ class LevelUpEngine:
         self.last_task_time = time.time()
         sleep(0.5)
         touch((363, 867))  # 完成任务
+        logger.info("任务完成")
+
         sleep(0.5)
         touch((363, 867))  # 接下一个
+        logger.info("接下一个任务")
         sleep(2)
 
     def handle_request_task(self, el):
@@ -307,7 +315,7 @@ class LevelUpEngine:
             if os.path.exists(temp_path):
                 os.remove(temp_path)
 
-        self.click_back()
+        self.back_to_main()
 
     def handle_track_task(self, _):
         """点击任务栏，驱动自动寻路或交任务"""
@@ -325,6 +333,9 @@ class LevelUpEngine:
 
     def handle_timeout_recovery(self, _):
         logger.warning("任务超时，执行补救强制导航")
+
+        self.back_to_main()
+        logger.info("点击第二个任务位置")
         touch((65, 265))  # 第一个任务位
         self.goto_next_place()
         self.last_task_time = time.time()
@@ -353,11 +364,11 @@ class LevelUpEngine:
                         fail_msg = "❌ 未找到免费按钮，副本难度太大, 无法自动通过"
                         logger.warning(fail_msg)
                         self.send_notification("副本助手 - 错误", fail_msg)
-                        self.click_back()
+                        self.back_to_main()
                     return
         except Exception as e:
             logger.error(f"导航异常: {e}")
-            self.click_back()
+            self.back_to_main()
 
     def sell_trash(self):
         touch((226, 1213))
@@ -365,9 +376,9 @@ class LevelUpEngine:
         touch((446, 1108))
         sleep(0.5)
         touch((469, 954))
-        self.click_back()
+        self.back_to_main()
 
-    def click_back(self, n=5):
+    def back_to_main(self, n=5):
         for _ in range(n):
             touch((719, 1))
 
