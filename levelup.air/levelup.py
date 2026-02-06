@@ -1,6 +1,8 @@
 # -*- encoding=utf8 -*-
 """Levelup behavior tree entrypoint."""
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import asyncio
@@ -10,8 +12,13 @@ import sys
 
 from airtest.core.api import auto_setup
 
-# Add project root to sys.path for shared modules.
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add current directory and project root to sys.path for shared modules.
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
+if CURRENT_DIR not in sys.path:
+    sys.path.insert(0, CURRENT_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 from config import configure_airtest
 from engine import LevelUpEngine
