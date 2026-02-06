@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 
 from airtest.core.api import snapshot
 
@@ -48,6 +49,7 @@ class LevelUpEngine:
         self._tree = build_behavior_tree(logger)
         self._running = True
         self._action_lock = asyncio.Lock()
+        self._last_idle_log = 0.0
 
     async def run(self) -> None:
         """运行引擎循环。"""
@@ -87,6 +89,13 @@ class LevelUpEngine:
         while self._running:
             rule = self._tree.select(self._state)
             if rule is None:
+                now = time.time()
+                if now - self._last_idle_log > 5:
+                    self._logger.debug(
+                        "无匹配规则，当前信号: %s",
+                        self._state.signals,
+                    )
+                    self._last_idle_log = now
                 await asyncio.sleep(DECISION_INTERVAL)
                 continue
 
