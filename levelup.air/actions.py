@@ -65,6 +65,7 @@ def action_task_completion(state: WorldState) -> None:
     logger.info("点击任务完成图标: %s", pos)
 
     state.last_task_time = time.time()
+    logger.debug("任务完成后更新last_task_time: %.2f", state.last_task_time)
     sleep(2)
     touch((363, 867))
     logger.info("任务已完成")
@@ -177,6 +178,7 @@ def action_timeout_recovery(state: WorldState) -> None:
     touch((65, 265))
     goto_next_place(state)
     state.last_task_time = time.time()
+    logger.debug("超时恢复后更新last_task_time: %.2f", state.last_task_time)
 
 
 def action_equip_item(state: WorldState) -> None:

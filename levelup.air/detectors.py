@@ -45,7 +45,13 @@ async def scan_fast(state: WorldState) -> None:
     _set_signal(state.signals, "in_combat", bool(combat_pos))
 
     if combat_pos:
+        previous = state.last_task_time
         state.last_task_time = time.time()
+        logger.debug(
+            "战斗中重置last_task_time: %.2f -> %.2f",
+            previous,
+            state.last_task_time,
+        )
     logger.debug(
         "scan_fast完成: task_complete=%s in_combat=%s cost=%.3fs",
         bool(task_pos),

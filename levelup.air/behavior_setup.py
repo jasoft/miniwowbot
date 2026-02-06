@@ -33,9 +33,25 @@ def build_behavior_tree(logger) -> BehaviorTree:
         return state.signals.get("task_complete_pos") is not None
 
     def should_timeout(state: WorldState) -> bool:
+        now = time.time()
+        last_log = state.signals.get("timeout_debug_ts", 0.0)
+
         if state.signals.get("in_combat"):
+            if now - last_log > 5:
+                logger.debug("超时检查跳过: 战斗中")
+                state.signals["timeout_debug_ts"] = now
             return False
-        return time.time() - state.last_task_time > TASK_TIMEOUT
+
+        elapsed = now - state.last_task_time
+        if now - last_log > 5:
+            logger.debug(
+                "超时检查: elapsed=%.2fs threshold=%s last_task_time=%.2f",
+                elapsed,
+                TASK_TIMEOUT,
+                state.last_task_time,
+            )
+            state.signals["timeout_debug_ts"] = now
+        return elapsed > TASK_TIMEOUT
 
     def has_request_task(state: WorldState) -> bool:
         if state.signals.get("in_combat"):
