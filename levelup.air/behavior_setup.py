@@ -56,7 +56,7 @@ def build_behavior_tree(logger) -> BehaviorTree:
     def has_request_task(state: WorldState) -> bool:
         if state.signals.get("in_combat"):
             return False
-        return state.signals.get("request_task_el") is not None
+        return bool(state.signals.get("request_task_el"))
 
     def has_xp_full(state: WorldState) -> bool:
         if state.signals.get("in_combat"):
