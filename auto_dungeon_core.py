@@ -50,6 +50,7 @@ from auto_dungeon_ui import (
     sell_trashes,
 )
 from auto_dungeon_utils import check_stop_signal, sleep
+from coordinates import SKILL_POSITIONS as DEFAULT_SKILL_POSITIONS
 from database import DungeonProgressDB
 from error_dialog_monitor import ErrorDialogMonitor
 from logger_config import setup_logger_from_config
@@ -70,6 +71,32 @@ logging.getLogger("ocr_helper").setLevel(logging.DEBUG)
 
 
 # ====== 核心业务函数 ======
+
+# 兼容层：保留历史上可 monkeypatch 的符号，供旧测试与外部脚本使用。
+wait = auto_dungeon_combat.wait
+touch = auto_dungeon_combat.touch
+is_main_world = auto_dungeon_navigation.is_main_world
+SKILL_POSITIONS = DEFAULT_SKILL_POSITIONS
+
+
+def auto_combat(completed_dungeons: int = 0, total_dungeons: int = 0) -> None:
+    """执行自动战斗并兼容历史 monkeypatch 行为。
+
+    Args:
+        completed_dungeons: 当前已完成副本数。
+        total_dungeons: 总副本数，0 表示按时间进度模式运行。
+    """
+    auto_dungeon_combat.find_text_and_click_safe = find_text_and_click_safe
+    auto_dungeon_combat.wait = wait
+    auto_dungeon_combat.check_stop_signal = check_stop_signal
+    auto_dungeon_combat.is_main_world = is_main_world
+    auto_dungeon_combat.touch = touch
+    auto_dungeon_combat.sleep = sleep
+    auto_dungeon_combat.SKILL_POSITIONS = SKILL_POSITIONS
+    auto_dungeon_combat.auto_combat(
+        completed_dungeons=completed_dungeons,
+        total_dungeons=total_dungeons,
+    )
 
 
 def process_dungeon(
