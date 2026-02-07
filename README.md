@@ -47,6 +47,20 @@ python view_progress.py -c main_character
 python view_progress.py -c alt_character
 ```
 
+### Web Dashboard（Streamlit）
+
+> 用于实时观察运行状态（模拟器在线情况 / 当前职业与副本进度 / 进度统计）。
+
+```bash
+# 在项目根目录执行（推荐用 uv 保证依赖一致）
+uv run streamlit run view_progress_streamlit.py --server.headless true --server.port 8501
+
+# 浏览器打开
+# http://127.0.0.1:8501
+```
+
+说明：运行时监控需要本机可执行 `adb`（用于 `adb devices` 检测在线设备）。
+
 ## 配置
 
 ### 多角色配置（新增）

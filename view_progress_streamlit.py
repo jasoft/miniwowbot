@@ -10,6 +10,7 @@ import pandas as pd
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
+from dashboard_runtime_status import render_runtime_monitor
 from database import DungeonProgressDB
 from view_progress_dashboard import (
     build_config_progress,
@@ -201,17 +202,42 @@ def _render_dashboard(context: dict) -> None:
 def main() -> None:
     st.set_page_config(page_title=PAGE_TITLE, page_icon="📊", layout="wide")
     st.title(PAGE_TITLE)
-    refresh_count = _render_auto_refresh(AUTO_REFRESH_MS)
-    st.caption(f"数据每 5 秒自动刷新 (第 {refresh_count} 次), 随时掌握当前进度")
 
     with st.sidebar:
         st.header("面板设置")
+        auto_refresh = st.checkbox("自动刷新", value=True)
+        refresh_ms = st.number_input(
+            "刷新间隔 (ms)",
+            min_value=1000,
+            max_value=60000,
+            value=AUTO_REFRESH_MS,
+            step=1000,
+        )
+        emulators_path = st.text_input("模拟器配置路径", "emulators.json")
+        log_tail_lines = st.slider("日志预览行数", 50, 1000, 200, step=50)
+
         db_path = st.text_input("数据库路径", "database/dungeon_progress.db")
         config_dir = st.text_input("配置目录", "configs")
         recent_days = st.slider("最近天数", 3, 30, 7)
         include_special = st.checkbox("包含特殊副本 (每日收集)")
         if st.button("刷新配置缓存"):
             _load_configs_cached.clear()
+
+    refresh_count = 0
+    if auto_refresh:
+        refresh_count = _render_auto_refresh(int(refresh_ms))
+        st.caption(f"数据每 {int(refresh_ms) // 1000} 秒自动刷新 (第 {refresh_count} 次)")
+    else:
+        st.caption("自动刷新已关闭")
+
+    render_runtime_monitor(
+        emulators_path=emulators_path,
+        config_dir=config_dir,
+        db_path=db_path,
+        refresh_interval_ms=int(refresh_ms),
+        log_tail_lines=int(log_tail_lines),
+    )
+    st.divider()
 
     if not os.path.exists(db_path):
         st.error(f"未找到数据库文件: {db_path}")
