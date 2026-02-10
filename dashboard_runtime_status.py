@@ -332,11 +332,11 @@ def render_runtime_monitor(
     st.dataframe(df[display_cols], hide_index=True, width='stretch')
 
     with st.expander('🔍 日志检查器'):
-        names = [f'{r[\"会话\"]} ({r[\"模拟器\"]})' for r in rows]
+        names = [f"{r['会话']} ({r['模拟器']})" for r in rows]
         selected = st.selectbox('选择会话', names)
         idx = names.index(selected) if selected in names else 0
         r = rows[idx]
-        st.text(f'Log: {r.get(\"_log_path\",\"\")}')
+        st.text(f"Log: {r.get('_log_path', '')}")
         st.text_area(
             f'最后 {log_tail_lines} 行',
             value=r.get('_log_text', ''),

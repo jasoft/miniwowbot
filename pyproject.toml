@@ -27,11 +27,7 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = [
-    "pyright>=1.1.407",
- "pytest>=9.0.2",
- "pytest-asyncio>=1.3.0",
-]
+dev = ["pyright>=1.1.407", "pytest>=9.0.2", "pytest-asyncio>=1.3.0"]
 
 [tool.ruff]
 line-length = 100
@@ -45,6 +41,14 @@ required-environments = [
     # "sys_platform == 'win32' and platform_machine == 'ARM64'",
 ]
 
+
 # 关键：把 pywin32 覆盖成“仅 Windows 安装”
 # 这样就算有上游把 pywin32 误写成跨平台依赖，也会被你这里纠正回去
 override-dependencies = ["pywin32==311; sys_platform == 'win32'"]
+
+[tool.poe.tasks]
+web = "uv run streamlit run dashboard_runtime_status.py"
+stats = "uv run check_progress.py"
+cron = "uv run cron_run_all_dungeons.py"
+test = "pytest tests/"
+lint = "ruff check . && pyright"
