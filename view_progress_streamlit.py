@@ -63,10 +63,13 @@ def _render_summary(summary: dict) -> None:
         ranking_lines = []
         for idx, item in enumerate(ranking, 1):
             colored_label = _class_label(item["config_name"], item.get("class_name"))
-            ranking_lines.append(
-                f"{idx}. {colored_label} — 计划内完成 {item['completed']} / 总记录 {item['actual_completed']}"
+            line_html = (
+                f"<div style='margin-bottom: 4px;'>"
+                f"{idx}. {colored_label} — 已完成 {item['completed']} / 需完成 {item.get('total_planned', 0)}"
+                f"</div>"
             )
-        st.markdown("<br/>".join(ranking_lines), unsafe_allow_html=True)
+            ranking_lines.append(line_html)
+        st.markdown("".join(ranking_lines), unsafe_allow_html=True)
 
 
 def _render_recent_stats(recent_stats):
