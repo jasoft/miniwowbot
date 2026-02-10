@@ -202,6 +202,7 @@ class DailyCollectManager:
 
     def _claim_event_rewards(self):
         """领取各种主题奖励"""
+
         self.logger.info("领取各种主题奖励[海盗船,法师塔]")
         back_to_main()
         find_text_and_click("活动", regions=[3])
@@ -217,6 +218,11 @@ class DailyCollectManager:
             if res:
                 for _ in range(5):
                     touch(res["center"])
+                    sleep(CLICK_INTERVAL)
+            else:
+                self.logger.warning("⚠️ 未找到上缴按钮, fallback to position click")
+                for _ in range(5):
+                    touch((360, 640))
                     sleep(CLICK_INTERVAL)
 
             find_text_and_click("领取", regions=[9])

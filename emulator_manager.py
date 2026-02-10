@@ -119,6 +119,14 @@ class EmulatorConnectionManager:
             self.logger.error(f"[ADB] 获取设备列表失败: {exc}")
             return {}
 
+    def get_adb_devices(self) -> dict[str, str]:
+        """兼容旧接口的 ADB 设备列表获取方法。
+
+        Returns:
+            dict[str, str]: 设备序列号到状态的映射。
+        """
+        return self.get_devices()
+
     def is_connected(self, emulator: str) -> bool:
         """检查模拟器是否已连接"""
         devices = self.get_devices()
@@ -236,6 +244,25 @@ class EmulatorConnectionManager:
             except Exception:
                 pass
         return name
+
+    def get_emulator_connection_string(
+        self,
+        emulator_name: str,
+        adb_host: str = "127.0.0.1",
+        adb_port: int = 5037,
+    ) -> str:
+        """获取 Airtest 连接字符串。
+
+        Args:
+            emulator_name: 模拟器地址，如 '127.0.0.1:5555'。
+            adb_host: ADB 服务器地址。
+            adb_port: ADB 服务器端口。
+
+        Returns:
+            str: Airtest 连接字符串。
+        """
+        emulator = self._normalize_emulator(emulator_name)
+        return f"Android://{adb_host}:{adb_port}/{emulator}"
 
     def get_target_emulator(self) -> Optional[str]:
         """获取目标模拟器地址"""

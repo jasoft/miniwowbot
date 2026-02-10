@@ -43,19 +43,60 @@ def _get_connection_string(emulator_name: Optional[str] = None) -> str:
 
         # 获取设备列表
         devices = emulator_manager.get_adb_devices()
-        if emulator_name not in devices:
+        resolved = _resolve_emulator_alias(emulator_name, devices)
+        if resolved is None:
+            if emulator_manager.connect(emulator_name):
+                devices = emulator_manager.get_adb_devices()
+                resolved = _resolve_emulator_alias(emulator_name, devices)
+
+        if resolved is None:
             logger.warning(f"⚠️ 模拟器 {emulator_name} 不在设备列表中")
             logger.info(f"   可用设备: {list(devices.keys()) if devices else '无'}")
             raise RuntimeError(f"模拟器 {emulator_name} 不可用")
 
-        connection_string = emulator_manager.get_emulator_connection_string(emulator_name)
-        logger.info(f"📱 连接到模拟器: {emulator_name}")
+        if devices.get(resolved) != "device":
+            logger.warning(f"⚠️ 模拟器 {resolved} 状态异常: {devices.get(resolved)}")
+            logger.info(f"   可用设备: {list(devices.keys()) if devices else '无'}")
+            raise RuntimeError(f"模拟器 {resolved} 不可用")
+
+        connection_string = emulator_manager.get_emulator_connection_string(resolved)
+        logger.info(f"📱 连接到模拟器: {resolved}")
         logger.info(f"   连接字符串: {connection_string}")
     else:
         connection_string = "Android:///"
         logger.info("📱 使用默认连接字符串")
 
     return connection_string
+
+
+def _resolve_emulator_alias(
+    emulator_name: str, devices: dict[str, str]
+) -> Optional[str]:
+    """尝试解析模拟器别名（如本地端口映射）。
+
+    Args:
+        emulator_name: 用户输入的模拟器地址。
+        devices: ADB 设备列表。
+
+    Returns:
+        Optional[str]: 解析后的设备名称。
+    """
+    if emulator_name in devices:
+        return emulator_name
+
+    if ":" in emulator_name:
+        host, port = emulator_name.rsplit(":", 1)
+        if port.isdigit():
+            local_candidate = f"127.0.0.1:{port}"
+            if local_candidate in devices:
+                logger.warning(
+                    "⚠️ 模拟器 %s 不在列表中，使用本地映射 %s",
+                    emulator_name,
+                    local_candidate,
+                )
+                return local_candidate
+
+    return None
 
 
 def draw_regions(image):

@@ -6,14 +6,16 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from airtest.core.api import touch
+
+from auto_dungeon_config import CLICK_INTERVAL
 from auto_dungeon_container import get_container
 from auto_dungeon_utils import sleep
-from auto_dungeon_config import CLICK_INTERVAL
 from coordinates import BACK_BUTTON
 
 logger = logging.getLogger(__name__)
 
 # ====== 文本查找函数 ======
+
 
 def find_text(*args, **kwargs) -> Optional[Dict[str, Any]]:
     """文本查找"""
@@ -37,6 +39,7 @@ def find_text_and_click(*args, **kwargs) -> bool:
     """文本查找并点击"""
     ga = get_container().game_actions
     if ga:
+        logger.info(f"🔍 查找并点击文本: {args}")
         return ga.find_text_and_click(*args, **kwargs)
     raise RuntimeError("GameActions 未初始化")
 
