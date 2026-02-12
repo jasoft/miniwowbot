@@ -4,16 +4,17 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from collections import defaultdict
-import hashlib
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Sequence, Tuple
 
-from database import DungeonProgressDB
-from database.dungeon_db import DungeonProgress, SPECIAL_ZONE_NAMES
 from peewee import fn
+
+from database import DungeonProgressDB
+from database.dungeon_db import SPECIAL_ZONE_NAMES, DungeonProgress
 
 ConfigDict = Dict[str, dict]
 
@@ -58,15 +59,10 @@ def load_configurations(config_dir: str = "configs") -> ConfigDict:
     return configs
 
 
-def fetch_today_records(
-    db: DungeonProgressDB, include_special: bool = False
-) -> List[dict]:
+def fetch_today_records(db: DungeonProgressDB, include_special: bool = False) -> List[dict]:
     """查询今天所有已完成副本的记录列表。"""
     today = db.get_today_date()
-    conditions = (
-        (DungeonProgress.date == today)
-        & (DungeonProgress.completed == 1)
-    )
+    conditions = (DungeonProgress.date == today) & (DungeonProgress.completed == 1)
     if not include_special and SPECIAL_ZONE_NAMES:
         conditions &= ~(DungeonProgress.zone_name.in_(SPECIAL_ZONE_NAMES))
 
@@ -92,9 +88,7 @@ def fetch_today_records(
     ]
 
 
-def build_config_progress(
-    configs: ConfigDict, today_records: Sequence[dict]
-) -> List[dict]:
+def build_config_progress(configs: ConfigDict, today_records: Sequence[dict]) -> List[dict]:
     """将配置文件与今日进度合并, 生成面板展示所需的数据。"""
     completion_map: Dict[str, set] = defaultdict(set)
     completion_times: Dict[Tuple[str, str, str], object] = {}
@@ -108,11 +102,14 @@ def build_config_progress(
     progress_data: List[dict] = []
 
     for config_name in sorted(all_configs):
-        config_payload = configs.get(config_name, {
-            "class_name": "未知",
-            "description": "",
-            "zones": [],
-        })
+        config_payload = configs.get(
+            config_name,
+            {
+                "class_name": "未知",
+                "description": "",
+                "zones": [],
+            },
+        )
         known_pairs = {
             (zone["zone_name"], dungeon["name"])
             for zone in config_payload.get("zones", [])
@@ -136,9 +133,7 @@ def build_config_progress(
                     continue
 
                 dungeon_name = dungeon["name"]
-                is_completed = (
-                    (zone_name, dungeon_name) in completion_map.get(config_name, set())
-                )
+                is_completed = (zone_name, dungeon_name) in completion_map.get(config_name, set())
                 planned_count += 1
                 total_planned += 1
                 if is_completed:
@@ -170,9 +165,7 @@ def build_config_progress(
             {
                 "zone_name": zone_name,
                 "dungeon_name": dungeon_name,
-                "completed_at": completion_times.get(
-                    (config_name, zone_name, dungeon_name)
-                ),
+                "completed_at": completion_times.get((config_name, zone_name, dungeon_name)),
             }
             for zone_name, dungeon_name in completion_map.get(config_name, set())
             if (zone_name, dungeon_name) not in known_pairs
@@ -186,9 +179,7 @@ def build_config_progress(
                 "zones": zones_output,
                 "total_planned": total_planned,
                 "completed_planned": completed_planned,
-                "completion_rate": (
-                    completed_planned / total_planned if total_planned else 0.0
-                ),
+                "completion_rate": (completed_planned / total_planned if total_planned else 0.0),
                 "extra_completions": extra_completions,
                 "actual_completed": len(completion_map.get(config_name, set())),
             }
@@ -216,21 +207,14 @@ def compute_recent_totals(
     if days <= 0:
         return []
 
-    target_dates = [
-        (date.today() - timedelta(days=offset)).isoformat() for offset in range(days)
-    ]
+    target_dates = [(date.today() - timedelta(days=offset)).isoformat() for offset in range(days)]
 
-    conditions = (
-        (DungeonProgress.date.in_(target_dates))
-        & (DungeonProgress.completed == 1)
-    )
+    conditions = (DungeonProgress.date.in_(target_dates)) & (DungeonProgress.completed == 1)
     if not include_special and SPECIAL_ZONE_NAMES:
         conditions &= ~(DungeonProgress.zone_name.in_(SPECIAL_ZONE_NAMES))
 
     query = (
-        DungeonProgress.select(
-            DungeonProgress.date, fn.COUNT(DungeonProgress.id).alias("count")
-        )
+        DungeonProgress.select(DungeonProgress.date, fn.COUNT(DungeonProgress.id).alias("count"))
         .where(conditions)
         .group_by(DungeonProgress.date)
     )
@@ -242,9 +226,7 @@ def compute_recent_totals(
 def summarize_progress(config_progress: Sequence[dict]) -> dict:
     """对职业进度做整体汇总, 便于在仪表盘顶层展示。"""
     total_planned = sum(item.get("total_planned", 0) for item in config_progress)
-    total_completed = sum(
-        item.get("completed_planned", 0) for item in config_progress
-    )
+    total_completed = sum(item.get("completed_planned", 0) for item in config_progress)
     completion_rate = total_completed / total_planned if total_planned else 0.0
 
     ranking = sorted(
@@ -254,6 +236,7 @@ def summarize_progress(config_progress: Sequence[dict]) -> dict:
                 "class_name": item.get("class_name", "未知"),
                 "completed": item.get("completed_planned", 0),
                 "actual_completed": item.get("actual_completed", 0),
+                "total_planned": item.get("total_planned", 0),
             }
             for item in config_progress
         ],
