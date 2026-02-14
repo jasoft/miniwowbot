@@ -40,9 +40,7 @@ class TestEnsureConnectedTimeout:
              patch.object(manager, "connect", return_value=False), \
              patch.object(manager, "_run_start_cmd", return_value=True):
 
-            start = time.time()
             result = manager.ensure_connected("127.0.0.1:5555", max_retries=5)
-            elapsed = time.time() - start
 
             assert result is False
 
@@ -62,7 +60,7 @@ class TestEnsureConnectedBehavior:
 
         # 模拟前2次失败，第3次成功（connect返回True后is_connected也返回True）
         with patch.object(manager, "is_connected", side_effect=[False, True]), \
-             patch.object(manager, "connect", return_value=True) as mock_connect, \
+             patch.object(manager, "connect", return_value=True), \
              patch.object(manager, "_run_start_cmd", return_value=True):
 
             result = manager.ensure_connected("127.0.0.1:5555", max_retries=5)
