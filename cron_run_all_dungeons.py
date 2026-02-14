@@ -9,6 +9,7 @@
 
 import json
 import logging
+import locale
 import os
 import platform
 import subprocess
@@ -460,16 +461,19 @@ def run_poe_stats(logger: logging.Logger) -> bool:
             ["poe", "stats"],
             cwd=str(SCRIPT_DIR),
             capture_output=True,
-            text=True,
+            text=False,
         )
     except Exception as exc:
         logger.error(f"❌ 执行 `poe stats` 异常: {exc}")
         return False
 
-    if result.stdout.strip():
-        logger.info(f"`poe stats` 输出:\n{result.stdout.strip()}")
-    if result.stderr.strip():
-        logger.warning(f"`poe stats` 错误输出:\n{result.stderr.strip()}")
+    stdout_text = decode_process_output(result.stdout)
+    stderr_text = decode_process_output(result.stderr)
+
+    if stdout_text.strip():
+        logger.info(f"`poe stats` 输出:\n{stdout_text.strip()}")
+    if stderr_text.strip():
+        logger.warning(f"`poe stats` 错误输出:\n{stderr_text.strip()}")
 
     if result.returncode == 0:
         logger.info("✅ `poe stats` 返回 0，判定全部完成")
@@ -477,6 +481,32 @@ def run_poe_stats(logger: logging.Logger) -> bool:
 
     logger.warning(f"⚠️ `poe stats` 返回 {result.returncode}，存在未完成副本")
     return False
+
+
+def decode_process_output(raw_output: Optional[bytes]) -> str:
+    """安全解码子进程输出字节流。
+
+    Args:
+        raw_output: 子进程原始输出字节。
+
+    Returns:
+        解码后的字符串；无法精确解码时用替换字符兜底，保证不抛异常。
+    """
+    if raw_output is None:
+        return ""
+
+    candidate_encodings = (
+        "utf-8",
+        locale.getpreferredencoding(False) or "utf-8",
+        "gbk",
+    )
+    for encoding in candidate_encodings:
+        try:
+            return raw_output.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+
+    return raw_output.decode("utf-8", errors="replace")
 
 
 def check_ocr_health(logger: logging.Logger) -> bool:
