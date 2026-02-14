@@ -72,12 +72,12 @@ def auto_combat(completed_dungeons: int = 0, total_dungeons: int = 0) -> None:
                 last_update = current_time
 
             if builtin_auto_combat_activated:
-                sleep(1)
+                sleep(1, "等待内置自动战斗")
                 continue
 
             positions = SKILL_POSITIONS.copy()
             touch(positions[4])
-            sleep(1)
+            sleep(1, "等待下一次攻击")
 
         if total_dungeons > 0:
             pbar.update(1)

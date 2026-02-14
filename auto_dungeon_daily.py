@@ -200,6 +200,7 @@ class DailyCollectManager:
         except Exception as e:
             self.logger.error(f"❌ 猎魔试炼失败: {e}, 活动可能已结束")
 
+    def _claim_event_rewards(self):
         """领取各种主题奖励"""
 
         self.logger.info("领取各种主题奖励[海盗船,法师塔]")
