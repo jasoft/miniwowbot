@@ -158,13 +158,21 @@ class EmulatorConnectionManager:
 
     # ==================== 模拟器连接保障 ====================
 
-    def ensure_connected(self, emulator: str, max_retries: int = 100) -> bool:
+    def ensure_connected(
+        self,
+        emulator: str,
+        max_retries: int = 3,
+        wait_base: int = 15,
+        max_wait: int = 60,
+    ) -> bool:
         """
         确保模拟器已连接
 
         Args:
             emulator: 模拟器地址，如 '192.168.1.150:5555'
-            max_retries: 最大重试次数
+            max_retries: 最大重试次数，默认3次（之前100次会导致长时间卡住）
+            wait_base: 基础等待时间（秒），默认15秒
+            max_wait: 最大等待时间（秒），默认60秒
 
         Returns:
             bool: 连接成功返回 True
@@ -198,7 +206,8 @@ class EmulatorConnectionManager:
                     self.logger.error(f"[Emulator] 启动模拟器命令执行失败: {self.start_cmd}")
                     raise EmulatorConnectionError(f"无法启动模拟器: {self.start_cmd}")
 
-                wait_time = (attempt + 1) * 10
+                # 使用固定等待时间，避免累加导致过长等待
+                wait_time = min(wait_base, max_wait)
                 self.logger.info(f"[Emulator] 等待 {wait_time} 秒...")
                 time.sleep(wait_time)
 
