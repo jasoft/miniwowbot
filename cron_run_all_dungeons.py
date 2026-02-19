@@ -19,6 +19,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from shutil import which
 from typing import Any, Optional, Sequence
 
 import dotenv
@@ -31,6 +32,8 @@ LOG_IDLE_TIMEOUT_SECONDS = 60
 MONITOR_POLL_INTERVAL_SECONDS = 5
 FLOW_MAX_RETRIES = 5
 SESSION_START_GAP_SECONDS = 1
+SESSION_MAX_IDLE_RESTARTS = 3
+ADB_COMMAND_TIMEOUT_SECONDS = 15
 
 if not IS_WINDOWS:
     os.environ["PATH"] = f"/opt/homebrew/bin:{os.environ.get('PATH', '')}"
@@ -301,6 +304,128 @@ def stop_powershell(
         logger.warning(f"⚠️ 停止会话 {session} 异常: {exc}")
 
 
+def stop_session(runtime: SessionRuntime, logger: logging.Logger) -> None:
+    """停止一个会话的宿主 shell/tmux。
+
+    Args:
+        runtime: 会话运行态对象。
+        logger: 日志对象。
+
+    Returns:
+        None
+    """
+    if IS_WINDOWS:
+        stop_powershell(runtime.process, runtime.task.name, logger)
+    else:
+        kill_tmux_session(runtime.task.name, logger)
+
+
+def _resolve_adb_path() -> str:
+    """解析当前环境可用的 ADB 可执行文件路径。
+
+    Returns:
+        ADB 可执行文件绝对路径，未找到时返回 ``adb``。
+    """
+    adb_name = "adb.exe" if IS_WINDOWS else "adb"
+    return which(adb_name) or "adb"
+
+
+def stop_emulator(emulator: str, logger: logging.Logger) -> None:
+    """尝试停止指定模拟器实例。
+
+    优先执行 ``adb -s <emulator> emu kill``，随后执行
+    ``adb disconnect <emulator>`` 作为兜底，保证异常会话不会持续占用连接。
+
+    Args:
+        emulator: 模拟器地址。
+        logger: 日志对象。
+
+    Returns:
+        None
+    """
+    if not emulator:
+        return
+
+    adb_path = _resolve_adb_path()
+    commands = [
+        ([adb_path, "-s", emulator, "emu", "kill"], "emu kill"),
+        ([adb_path, "disconnect", emulator], "disconnect"),
+    ]
+
+    for cmd, action_name in commands:
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=False,
+                timeout=ADB_COMMAND_TIMEOUT_SECONDS,
+            )
+            output = decode_process_output(result.stdout).strip()
+            error = decode_process_output(result.stderr).strip()
+            if result.returncode == 0:
+                message = output or "OK"
+                logger.info(f"🛑 模拟器 {emulator} {action_name} 成功: {message}")
+            else:
+                detail = error or output or f"exit={result.returncode}"
+                logger.warning(f"⚠️ 模拟器 {emulator} {action_name} 失败: {detail}")
+        except FileNotFoundError:
+            logger.error("❌ 未找到 adb 命令，无法执行模拟器停止")
+            return
+        except subprocess.TimeoutExpired:
+            logger.warning(
+                f"⚠️ 模拟器 {emulator} {action_name} 超时（>{ADB_COMMAND_TIMEOUT_SECONDS}s）"
+            )
+        except Exception as exc:
+            logger.warning(f"⚠️ 模拟器 {emulator} {action_name} 异常: {exc}")
+
+
+def recover_failed_runtime(
+    runtime: SessionRuntime, reason: str, logger: logging.Logger
+) -> None:
+    """处理单个会话故障并执行恢复清理。
+
+    Args:
+        runtime: 会话运行态对象。
+        reason: 故障原因说明。
+        logger: 日志对象。
+
+    Returns:
+        None
+    """
+    logger.error(
+        f"❌ 会话 {runtime.task.name} 发生故障（{reason}），"
+        "将关闭子 shell 与对应模拟器"
+    )
+    stop_session(runtime, logger)
+    stop_emulator(runtime.task.emulator, logger)
+    runtime.finished_exit_code = 1
+
+
+def stop_other_alive_sessions(
+    runtimes: Sequence[SessionRuntime],
+    failed_runtime: SessionRuntime,
+    logger: logging.Logger,
+) -> None:
+    """在某会话故障后停止其余仍运行的会话，准备整轮重启。
+
+    Args:
+        runtimes: 会话运行态列表。
+        failed_runtime: 已故障的会话。
+        logger: 日志对象。
+
+    Returns:
+        None
+    """
+    for runtime in runtimes:
+        if runtime is failed_runtime:
+            continue
+        if is_session_alive(runtime):
+            logger.warning(f"⚠️ 停止会话 {runtime.task.name}，准备重启整轮流程")
+            stop_session(runtime, logger)
+            if runtime.finished_exit_code is None:
+                runtime.finished_exit_code = 1
+
+
 def read_log_signature(logfile: Path) -> tuple[float, int]:
     """读取日志签名（修改时间+大小）。
 
@@ -356,16 +481,21 @@ def restart_session(runtime: SessionRuntime, logger: logging.Logger) -> bool:
     Returns:
         是否重启成功。
     """
+    if runtime.restart_count >= SESSION_MAX_IDLE_RESTARTS:
+        logger.error(
+            f"❌ 会话 {runtime.task.name} 日志停滞重启次数已达上限 "
+            f"({SESSION_MAX_IDLE_RESTARTS})"
+        )
+        return False
+
     runtime.restart_count += 1
     logger.warning(
         f"⚠️ 会话 {runtime.task.name} 连续 {LOG_IDLE_TIMEOUT_SECONDS} 秒无日志更新，"
         f"准备重启（第 {runtime.restart_count} 次）"
     )
 
-    if IS_WINDOWS:
-        stop_powershell(runtime.process, runtime.task.name, logger)
-    else:
-        kill_tmux_session(runtime.task.name, logger)
+    stop_session(runtime, logger)
+    stop_emulator(runtime.task.emulator, logger)
 
     return start_session(runtime, logger)
 
@@ -405,15 +535,15 @@ def get_session_exit_code(runtime: SessionRuntime) -> int:
     return 0
 
 
-def monitor_sessions(runtimes: Sequence[SessionRuntime], logger: logging.Logger) -> None:
-    """监控所有会话，发现日志停滞即重启。
+def monitor_sessions(runtimes: Sequence[SessionRuntime], logger: logging.Logger) -> bool:
+    """监控所有会话，发现异常时终止本轮并交由上层重启。
 
     Args:
         runtimes: 会话运行态列表。
         logger: 日志对象。
 
     Returns:
-        None
+        全部会话正常结束返回 ``True``；出现会话故障返回 ``False``。
     """
     logger.info("👀 进入会话监控循环，等待所有 shell 窗口结束...")
     while True:
@@ -429,8 +559,9 @@ def monitor_sessions(runtimes: Sequence[SessionRuntime], logger: logging.Logger)
                     runtime.last_activity_ts = now_ts
                 elif now_ts - runtime.last_activity_ts >= LOG_IDLE_TIMEOUT_SECONDS:
                     if not restart_session(runtime, logger):
-                        runtime.finished_exit_code = 1
-                        logger.error(f"❌ 会话 {runtime.task.name} 重启失败")
+                        recover_failed_runtime(runtime, "日志停滞且重启失败", logger)
+                        stop_other_alive_sessions(runtimes, runtime, logger)
+                        return False
             else:
                 if runtime.finished_exit_code is None:
                     runtime.finished_exit_code = get_session_exit_code(runtime)
@@ -438,10 +569,14 @@ def monitor_sessions(runtimes: Sequence[SessionRuntime], logger: logging.Logger)
                         f"🏁 会话 {runtime.task.name} 已结束，"
                         f"exit code={runtime.finished_exit_code}"
                     )
+                    if runtime.finished_exit_code != 0:
+                        recover_failed_runtime(runtime, "子 shell 非 0 退出", logger)
+                        stop_other_alive_sessions(runtimes, runtime, logger)
+                        return False
 
         if alive_count == 0:
             logger.info("✅ 所有 shell 窗口均已结束")
-            return
+            return True
 
         time.sleep(MONITOR_POLL_INTERVAL_SECONDS)
 
@@ -629,7 +764,10 @@ def run_single_flow(tasks: Sequence[SessionTask], logger: logging.Logger) -> boo
         logger.error("❌ 本轮没有任何会话成功启动")
         return False
 
-    monitor_sessions(runtimes, logger)
+    if not monitor_sessions(runtimes, logger):
+        logger.warning("⚠️ 会话执行异常，本轮流程终止，准备进入下一轮重试")
+        return False
+
     return run_poe_stats(logger)
 
 
