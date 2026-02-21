@@ -8,12 +8,10 @@ import asyncio
 import os
 from dotenv import load_dotenv
 import httpx
-import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import psutil
 from textual import on
 from textual.app import App, ComposeResult
 from textual.containers import Grid, Horizontal, Vertical
@@ -423,19 +421,6 @@ class AutoDungeonTUI(App):
             return None
         return self.sessions.get(self.selected_session_name)
 
-    def _lookup_session_pid(self, session_name: str) -> int | None:
-        """按会话名扫描并返回运行中的主进程 PID。"""
-        for proc in psutil.process_iter(["pid", "cmdline"]):
-            try:
-                cmdline = proc.info.get("cmdline") or []
-                cmd = " ".join(cmdline)
-                if "run_dungeons.py" not in cmd:
-                    continue
-                if f"--session {session_name}" in cmd:
-                    return int(proc.info["pid"])
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                continue
-        return None
 
     @on(DataTable.RowSelected, "#runtime-monitor")
     def on_runtime_row_selected(self, event: DataTable.RowSelected) -> None:
@@ -474,76 +459,59 @@ class AutoDungeonTUI(App):
         self._load_sessions()
         self.notify("已刷新会话定义")
 
-    def action_start_selected(self) -> None:
-        """启动当前选中的会话进程。"""
+    async def action_start_selected(self) -> None:
+        """启动当前选中的会话进程 (通过远端 API)。"""
         session = self._find_selected_session()
         if session is None:
             self.notify("请先在 Runtime Monitor 选择会话", severity="warning")
             return
 
-        if self._lookup_session_pid(session.name):
-            self.notify(f"会话 {session.name} 已在运行", severity="warning")
-            return
-
-        cmd = [
-            "uv",
-            "run",
-            "python",
-            "run_dungeons.py",
-            "--emulator",
-            session.emulator,
-            "--session",
-            session.name,
-        ]
-        for config in session.configs:
-            cmd.extend(["--config", config])
-
-        if session.log_path:
-            cmd.extend(["--logfile", session.log_path])
-
         try:
-            subprocess.Popen(
-                cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
-            self.notify(f"已启动会话: {session.name}")
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    f"{API_BASE_URL}/api/v1/start",
+                    json={"session_name": session.name},
+                    timeout=5.0
+                )
+                if resp.status_code == 200:
+                    self.notify(f"已请求启动会话: {session.name}")
+                else:
+                    self.notify(f"启动失败: {resp.json().get('error', resp.text)}", severity="error")
         except Exception as exc:
-            self.notify(f"启动失败: {exc}", severity="error")
+            self.notify(f"请求API失败: {exc}", severity="error")
 
-    def action_stop_selected(self) -> None:
-        """停止当前选中会话的进程树。"""
+    async def action_stop_selected(self) -> None:
+        """停止当前选中会话的进程树 (通过远端 API)。"""
         session = self._find_selected_session()
         if session is None:
             self.notify("请先在 Runtime Monitor 选择会话", severity="warning")
             return
 
-        pid = self._lookup_session_pid(session.name)
-        if pid is None:
-            self.notify(f"会话 {session.name} 当前未运行", severity="warning")
-            return
-
         try:
-            parent = psutil.Process(pid)
-            for child in parent.children(recursive=True):
-                child.terminate()
-            parent.terminate()
-            self.notify(f"已发送停止信号: {session.name} (PID {pid})")
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    f"{API_BASE_URL}/api/v1/stop",
+                    json={"session_name": session.name},
+                    timeout=5.0
+                )
+                if resp.status_code == 200:
+                    self.notify(f"已请求停止会话: {session.name}")
+                else:
+                    self.notify(f"停止失败: {resp.json().get('error', resp.text)}", severity="warning")
         except Exception as exc:
-            self.notify(f"停止失败: {exc}", severity="error")
+            self.notify(f"请求API失败: {exc}", severity="error")
 
-    def action_cleanup_cache(self) -> None:
-        """执行缓存清理脚本。"""
+    async def action_cleanup_cache(self) -> None:
+        """执行缓存清理命令 (通过远端 API)。"""
         try:
-            subprocess.run(
-                ["uv", "run", "python", "cleanup_cache.py"],
-                check=False,
-                cwd=str(SCRIPT_DIR),
-            )
-            self.notify("清理命令已执行")
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(f"{API_BASE_URL}/api/v1/cleanup", timeout=10.0)
+                if resp.status_code == 200:
+                    self.notify("已请求清理缓存")
+                else:
+                    self.notify(f"清理失败: {resp.json().get('error', resp.text)}", severity="error")
         except Exception as exc:
-            self.notify(f"清理失败: {exc}", severity="error")
+            self.notify(f"请求API失败: {exc}", severity="error")
 
 
 if __name__ == "__main__":

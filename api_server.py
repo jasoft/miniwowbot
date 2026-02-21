@@ -1,14 +1,17 @@
 import asyncio
+import psutil
+import subprocess
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 from prometheus_client import CollectorRegistry, Gauge, generate_latest
 from starlette.responses import Response
 
-from dashboard_runtime_status import build_runtime_rows
+from dashboard_runtime_status import build_runtime_rows, load_emulator_sessions
 from view_progress_dashboard import (
     build_config_progress,
     fetch_today_records,
@@ -152,6 +155,94 @@ async def get_status():
         logger.error(f"Error getting status: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
+
+class SessionRequest(BaseModel):
+    session_name: str
+
+def _lookup_session_pid(session_name: str) -> int | None:
+    """按会话名扫描并返回运行中的主进程 PID。"""
+    for proc in psutil.process_iter(["pid", "cmdline"]):
+        try:
+            cmdline = proc.info.get("cmdline") or []
+            cmd = " ".join(cmdline)
+            if "run_dungeons.py" not in cmd:
+                continue
+            if f"--session {session_name}" in cmd:
+                return int(proc.info["pid"])
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            continue
+    return None
+
+@app.post("/api/v1/start")
+async def start_session(req: SessionRequest):
+    """启动会话"""
+    session_name = req.session_name
+    sessions = load_emulator_sessions(str(EMULATORS_PATH))
+    session = next((s for s in sessions if s.name == session_name), None)
+    
+    if not session:
+        return JSONResponse(content={"error": f"Session {session_name} not found"}, status_code=404)
+        
+    if _lookup_session_pid(session_name):
+        return JSONResponse(content={"error": f"Session {session_name} is already running"}, status_code=400)
+        
+    cmd = [
+        "uv",
+        "run",
+        "python",
+        "run_dungeons.py",
+        "--emulator",
+        session.emulator,
+        "--session",
+        session.name,
+    ]
+    for config in session.configs:
+        cmd.extend(["--config", config])
+        
+    log_path = session.log_path or f"log/autodungeon_{session.name}.log"
+    cmd.extend(["--logfile", log_path])
+    
+    try:
+        subprocess.Popen(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+            cwd=str(SCRIPT_DIR)
+        )
+        return {"message": f"Started session {session_name}"}
+    except Exception as exc:
+        return JSONResponse(content={"error": f"Failed to start: {exc}"}, status_code=500)
+
+@app.post("/api/v1/stop")
+async def stop_session(req: SessionRequest):
+    """停止会话"""
+    pid = _lookup_session_pid(req.session_name)
+    if not pid:
+        return JSONResponse(content={"error": f"Session {req.session_name} is not running"}, status_code=400)
+    try:
+        parent = psutil.Process(pid)
+        for child in parent.children(recursive=True):
+            child.terminate()
+        parent.terminate()
+        return {"message": f"Stopped session {req.session_name}"}
+    except Exception as exc:
+        return JSONResponse(content={"error": f"Failed to stop: {exc}"}, status_code=500)
+
+@app.post("/api/v1/cleanup")
+async def cleanup_cache():
+    """清理缓存"""
+    try:
+        subprocess.run(
+            ["uv", "run", "python", "cleanup_cache.py"],
+            check=False,
+            cwd=str(SCRIPT_DIR),
+        )
+        return {"message": "Cleanup executed successfully"}
+    except Exception as exc:
+        return JSONResponse(content={"error": f"Cleanup failed: {exc}"}, status_code=500)
+
 if __name__ == "__main__":
+
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
