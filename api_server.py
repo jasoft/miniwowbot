@@ -2,14 +2,13 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from prometheus_client import CollectorRegistry, Gauge, generate_latest
 from starlette.responses import Response
 
-from dashboard_runtime_status import build_runtime_rows, load_emulator_sessions
+from dashboard_runtime_status import build_runtime_rows
 from view_progress_dashboard import (
     build_config_progress,
     fetch_today_records,

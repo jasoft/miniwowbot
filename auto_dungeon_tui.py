@@ -19,7 +19,6 @@ from textual.widgets import Button, DataTable, Footer, Header, Log, Static, Tree
 from textual.worker import Worker
 
 from dashboard_runtime_status import load_emulator_sessions
-from view_progress_dashboard import load_configurations
 
 try:
     from database import DungeonProgressDB
@@ -315,6 +314,8 @@ class AutoDungeonTUI(App):
         )
 
 
+
+
     def _build_global_summary(self) -> dict[str, Any]:
         """基于API返回的数据构建全局统计。"""
         empty_summary = {
@@ -324,19 +325,6 @@ class AutoDungeonTUI(App):
             "active_configs": 0,
         }
         return getattr(self, "current_summary", empty_summary)
-
-        if not DB_PATH.exists():
-            return empty_summary
-
-        try:
-            configs = load_configurations(str(CONFIG_DIR))
-            with DungeonProgressDB(db_path=str(DB_PATH)) as db:
-                today_records = fetch_today_records(db, include_special=False)
-            config_progress = build_config_progress(configs, today_records)
-            return summarize_progress(config_progress)
-        except Exception as exc:
-            self.notify(f"读取全局统计失败: {exc}", severity="warning")
-            return empty_summary
 
     def _sync_selected_views(self) -> None:
         """更新选中会话的树形进度和日志视图。"""
