@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 import asyncio
+import os
+from dotenv import load_dotenv
 import httpx
 import subprocess
 from dataclasses import dataclass, field
@@ -25,6 +27,10 @@ try:
 except Exception:
     DungeonProgressDB = None
 
+
+
+load_dotenv()
+API_BASE_URL = os.getenv("MINIWOW_API_URL", "http://127.0.0.1:8000").rstrip("/")
 
 SCRIPT_DIR = Path(__file__).parent
 EMULATORS_PATH = SCRIPT_DIR / "emulators.json"
@@ -236,7 +242,7 @@ class AutoDungeonTUI(App):
         async with httpx.AsyncClient() as client:
             while True:
                 try:
-                    response = await client.get("http://localhost:8000/api/v1/status", timeout=5.0)
+                    response = await client.get(f"{API_BASE_URL}/api/v1/status", timeout=5.0)
                     response.raise_for_status()
                     data = response.json()
                     
