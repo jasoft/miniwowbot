@@ -142,12 +142,12 @@ async def get_status():
             config_progress = build_config_progress(configs, today_records)
             summary = summarize_progress(config_progress)
             
-        return JSONResponse(content={
+        return {
             "rows": rows,
             "errors": errors,
             "summary": summary,
             "config_progress": config_progress
-        })
+        }
     except Exception as e:
         logger.error(f"Error getting status: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
