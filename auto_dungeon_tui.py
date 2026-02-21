@@ -5,31 +5,30 @@
 from __future__ import annotations
 
 import asyncio
-import subprocess
+import os
+from dotenv import load_dotenv
+import httpx
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import psutil
 from textual import on
 from textual.app import App, ComposeResult
 from textual.containers import Grid, Horizontal, Vertical
 from textual.widgets import Button, DataTable, Footer, Header, Log, Static, Tree
 from textual.worker import Worker
 
-from dashboard_runtime_status import build_runtime_rows, load_emulator_sessions
-from view_progress_dashboard import (
-    build_config_progress,
-    fetch_today_records,
-    load_configurations,
-    summarize_progress,
-)
+from dashboard_runtime_status import load_emulator_sessions
 
 try:
     from database import DungeonProgressDB
 except Exception:
     DungeonProgressDB = None
 
+
+
+load_dotenv()
+API_BASE_URL = os.getenv("MINIWOW_API_URL", "http://127.0.0.1:8000").rstrip("/")
 
 SCRIPT_DIR = Path(__file__).parent
 EMULATORS_PATH = SCRIPT_DIR / "emulators.json"
@@ -235,28 +234,39 @@ class AutoDungeonTUI(App):
         if not self.selected_session_name and self.sessions:
             self.selected_session_name = next(iter(self.sessions))
 
+
     async def _refresh_loop(self) -> None:
         """每 2 秒刷新一次运行态与全局汇总。"""
-        while True:
-            try:
-                rows, errors = await asyncio.to_thread(
-                    build_runtime_rows,
-                    repo_root=str(SCRIPT_DIR),
-                    emulators_path=str(EMULATORS_PATH),
-                    config_dir=str(CONFIG_DIR),
-                    db_path=str(DB_PATH),
-                    log_tail_lines=200,
-                )
-                self._sync_runtime_table(rows)
-                self._sync_summary_bar(rows)
-                self._sync_selected_views()
-                for error in errors:
-                    self.notify(error, severity="warning")
-            except asyncio.CancelledError:
-                break
-            except Exception as exc:
-                self.notify(f"刷新运行态失败: {exc}", severity="error")
-            await asyncio.sleep(2)
+        async with httpx.AsyncClient() as client:
+            while True:
+                try:
+                    response = await client.get(f"{API_BASE_URL}/api/v1/status", timeout=5.0)
+                    response.raise_for_status()
+                    data = response.json()
+                    
+                    rows = data.get("rows", [])
+                    errors = data.get("errors", [])
+                    summary = data.get("summary", {})
+                    config_progress = data.get("config_progress", [])
+                    
+                    self.current_summary = summary
+                    self.current_config_progress = config_progress
+                    
+                    self._sync_runtime_table(rows)
+                    self._sync_summary_bar(rows)
+                    self._sync_selected_views()
+                    
+                    for error in errors:
+                        self.notify(error, severity="warning")
+                        
+                except httpx.RequestError as exc:
+                    self.notify(f"API请求失败: {exc}", severity="error")
+                except asyncio.CancelledError:
+                    break
+                except Exception as exc:
+                    self.notify(f"刷新运行态失败: {exc}", severity="error")
+                await asyncio.sleep(2)
+
 
     def _sync_runtime_table(self, rows: list[dict[str, Any]]) -> None:
         """刷新 Runtime Monitor 表格。"""
@@ -307,29 +317,18 @@ class AutoDungeonTUI(App):
             f"活跃配置\n{summary['active_configs']}"
         )
 
+
+
+
     def _build_global_summary(self) -> dict[str, Any]:
-        """基于数据库与配置构建全局统计。"""
+        """基于API返回的数据构建全局统计。"""
         empty_summary = {
             "total_completed": 0,
             "total_planned": 0,
             "completion_rate": 0.0,
             "active_configs": 0,
         }
-
-        if DungeonProgressDB is None:
-            return empty_summary
-        if not DB_PATH.exists():
-            return empty_summary
-
-        try:
-            configs = load_configurations(str(CONFIG_DIR))
-            with DungeonProgressDB(db_path=str(DB_PATH)) as db:
-                today_records = fetch_today_records(db, include_special=False)
-            config_progress = build_config_progress(configs, today_records)
-            return summarize_progress(config_progress)
-        except Exception as exc:
-            self.notify(f"读取全局统计失败: {exc}", severity="warning")
-            return empty_summary
+        return getattr(self, "current_summary", empty_summary)
 
     def _sync_selected_views(self) -> None:
         """更新选中会话的树形进度和日志视图。"""
@@ -359,16 +358,13 @@ class AutoDungeonTUI(App):
             tree.root.expand()
             return
 
-        try:
-            configs = load_configurations(str(CONFIG_DIR))
-            with DungeonProgressDB(db_path=str(DB_PATH)) as db:
-                today_records = fetch_today_records(db, include_special=False)
-            config_progress = build_config_progress(configs, today_records)
-            progress_index = {item.get("config_name", ""): item for item in config_progress}
-        except Exception as exc:
-            tree.root.add(f"进度读取失败: {exc}")
+        config_progress = getattr(self, "current_config_progress", [])
+        if not config_progress:
+            tree.root.add("等待API数据...")
             tree.root.expand()
             return
+            
+        progress_index = {item.get("config_name", ""): item for item in config_progress}
 
         for config_name in session.configs:
             payload = progress_index.get(config_name)
@@ -425,19 +421,6 @@ class AutoDungeonTUI(App):
             return None
         return self.sessions.get(self.selected_session_name)
 
-    def _lookup_session_pid(self, session_name: str) -> int | None:
-        """按会话名扫描并返回运行中的主进程 PID。"""
-        for proc in psutil.process_iter(["pid", "cmdline"]):
-            try:
-                cmdline = proc.info.get("cmdline") or []
-                cmd = " ".join(cmdline)
-                if "run_dungeons.py" not in cmd:
-                    continue
-                if f"--session {session_name}" in cmd:
-                    return int(proc.info["pid"])
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                continue
-        return None
 
     @on(DataTable.RowSelected, "#runtime-monitor")
     def on_runtime_row_selected(self, event: DataTable.RowSelected) -> None:
@@ -476,76 +459,59 @@ class AutoDungeonTUI(App):
         self._load_sessions()
         self.notify("已刷新会话定义")
 
-    def action_start_selected(self) -> None:
-        """启动当前选中的会话进程。"""
+    async def action_start_selected(self) -> None:
+        """启动当前选中的会话进程 (通过远端 API)。"""
         session = self._find_selected_session()
         if session is None:
             self.notify("请先在 Runtime Monitor 选择会话", severity="warning")
             return
 
-        if self._lookup_session_pid(session.name):
-            self.notify(f"会话 {session.name} 已在运行", severity="warning")
-            return
-
-        cmd = [
-            "uv",
-            "run",
-            "python",
-            "run_dungeons.py",
-            "--emulator",
-            session.emulator,
-            "--session",
-            session.name,
-        ]
-        for config in session.configs:
-            cmd.extend(["--config", config])
-
-        if session.log_path:
-            cmd.extend(["--logfile", session.log_path])
-
         try:
-            subprocess.Popen(
-                cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
-            self.notify(f"已启动会话: {session.name}")
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    f"{API_BASE_URL}/api/v1/start",
+                    json={"session_name": session.name},
+                    timeout=5.0
+                )
+                if resp.status_code == 200:
+                    self.notify(f"已请求启动会话: {session.name}")
+                else:
+                    self.notify(f"启动失败: {resp.json().get('error', resp.text)}", severity="error")
         except Exception as exc:
-            self.notify(f"启动失败: {exc}", severity="error")
+            self.notify(f"请求API失败: {exc}", severity="error")
 
-    def action_stop_selected(self) -> None:
-        """停止当前选中会话的进程树。"""
+    async def action_stop_selected(self) -> None:
+        """停止当前选中会话的进程树 (通过远端 API)。"""
         session = self._find_selected_session()
         if session is None:
             self.notify("请先在 Runtime Monitor 选择会话", severity="warning")
             return
 
-        pid = self._lookup_session_pid(session.name)
-        if pid is None:
-            self.notify(f"会话 {session.name} 当前未运行", severity="warning")
-            return
-
         try:
-            parent = psutil.Process(pid)
-            for child in parent.children(recursive=True):
-                child.terminate()
-            parent.terminate()
-            self.notify(f"已发送停止信号: {session.name} (PID {pid})")
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    f"{API_BASE_URL}/api/v1/stop",
+                    json={"session_name": session.name},
+                    timeout=5.0
+                )
+                if resp.status_code == 200:
+                    self.notify(f"已请求停止会话: {session.name}")
+                else:
+                    self.notify(f"停止失败: {resp.json().get('error', resp.text)}", severity="warning")
         except Exception as exc:
-            self.notify(f"停止失败: {exc}", severity="error")
+            self.notify(f"请求API失败: {exc}", severity="error")
 
-    def action_cleanup_cache(self) -> None:
-        """执行缓存清理脚本。"""
+    async def action_cleanup_cache(self) -> None:
+        """执行缓存清理命令 (通过远端 API)。"""
         try:
-            subprocess.run(
-                ["uv", "run", "python", "cleanup_cache.py"],
-                check=False,
-                cwd=str(SCRIPT_DIR),
-            )
-            self.notify("清理命令已执行")
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(f"{API_BASE_URL}/api/v1/cleanup", timeout=10.0)
+                if resp.status_code == 200:
+                    self.notify("已请求清理缓存")
+                else:
+                    self.notify(f"清理失败: {resp.json().get('error', resp.text)}", severity="error")
         except Exception as exc:
-            self.notify(f"清理失败: {exc}", severity="error")
+            self.notify(f"请求API失败: {exc}", severity="error")
 
 
 if __name__ == "__main__":
