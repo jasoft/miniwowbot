@@ -247,15 +247,15 @@ class AutoDungeonTUI(App):
                     db_path=str(DB_PATH),
                     log_tail_lines=200,
                 )
-                self.call_from_thread(self._sync_runtime_table, rows)
-                self.call_from_thread(self._sync_summary_bar, rows)
-                self.call_from_thread(self._sync_selected_views)
+                self._sync_runtime_table(rows)
+                self._sync_summary_bar(rows)
+                self._sync_selected_views()
                 for error in errors:
-                    self.call_from_thread(self.notify, error, severity="warning")
+                    self.notify(error, severity="warning")
             except asyncio.CancelledError:
                 break
             except Exception as exc:
-                self.call_from_thread(self.notify, f"刷新运行态失败: {exc}", severity="error")
+                self.notify(f"刷新运行态失败: {exc}", severity="error")
             await asyncio.sleep(2)
 
     def _sync_runtime_table(self, rows: list[dict[str, Any]]) -> None:
