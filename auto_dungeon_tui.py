@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import asyncio
+import httpx
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -17,13 +18,8 @@ from textual.containers import Grid, Horizontal, Vertical
 from textual.widgets import Button, DataTable, Footer, Header, Log, Static, Tree
 from textual.worker import Worker
 
-from dashboard_runtime_status import build_runtime_rows, load_emulator_sessions
-from view_progress_dashboard import (
-    build_config_progress,
-    fetch_today_records,
-    load_configurations,
-    summarize_progress,
-)
+from dashboard_runtime_status import load_emulator_sessions
+from view_progress_dashboard import load_configurations
 
 try:
     from database import DungeonProgressDB
@@ -235,28 +231,39 @@ class AutoDungeonTUI(App):
         if not self.selected_session_name and self.sessions:
             self.selected_session_name = next(iter(self.sessions))
 
+
     async def _refresh_loop(self) -> None:
         """每 2 秒刷新一次运行态与全局汇总。"""
-        while True:
-            try:
-                rows, errors = await asyncio.to_thread(
-                    build_runtime_rows,
-                    repo_root=str(SCRIPT_DIR),
-                    emulators_path=str(EMULATORS_PATH),
-                    config_dir=str(CONFIG_DIR),
-                    db_path=str(DB_PATH),
-                    log_tail_lines=200,
-                )
-                self._sync_runtime_table(rows)
-                self._sync_summary_bar(rows)
-                self._sync_selected_views()
-                for error in errors:
-                    self.notify(error, severity="warning")
-            except asyncio.CancelledError:
-                break
-            except Exception as exc:
-                self.notify(f"刷新运行态失败: {exc}", severity="error")
-            await asyncio.sleep(2)
+        async with httpx.AsyncClient() as client:
+            while True:
+                try:
+                    response = await client.get("http://localhost:8000/api/v1/status", timeout=5.0)
+                    response.raise_for_status()
+                    data = response.json()
+                    
+                    rows = data.get("rows", [])
+                    errors = data.get("errors", [])
+                    summary = data.get("summary", {})
+                    config_progress = data.get("config_progress", [])
+                    
+                    self.current_summary = summary
+                    self.current_config_progress = config_progress
+                    
+                    self._sync_runtime_table(rows)
+                    self._sync_summary_bar(rows)
+                    self._sync_selected_views()
+                    
+                    for error in errors:
+                        self.notify(error, severity="warning")
+                        
+                except httpx.RequestError as exc:
+                    self.notify(f"API请求失败: {exc}", severity="error")
+                except asyncio.CancelledError:
+                    break
+                except Exception as exc:
+                    self.notify(f"刷新运行态失败: {exc}", severity="error")
+                await asyncio.sleep(2)
+
 
     def _sync_runtime_table(self, rows: list[dict[str, Any]]) -> None:
         """刷新 Runtime Monitor 表格。"""
@@ -307,17 +314,17 @@ class AutoDungeonTUI(App):
             f"活跃配置\n{summary['active_configs']}"
         )
 
+
     def _build_global_summary(self) -> dict[str, Any]:
-        """基于数据库与配置构建全局统计。"""
+        """基于API返回的数据构建全局统计。"""
         empty_summary = {
             "total_completed": 0,
             "total_planned": 0,
             "completion_rate": 0.0,
             "active_configs": 0,
         }
+        return getattr(self, "current_summary", empty_summary)
 
-        if DungeonProgressDB is None:
-            return empty_summary
         if not DB_PATH.exists():
             return empty_summary
 
@@ -359,16 +366,13 @@ class AutoDungeonTUI(App):
             tree.root.expand()
             return
 
-        try:
-            configs = load_configurations(str(CONFIG_DIR))
-            with DungeonProgressDB(db_path=str(DB_PATH)) as db:
-                today_records = fetch_today_records(db, include_special=False)
-            config_progress = build_config_progress(configs, today_records)
-            progress_index = {item.get("config_name", ""): item for item in config_progress}
-        except Exception as exc:
-            tree.root.add(f"进度读取失败: {exc}")
+        config_progress = getattr(self, "current_config_progress", [])
+        if not config_progress:
+            tree.root.add("等待API数据...")
             tree.root.expand()
             return
+            
+        progress_index = {item.get("config_name", ""): item for item in config_progress}
 
         for config_name in session.configs:
             payload = progress_index.get(config_name)
