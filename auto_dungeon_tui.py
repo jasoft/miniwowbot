@@ -470,14 +470,14 @@ class AutoDungeonTUI(App):
             self._sync_selected_views()
 
     @on(Button.Pressed, "#btn-start")
-    def on_start_pressed(self) -> None:
+    async def on_start_pressed(self) -> None:
         """启动选中会话。"""
-        self.action_start_selected()
+        await self.action_start_selected()
 
     @on(Button.Pressed, "#btn-stop")
-    def on_stop_pressed(self) -> None:
+    async def on_stop_pressed(self) -> None:
         """停止选中会话。"""
-        self.action_stop_selected()
+        await self.action_stop_selected()
 
     @on(Button.Pressed, "#btn-refresh")
     def on_refresh_pressed(self) -> None:
@@ -485,9 +485,9 @@ class AutoDungeonTUI(App):
         self.action_refresh_now()
 
     @on(Button.Pressed, "#btn-cleanup")
-    def on_cleanup_pressed(self) -> None:
+    async def on_cleanup_pressed(self) -> None:
         """执行缓存清理命令。"""
-        self.action_cleanup_cache()
+        await self.action_cleanup_cache()
 
     def action_refresh_now(self) -> None:
         """立即刷新会话定义并等待下一轮后台更新。"""

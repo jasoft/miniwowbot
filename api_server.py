@@ -187,6 +187,7 @@ async def start_session(req: SessionRequest):
     """启动会话"""
     session_name = req.session_name
     sessions = load_emulator_sessions(str(EMULATORS_PATH))
+    logger.info(f"🔄 收到启动请求: 会话 {session_name}")
     session = next((s for s in sessions if s.name == session_name), None)
     
     if not session:
@@ -211,6 +212,7 @@ async def start_session(req: SessionRequest):
     cmd.extend(["--logfile", log_path])
     
     try:
+        logger.info(f"🚀 执行启动命令: {' '.join(cmd)}")
         if os.name == 'nt':
             # Windows
             subprocess.Popen(
@@ -236,6 +238,7 @@ async def start_session(req: SessionRequest):
 @app.post("/api/v1/stop")
 async def stop_session(req: SessionRequest):
     """停止会话"""
+    logger.info(f"🛑 收到停止请求: 会话 {req.session_name}")
     pid = _lookup_session_pid(req.session_name)
     if not pid:
         return JSONResponse(content={"error": f"Session {req.session_name} is not running"}, status_code=400)
@@ -244,6 +247,7 @@ async def stop_session(req: SessionRequest):
         for child in parent.children(recursive=True):
             child.terminate()
         parent.terminate()
+        logger.info(f"✅ 已成功停止会话: {req.session_name} (PID: {pid})")
         return {"message": f"Stopped session {req.session_name}"}
     except Exception as exc:
         return JSONResponse(content={"error": f"Failed to stop: {exc}"}, status_code=500)
