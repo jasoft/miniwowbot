@@ -215,11 +215,10 @@ async def start_session(req: SessionRequest):
         logger.info(f"🚀 执行启动命令: {' '.join(cmd)}")
         if os.name == 'nt':
             # Windows
+            # Pop a new visible console window so the user can see it running
             subprocess.Popen(
                 cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000008, # DETACHED_PROCESS
+                creationflags=subprocess.CREATE_NEW_CONSOLE | subprocess.CREATE_NEW_PROCESS_GROUP,
                 cwd=str(SCRIPT_DIR)
             )
         else:

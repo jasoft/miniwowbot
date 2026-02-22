@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import hashlib
 import os
 from dotenv import load_dotenv
 import httpx
@@ -303,39 +305,61 @@ class AutoDungeonTUI(App):
                 await asyncio.sleep(2)
 
 
+    def _compute_hash(self, data: Any) -> str:
+        return hashlib.md5(json.dumps(data, sort_keys=True, default=str, ensure_ascii=False).encode('utf-8')).hexdigest()
+
     def _sync_runtime_table(self, rows: list[dict[str, Any]]) -> None:
-        """刷新 Runtime Monitor 表格。"""
+        """刷新 Runtime Monitor 表格（非破坏性更新）。"""
         table = self.query_one("#runtime-monitor", DataTable)
-        table.clear()
-        self.row_keys.clear()
-        self.rows_by_session = {}
+        
+        # Check if row structure changed
+        new_sessions = [str(r.get("会话", "")).strip() for r in rows if str(r.get("会话", "")).strip()]
+        current_sessions = [table.get_row(key)[0] for key in self.row_keys] if self.row_keys else []
+        
+        self.rows_by_session = {str(r.get("会话", "")).strip(): r for r in rows if str(r.get("会话", "")).strip()}
+        
+        if current_sessions != new_sessions:
+            table.clear()
+            self.row_keys.clear()
+            for row in rows:
+                session_name = str(row.get("会话", "")).strip()
+                if not session_name:
+                    continue
+                row_key = table.add_row(
+                    session_name,
+                    row.get("模拟器", "-"),
+                    row.get("状态", "-"),
+                    row.get("运行职业", "-"),
+                    row.get("运行配置", "-"),
+                    row.get("当前副本", "-"),
+                    row.get("进度", "-"),
+                    row.get("错误", ""),
+                )
+                self.row_keys.append(row_key)
+                
+            if not self.selected_session_name and rows:
+                self.selected_session_name = str(rows[0].get("会话", "")).strip() or None
 
-        for row in rows:
-            session_name = str(row.get("会话", "")).strip()
-            if not session_name:
-                continue
-            self.rows_by_session[session_name] = row
-            row_key = table.add_row(
-                session_name,
-                row.get("模拟器", "-"),
-                row.get("状态", "-"),
-                row.get("运行职业", "-"),
-                row.get("运行配置", "-"),
-                row.get("当前副本", "-"),
-                row.get("进度", "-"),
-                row.get("错误", ""),
-            )
-            self.row_keys.append(row_key)
+            if self.selected_session_name:
+                for index, key in enumerate(self.row_keys):
+                    row_data = table.get_row(key)
+                    if row_data and row_data[0] == self.selected_session_name:
+                        table.cursor_coordinate = (index, 0)
+                        break
+        else:
+            # Inline update to avoid jumping
+            cols = table.columns
+            col_keys = list(cols.keys())
+            for i, row in enumerate(rows):
+                key = self.row_keys[i]
+                table.update_cell(key, col_keys[1], row.get("模拟器", "-"))
+                table.update_cell(key, col_keys[2], row.get("状态", "-"))
+                table.update_cell(key, col_keys[3], row.get("运行职业", "-"))
+                table.update_cell(key, col_keys[4], row.get("运行配置", "-"))
+                table.update_cell(key, col_keys[5], row.get("当前副本", "-"))
+                table.update_cell(key, col_keys[6], row.get("进度", "-"))
+                table.update_cell(key, col_keys[7], row.get("错误", ""))
 
-        if not self.selected_session_name and rows:
-            self.selected_session_name = str(rows[0].get("会话", "")).strip() or None
-
-        if self.selected_session_name:
-            for index, key in enumerate(self.row_keys):
-                row_data = table.get_row(key)
-                if row_data and row_data[0] == self.selected_session_name:
-                    table.cursor_coordinate = (index, 0)
-                    break
 
     def _sync_summary_bar(self, rows: list[dict[str, Any]]) -> None:
         """计算并更新顶部 Summary Bar。"""
@@ -373,6 +397,14 @@ class AutoDungeonTUI(App):
     def _refresh_details_tree(self) -> None:
         """渲染当前选中会话的配置-区域-副本分层树。"""
         tree = self.query_one("#details-tree", Tree)
+        
+        # Determine if data actually changed to avoid thrashing Tree
+        config_progress = getattr(self, "current_config_progress", [])
+        current_data_hash = self._compute_hash(config_progress) + str(self.selected_session_name)
+        if getattr(self, "last_tree_hash", "") == current_data_hash:
+            return
+        self.last_tree_hash = current_data_hash
+        
         tree.clear()
 
         if not self.selected_session_name:
@@ -431,7 +463,7 @@ class AutoDungeonTUI(App):
         """刷新当前会话日志内容。"""
         log_widget = self.query_one("#session-log", Log)
         if not self.selected_session_name:
-            if self.last_log_text != "":
+            if getattr(self, "last_log_text", "") != "":
                 log_widget.clear()
                 self.last_log_text = ""
             return
@@ -439,7 +471,7 @@ class AutoDungeonTUI(App):
         row = self.rows_by_session.get(self.selected_session_name, {})
         log_text = str(row.get("_log_text", ""))
 
-        if log_text == self.last_log_text:
+        if log_text == getattr(self, "last_log_text", ""):
             return
 
         log_widget.clear()
