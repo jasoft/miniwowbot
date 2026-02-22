@@ -4,6 +4,7 @@ import sys
 import os
 import subprocess
 import logging
+from vibe_colored_logger import setup_logger
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -31,8 +32,7 @@ EMULATORS_PATH = SCRIPT_DIR / "emulators.json"
 CONFIG_DIR = SCRIPT_DIR / "configs"
 DB_PATH = SCRIPT_DIR / "database" / "dungeon_progress.db"
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 # Suppress verbose DB connection logs during background scraping
 logging.getLogger("database.dungeon_db").setLevel(logging.WARNING)
