@@ -252,7 +252,7 @@ def build_runtime_rows(
             if meta:
                 planned_sum += int(meta.get('planned_count', 0))
             
-            completed_sum += get_today_completed_count(db_path, cfg_stripped)
+            completed_sum += get_today_completed_count(db_path, cfg_stripped, include_special=True)
 
         progress_str = f'{completed_sum}/{planned_sum}'
 
