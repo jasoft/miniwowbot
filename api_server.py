@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 # Suppress verbose DB connection logs during background scraping
 logging.getLogger("database.dungeon_db").setLevel(logging.WARNING)
+logging.getLogger("database").setLevel(logging.WARNING)
 
 # Prometheus Metrics
 REGISTRY = CollectorRegistry()
