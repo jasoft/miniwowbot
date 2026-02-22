@@ -34,6 +34,9 @@ DB_PATH = SCRIPT_DIR / "database" / "dungeon_progress.db"
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Suppress verbose DB connection logs during background scraping
+logging.getLogger("database.dungeon_db").setLevel(logging.WARNING)
+
 # Prometheus Metrics
 REGISTRY = CollectorRegistry()
 
