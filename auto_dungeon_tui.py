@@ -17,7 +17,7 @@ from typing import Any
 from textual import on
 from textual.app import App, ComposeResult
 from textual.containers import Grid, Horizontal, Vertical
-from textual.widgets import Button, DataTable, Footer, Header, Log, Static, Tree
+from textual.widgets import Button, DataTable, Footer, Header, Log, RichLog, Static, Tree
 from textual.worker import Worker
 
 from dashboard_runtime_status import load_emulator_sessions
@@ -60,7 +60,7 @@ class AutoDungeonTUI(App):
     #dashboard-grid {
         layout: grid;
         grid-size: 1;
-        grid-rows: 4 1fr 18 1;
+        grid-rows: 4 1fr 12 10;
         height: 1fr;
         padding: 0 1;
     }
@@ -112,16 +112,16 @@ class AutoDungeonTUI(App):
     }
 
     #log-panel {
-        width: 1.5fr;
+        width: 2fr;
         border: tall #2f3d5c;
         background: #1b2131;
-        margin-right: 1;
     }
     
     #interaction-panel {
-        width: 0.8fr;
+        margin-top: 1;
         border: tall #2f3d5c;
         background: #1b2131;
+        height: 100%;
     }
     
     #interaction-log {
@@ -201,9 +201,9 @@ class AutoDungeonTUI(App):
                         yield Button("Refresh", id="btn-refresh", variant="primary")
                         yield Button("Cleanup", id="btn-cleanup", variant="warning")
                     yield Log(id="session-log", highlight=True, auto_scroll=True)
-                with Vertical(id="interaction-panel"):
-                    yield Static("系统交互日志", classes="panel-title")
-                    yield Log(id="interaction-log", highlight=True, auto_scroll=True)
+            with Vertical(id="interaction-panel"):
+                yield Static("系统交互日志", classes="panel-title")
+                yield RichLog(id="interaction-log", highlight=True, markup=True, auto_scroll=True)
         yield Footer()
 
     def on_mount(self) -> None:
@@ -256,17 +256,22 @@ class AutoDungeonTUI(App):
         """将交互日志写入交互面板"""
         from datetime import datetime
         now = datetime.now().strftime("%H:%M:%S")
-        log_widget = self.query_one("#interaction-log", Log)
+        log_widget = self.query_one("#interaction-log", RichLog)
         
-        color = "white"
+        # Use Vibe Logger style emojis
+        emoji = "ℹ️"
+        color = "cyan"
         if level == "ERROR":
             color = "red"
+            emoji = "❌"
         elif level == "WARNING":
             color = "yellow"
+            emoji = "⚠️"
         elif level == "SUCCESS":
             color = "green"
+            emoji = "✅"
             
-        log_widget.write_line(f"[{now}] [{color}]{level}[/{color}] {message}")
+        log_widget.write(f"[dim]{now}[/dim] [{color}]{emoji} {level}[/{color}] {message}")
         
     def notify(self, message: str, *, title: str = "", severity: str = "information", timeout: float = 3.0) -> None:
         super().notify(message, title=title, severity=severity, timeout=timeout)
