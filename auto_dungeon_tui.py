@@ -110,9 +110,21 @@ class AutoDungeonTUI(App):
     }
 
     #log-panel {
-        width: 1fr;
+        width: 1.5fr;
         border: tall #2f3d5c;
         background: #1b2131;
+        margin-right: 1;
+    }
+    
+    #interaction-panel {
+        width: 0.8fr;
+        border: tall #2f3d5c;
+        background: #1b2131;
+    }
+    
+    #interaction-log {
+        height: 1fr;
+        border-top: solid #2f3d5c;
     }
 
     .panel-title {
@@ -187,6 +199,9 @@ class AutoDungeonTUI(App):
                         yield Button("Refresh", id="btn-refresh", variant="primary")
                         yield Button("Cleanup", id="btn-cleanup", variant="warning")
                     yield Log(id="session-log", highlight=True, auto_scroll=True)
+                with Vertical(id="interaction-panel"):
+                    yield Static("系统交互日志", classes="panel-title")
+                    yield Log(id="interaction-log", highlight=True, auto_scroll=True)
         yield Footer()
 
     def on_mount(self) -> None:
@@ -234,6 +249,26 @@ class AutoDungeonTUI(App):
         if not self.selected_session_name and self.sessions:
             self.selected_session_name = next(iter(self.sessions))
 
+
+    def log_interaction(self, message: str, level: str = "INFO") -> None:
+        """将交互日志写入交互面板"""
+        from datetime import datetime
+        now = datetime.now().strftime("%H:%M:%S")
+        log_widget = self.query_one("#interaction-log", Log)
+        
+        color = "white"
+        if level == "ERROR":
+            color = "red"
+        elif level == "WARNING":
+            color = "yellow"
+        elif level == "SUCCESS":
+            color = "green"
+            
+        log_widget.write_line(f"[{now}] [{color}]{level}[/{color}] {message}")
+        
+    def notify(self, message: str, *, title: str = "", severity: str = "information", timeout: float = 3.0) -> None:
+        super().notify(message, title=title, severity=severity, timeout=timeout)
+        self.log_interaction(message, severity.upper())
 
     async def _refresh_loop(self) -> None:
         """每 2 秒刷新一次运行态与全局汇总。"""
@@ -507,7 +542,7 @@ class AutoDungeonTUI(App):
             async with httpx.AsyncClient() as client:
                 resp = await client.post(f"{API_BASE_URL}/api/v1/cleanup", timeout=10.0)
                 if resp.status_code == 200:
-                    self.notify("已请求清理缓存")
+                    self.notify("已发送命令: Cleanup (清理缓存)", severity="success")
                 else:
                     self.notify(f"清理失败: {resp.json().get('error', resp.text)}", severity="error")
         except Exception as exc:

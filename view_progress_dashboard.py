@@ -171,6 +171,36 @@ def build_config_progress(configs: ConfigDict, today_records: Sequence[dict]) ->
             if (zone_name, dungeon_name) not in known_pairs
         ]
 
+        # Merge extra completions as planned and completed (e.g., daily collects)
+        for ec in extra_completions:
+            u_zone = ec["zone_name"]
+            u_dungeon = ec["dungeon_name"]
+            
+            # Find if zone already exists in zones_output
+            zone_idx = next((i for i, z in enumerate(zones_output) if z["zone_name"] == u_zone), None)
+            
+            dungeon_entry = {
+                "name": u_dungeon,
+                "selected": True,
+                "completed": True,
+                "completed_at": ec["completed_at"]
+            }
+            
+            if zone_idx is None:
+                zones_output.append({
+                    "zone_name": u_zone,
+                    "planned_count": 1,
+                    "completed_count": 1,
+                    "dungeons": [dungeon_entry]
+                })
+            else:
+                zones_output[zone_idx]["planned_count"] += 1
+                zones_output[zone_idx]["completed_count"] += 1
+                zones_output[zone_idx]["dungeons"].append(dungeon_entry)
+                
+            total_planned += 1
+            completed_planned += 1
+
         progress_data.append(
             {
                 "config_name": config_name,

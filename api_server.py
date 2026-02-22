@@ -1,5 +1,7 @@
 import asyncio
 import psutil
+import sys
+import os
 import subprocess
 import logging
 from contextlib import asynccontextmanager
@@ -85,7 +87,7 @@ async def update_metrics_task():
             if DungeonProgressDB is not None and DB_PATH.exists():
                 configs = load_configurations(str(CONFIG_DIR))
                 with DungeonProgressDB(db_path=str(DB_PATH)) as db:
-                    today_records = fetch_today_records(db, include_special=False)
+                    today_records = fetch_today_records(db, include_special=True)
                 config_progress = build_config_progress(configs, today_records)
                 summary = summarize_progress(config_progress)
                 
@@ -141,7 +143,7 @@ async def get_status():
         if DungeonProgressDB is not None and DB_PATH.exists():
             configs = load_configurations(str(CONFIG_DIR))
             with DungeonProgressDB(db_path=str(DB_PATH)) as db:
-                today_records = fetch_today_records(db, include_special=False)
+                today_records = fetch_today_records(db, include_special=True)
             config_progress = build_config_progress(configs, today_records)
             summary = summarize_progress(config_progress)
             
@@ -167,7 +169,7 @@ def _lookup_session_pid(session_name: str) -> int | None:
             cmd = " ".join(cmdline)
             if "run_dungeons.py" not in cmd:
                 continue
-            if f"--session {session_name}" in cmd:
+            if f"--session {session_name}" in cmd or f"--session {session_name}" in " ".join(cmdline):
                 return int(proc.info["pid"])
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             continue
@@ -181,15 +183,14 @@ async def start_session(req: SessionRequest):
     session = next((s for s in sessions if s.name == session_name), None)
     
     if not session:
+        from fastapi.responses import JSONResponse
         return JSONResponse(content={"error": f"Session {session_name} not found"}, status_code=404)
         
     if _lookup_session_pid(session_name):
         return JSONResponse(content={"error": f"Session {session_name} is already running"}, status_code=400)
         
     cmd = [
-        "uv",
-        "run",
-        "python",
+        sys.executable,
         "run_dungeons.py",
         "--emulator",
         session.emulator,
@@ -203,13 +204,24 @@ async def start_session(req: SessionRequest):
     cmd.extend(["--logfile", log_path])
     
     try:
-        subprocess.Popen(
-            cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-            cwd=str(SCRIPT_DIR)
-        )
+        if os.name == 'nt':
+            # Windows
+            subprocess.Popen(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000008, # DETACHED_PROCESS
+                cwd=str(SCRIPT_DIR)
+            )
+        else:
+            # POSIX
+            subprocess.Popen(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+                cwd=str(SCRIPT_DIR)
+            )
         return {"message": f"Started session {session_name}"}
     except Exception as exc:
         return JSONResponse(content={"error": f"Failed to start: {exc}"}, status_code=500)
