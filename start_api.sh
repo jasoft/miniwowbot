@@ -1,2 +1,2 @@
 #!/bin/bash
-uv run uvicorn api_server:app --host 0.0.0.0 --port 8000 --log-level warning
+uv run uvicorn api_server:app --host 0.0.0.0 --port 8000
