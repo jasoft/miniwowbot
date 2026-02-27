@@ -14,6 +14,9 @@ import os
 import signal
 import subprocess
 import sys
+import ctypes
+from csv import DictReader
+from io import StringIO
 from pathlib import Path
 from typing import Sequence
 
@@ -158,6 +161,38 @@ def load_force_kill_process_names() -> list[str]:
     return deduped
 
 
+def is_windows_admin() -> bool:
+    """判断当前进程是否具备管理员权限。
+
+    Returns:
+        Windows 下返回管理员权限判定结果；非 Windows 始终返回 ``False``。
+    """
+    if os.name != "nt":
+        return False
+    try:
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except Exception:
+        return False
+
+
+def list_running_processes_by_name(process_names: Sequence[str]) -> list[tuple[str, int]]:
+    """按进程名列出当前仍在运行的进程。
+
+    Args:
+        process_names: 目标进程名列表。
+
+    Returns:
+        匹配到的 ``(name, pid)`` 列表。
+    """
+    if not process_names:
+        return []
+
+    normalized = {name.lower() for name in process_names}
+    if os.name == "nt":
+        return _list_running_processes_windows(normalized)
+    return _list_running_processes_posix(normalized)
+
+
 def _list_target_pids_windows(keywords: Sequence[str]) -> list[int]:
     """Windows 下查询匹配关键字的进程 PID。
 
@@ -256,6 +291,65 @@ def _parse_pid_json(raw_text: str) -> list[int]:
     return []
 
 
+def _list_running_processes_windows(normalized_names: set[str]) -> list[tuple[str, int]]:
+    """Windows 下查询目标进程是否仍在运行。"""
+    result = subprocess.run(
+        ["tasklist", "/FO", "CSV", "/NH"],
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    if result.returncode != 0:
+        return []
+
+    matches: list[tuple[str, int]] = []
+    reader = DictReader(
+        StringIO("Image Name,PID,Session Name,Session#,Mem Usage\n" + result.stdout),
+        fieldnames=["Image Name", "PID", "Session Name", "Session#", "Mem Usage"],
+    )
+    for row in reader:
+        name = str(row.get("Image Name", "")).strip()
+        if not name:
+            continue
+        if name.lower() not in normalized_names:
+            continue
+        raw_pid = str(row.get("PID", "")).replace(",", "").strip()
+        try:
+            pid = int(raw_pid)
+        except ValueError:
+            continue
+        matches.append((name, pid))
+    return matches
+
+
+def _list_running_processes_posix(normalized_names: set[str]) -> list[tuple[str, int]]:
+    """POSIX 下查询目标进程是否仍在运行。"""
+    matches: list[tuple[str, int]] = []
+    result = subprocess.run(
+        ["ps", "-eo", "pid=,comm="],
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    if result.returncode != 0:
+        return matches
+
+    for line in result.stdout.splitlines():
+        parts = line.strip().split(maxsplit=1)
+        if len(parts) != 2:
+            continue
+        raw_pid, raw_name = parts
+        name = raw_name.strip()
+        if name.lower() not in normalized_names:
+            continue
+        try:
+            pid = int(raw_pid)
+        except ValueError:
+            continue
+        matches.append((name, pid))
+    return matches
+
+
 def main() -> int:
     """脚本入口。
 
@@ -264,6 +358,10 @@ def main() -> int:
     """
     logger = setup_logger(name="panic_stop", level="INFO", use_color=True)
     logger.info("🚨 开始执行一键停机：结束脚本进程 + 关闭模拟器 + 清理进程")
+    if os.name == "nt" and not is_windows_admin():
+        logger.warning(
+            "⚠️ 当前非管理员权限运行，某些 BlueStacks 受保护进程可能无法终止。"
+        )
 
     emulators = load_emulators(SCRIPT_DIR / "emulators.json")
     if emulators:
@@ -283,7 +381,22 @@ def main() -> int:
             logger.warning(f"⚠️ 终止进程树失败 PID={pid}")
 
     shutdown_all_emulators(emulators, logger)
-    force_kill_processes(load_force_kill_process_names(), logger)
+    kill_targets = load_force_kill_process_names()
+    running_before = list_running_processes_by_name(kill_targets)
+    running_names = sorted({name for name, _ in running_before})
+    if running_names:
+        logger.info(f"🔍 检测到待清理模拟器进程: {', '.join(running_names)}")
+        force_kill_processes(running_names, logger)
+    else:
+        logger.info("ℹ️ 未检测到需强杀的模拟器进程")
+
+    remaining = list_running_processes_by_name(kill_targets)
+    if remaining:
+        details = ", ".join(f"{name}(pid={pid})" for name, pid in remaining)
+        logger.error(f"❌ 仍有模拟器进程未关闭: {details}")
+        if os.name == "nt" and not is_windows_admin():
+            logger.error("❌ 请使用管理员权限重新执行 `poe panic-stop`。")
+        return 1
 
     logger.info("🛑 一键停机执行完成")
     return 0

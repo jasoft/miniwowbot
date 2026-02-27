@@ -20,6 +20,23 @@ from pathlib import Path
 from typing import Any, Optional, Sequence
 
 DEFAULT_EMULATOR_PROCESS_NAMES: tuple[str, ...] = (
+    # MuMu
+    "MuMuPlayer.exe",
+    "MuMuPlayerGlobal.exe",
+    "MuMuVMMHeadless.exe",
+    "NemuHeadless.exe",
+    "NemuPlayer.exe",
+    # BlueStacks
+    "HD-Player.exe",
+    "HD-Agent.exe",
+    "HD-Frontend.exe",
+    "HD-MultiInstanceManager.exe",
+    "HD-Adb.exe",
+    "BstkSVC.exe",
+    "BlueStacksHelper.exe",
+    "Bluestacks.exe",
+)
+MUMU_PROCESS_NAMES: tuple[str, ...] = (
     "MuMuPlayer.exe",
     "MuMuPlayerGlobal.exe",
     "MuMuVMMHeadless.exe",
@@ -241,7 +258,12 @@ def shutdown_all_emulators(
         None
     """
     manager_path = find_mumu_manager_path(mumu_manager_path)
-    if manager_path is not None:
+    should_try_mumu = manager_path is not None
+    if should_try_mumu and os.name == "nt" and not _has_any_running_process(MUMU_PROCESS_NAMES):
+        logger.info("ℹ️ 未检测到 MuMu 运行进程，跳过 `MuMuManager control -v all shutdown`")
+        should_try_mumu = False
+
+    if should_try_mumu and manager_path is not None:
         _run_list_cmd(
             [str(manager_path), "control", "-v", "all", "shutdown"],
             logger,
@@ -258,20 +280,23 @@ def shutdown_all_emulators(
             [adb_path, "disconnect", normalized],
             logger,
             f"断开 ADB 连接 {normalized}",
-            timeout=20,
+            timeout=8,
+            allow_failure=True,
         )
         _run_list_cmd(
             [adb_path, "-s", normalized, "emu", "kill"],
             logger,
             f"发送 emu kill 到 {normalized}",
-            timeout=20,
+            timeout=8,
+            allow_failure=True,
         )
 
     _run_list_cmd(
         [adb_path, "kill-server"],
         logger,
         "停止 ADB 服务",
-        timeout=20,
+        timeout=8,
+        allow_failure=True,
     )
 
 
@@ -291,7 +316,7 @@ def force_kill_processes(process_names: Sequence[str], logger: logging.Logger) -
                 ["taskkill", "/F", "/T", "/IM", process_name],
                 logger,
                 f"强制结束进程 {process_name}",
-                timeout=20,
+                timeout=6,
                 allow_failure=True,
             )
         return
@@ -301,7 +326,7 @@ def force_kill_processes(process_names: Sequence[str], logger: logging.Logger) -
             ["pkill", "-9", "-f", process_name],
             logger,
             f"强制结束进程 {process_name}",
-            timeout=20,
+            timeout=6,
             allow_failure=True,
         )
 
@@ -563,6 +588,57 @@ def _resolve_adb_path() -> str:
     """
     adb_name = "adb.exe" if os.name == "nt" else "adb"
     return shutil.which(adb_name) or "adb"
+
+
+def _has_any_running_process(process_names: Sequence[str]) -> bool:
+    """判断目标进程名中是否有任意一个正在运行。
+
+    Args:
+        process_names: 进程名列表。
+
+    Returns:
+        只要匹配到任意进程即返回 ``True``。
+    """
+    if not process_names:
+        return False
+
+    if os.name == "nt":
+        try:
+            result = subprocess.run(
+                ["tasklist", "/FO", "CSV", "/NH"],
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+        except Exception:
+            return False
+
+        if result.returncode != 0:
+            return False
+
+        targets = {name.lower() for name in process_names}
+        for line in result.stdout.splitlines():
+            cols = line.split(",", 1)
+            if not cols:
+                continue
+            image_name = cols[0].strip().strip('"').lower()
+            if image_name in targets:
+                return True
+        return False
+
+    for name in process_names:
+        try:
+            result = subprocess.run(
+                ["pgrep", "-f", name],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except Exception:
+            continue
+        if result.returncode == 0 and result.stdout.strip():
+            return True
+    return False
 
 
 def _try_parse_json(raw_text: str) -> Optional[Any]:
