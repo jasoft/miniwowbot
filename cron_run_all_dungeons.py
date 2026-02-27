@@ -3,13 +3,14 @@
 """最终入口脚本。
 
 基于 ``emulators.json`` 启动多个副本会话，并在运行期监控每个会话日志：
-当某个会话在 1 分钟内无日志更新时，自动重启该会话并重跑命令。
+当某个会话在 3 分钟内无日志更新时，自动重启该会话并重跑命令。
+重启时会先终止会话进程树，再重启该会话对应模拟器（仅影响故障会话），
+最后重新拉起会话脚本。
 当所有会话结束后执行 ``poe stats`` 校验是否全部完成，不通过则重试整轮流程。
 """
 
 import json
 import logging
-import locale
 import os
 import platform
 import subprocess
@@ -23,11 +24,16 @@ from typing import Any, Optional, Sequence
 
 import dotenv
 
+from emulator_control import (
+    EmulatorRestartConfig,
+    decode_process_output,
+    restart_emulator,
+)
 from logger_config import setup_logger
 
 SCRIPT_DIR = Path(__file__).parent
 IS_WINDOWS = platform.system() == "Windows"
-LOG_IDLE_TIMEOUT_SECONDS = 60
+LOG_IDLE_TIMEOUT_SECONDS = 180
 MONITOR_POLL_INTERVAL_SECONDS = 5
 FLOW_MAX_RETRIES = 5
 SESSION_START_GAP_SECONDS = 1
@@ -47,12 +53,20 @@ class SessionTask:
         emulator: 模拟器地址。
         logfile: 会话日志文件路径。
         cmd: 启动会话执行的命令行。
+        emulator_shutdown_cmd: 自定义模拟器关闭命令（可选）。
+        emulator_start_cmd: 自定义模拟器启动命令（可选）。
+        mumu_vm_index: MuMu 单实例索引（可选）。
+        mumu_manager_path: MuMuManager 路径（可选）。
     """
 
     name: str
     emulator: str
     logfile: Path
     cmd: str
+    emulator_shutdown_cmd: Optional[str] = None
+    emulator_start_cmd: Optional[str] = None
+    mumu_vm_index: Optional[str] = None
+    mumu_manager_path: Optional[str] = None
 
 
 @dataclass
@@ -157,6 +171,10 @@ def parse_session_tasks(
         emulator = str(sess.get("emulator", "")).strip()
         configs = sess.get("configs")
         logfile = Path(sess.get("log") or (SCRIPT_DIR / "log" / f"autodungeon_{name}.log"))
+        emulator_shutdown_cmd = str(sess.get("emulator_shutdown_cmd", "")).strip() or None
+        emulator_start_cmd = str(sess.get("emulator_start_cmd", "")).strip() or None
+        mumu_vm_index = str(sess.get("mumu_vm_index", "")).strip() or None
+        mumu_manager_path = str(sess.get("mumu_manager_path", "")).strip() or None
 
         if not emulator:
             logger.error(f"❌ 会话 {name} 未提供 emulator，已跳过")
@@ -170,7 +188,18 @@ def parse_session_tasks(
         logger.info(f"🔧 {name}: 配置[{details}] @ {emulator}")
         cmd = build_cmd_for_configs(name, emulator, logfile, [str(item) for item in configs])
         logger.info(f"🖥️  启动命令行: {cmd}")
-        tasks.append(SessionTask(name=name, emulator=emulator, logfile=logfile, cmd=cmd))
+        tasks.append(
+            SessionTask(
+                name=name,
+                emulator=emulator,
+                logfile=logfile,
+                cmd=cmd,
+                emulator_shutdown_cmd=emulator_shutdown_cmd,
+                emulator_start_cmd=emulator_start_cmd,
+                mumu_vm_index=mumu_vm_index,
+                mumu_manager_path=mumu_manager_path,
+            )
+        )
 
     return tasks
 
@@ -289,16 +318,32 @@ def stop_powershell(
     """
     if process is None:
         return
-    if process.poll() is not None:
-        return
     try:
-        process.terminate()
-        process.wait(timeout=10)
-    except subprocess.TimeoutExpired:
-        logger.warning(f"⚠️ 会话 {session} 终止超时，执行 kill")
-        process.kill()
+        if IS_WINDOWS and process.pid:
+            # Windows 下优先使用 taskkill，确保子进程树（uv/python）一并终止。
+            result = subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                capture_output=True,
+                text=False,
+                timeout=15,
+            )
+            if result.returncode == 0:
+                logger.info(f"🧹 会话 {session} 进程树已终止 (pid={process.pid})")
+                return
+
+        if process.poll() is None:
+            process.terminate()
+            process.wait(timeout=10)
+            return
     except Exception as exc:
         logger.warning(f"⚠️ 停止会话 {session} 异常: {exc}")
+
+    try:
+        if process.poll() is None:
+            logger.warning(f"⚠️ 会话 {session} 终止超时，执行 kill")
+            process.kill()
+    except Exception as exc:
+        logger.warning(f"⚠️ 强制 kill 会话 {session} 异常: {exc}")
 
 
 def read_log_signature(logfile: Path) -> tuple[float, int]:
@@ -366,6 +411,23 @@ def restart_session(runtime: SessionRuntime, logger: logging.Logger) -> bool:
         stop_powershell(runtime.process, runtime.task.name, logger)
     else:
         kill_tmux_session(runtime.task.name, logger)
+
+    runtime.process = None
+    emulator_restart_ok = restart_emulator(
+        EmulatorRestartConfig(
+            emulator=runtime.task.emulator,
+            shutdown_cmd=runtime.task.emulator_shutdown_cmd,
+            start_cmd=runtime.task.emulator_start_cmd,
+            mumu_vm_index=runtime.task.mumu_vm_index,
+            mumu_manager_path=runtime.task.mumu_manager_path,
+        ),
+        logger,
+    )
+    if not emulator_restart_ok:
+        logger.warning(
+            f"⚠️ 会话 {runtime.task.name} 模拟器重启未完全成功，"
+            "继续尝试重启脚本进程"
+        )
 
     return start_session(runtime, logger)
 
@@ -481,32 +543,6 @@ def run_poe_stats(logger: logging.Logger) -> bool:
 
     logger.warning(f"⚠️ `poe stats` 返回 {result.returncode}，存在未完成副本")
     return False
-
-
-def decode_process_output(raw_output: Optional[bytes]) -> str:
-    """安全解码子进程输出字节流。
-
-    Args:
-        raw_output: 子进程原始输出字节。
-
-    Returns:
-        解码后的字符串；无法精确解码时用替换字符兜底，保证不抛异常。
-    """
-    if raw_output is None:
-        return ""
-
-    candidate_encodings = (
-        "utf-8",
-        locale.getpreferredencoding(False) or "utf-8",
-        "gbk",
-    )
-    for encoding in candidate_encodings:
-        try:
-            return raw_output.decode(encoding)
-        except UnicodeDecodeError:
-            continue
-
-    return raw_output.decode("utf-8", errors="replace")
 
 
 def check_ocr_health(logger: logging.Logger) -> bool:
