@@ -380,7 +380,17 @@ def main() -> int:
         else:
             logger.warning(f"⚠️ 终止进程树失败 PID={pid}")
 
-    shutdown_all_emulators(emulators, logger)
+    run_adb_cleanup = os.getenv("PANIC_STOP_RUN_ADB_CLEANUP", "0").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    shutdown_all_emulators(
+        emulators,
+        logger,
+        run_adb_cleanup=run_adb_cleanup,
+    )
     kill_targets = load_force_kill_process_names()
     running_before = list_running_processes_by_name(kill_targets)
     running_names = sorted({name for name, _ in running_before})

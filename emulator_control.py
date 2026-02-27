@@ -246,6 +246,7 @@ def shutdown_all_emulators(
     logger: logging.Logger,
     *,
     mumu_manager_path: Optional[str] = None,
+    run_adb_cleanup: bool = True,
 ) -> None:
     """关闭全部模拟器。
 
@@ -253,6 +254,7 @@ def shutdown_all_emulators(
         emulators: 需要清理 ADB 连接的模拟器地址列表。
         logger: 日志对象。
         mumu_manager_path: MuMuManager.exe 路径（可选）。
+        run_adb_cleanup: 是否执行 ADB disconnect/emu kill/kill-server。
 
     Returns:
         None
@@ -272,6 +274,10 @@ def shutdown_all_emulators(
         )
     else:
         logger.info("ℹ️ 未检测到 MuMuManager，跳过 `control -v all shutdown`")
+
+    if not run_adb_cleanup:
+        logger.info("ℹ️ 已跳过 ADB 清理步骤（run_adb_cleanup=False）")
+        return
 
     adb_path = _resolve_adb_path()
     for emulator in emulators:
