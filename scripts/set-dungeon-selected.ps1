@@ -5,7 +5,7 @@
 #   .\set-dungeon-selected.ps1 -Deselect "青龙寺" "黑暗堡垒"     # 指定副本设为 false
 #   .\set-dungeon-selected.ps1 -All                              # 所有副本设为 true
 #   .\set-dungeon-selected.ps1 -All -Deselect                     # 所有副本设为 false
-#   .\set-dungeon-selected.ps1 -Exclude "*_alt.json" "青龙寺"    # 排除 *_alt.json 后修改
+#   .\set-dungeon-selected.ps1 -Exclude "*_alt.json","*test.json" "青龙寺" # 排除多个模式后修改
 #
 # 示例:
 #   # 把青龙寺和黑暗堡垒设为选中
@@ -14,8 +14,8 @@
 #   # 取消选中青龙寺和黑暗堡垒
 #   .\set-dungeon-selected.ps1 -Deselect "青龙寺" "黑暗堡垒"
 #
-#   # 全选（排除 *_alt.json）
-#   .\set-dungeon-selected.ps1 -All -Exclude "*_alt.json"
+#   # 全选（排除所有 _alt.json 和 _bak.json 文件）
+#   .\set-dungeon-selected.ps1 -All -Exclude "*_alt.json","*_bak.json"
 #
 #   # 全部取消选中
 #   .\set-dungeon-selected.ps1 -All -Deselect
@@ -25,7 +25,7 @@ param(
     [Parameter(Mandatory=$false)]
     [switch]$Deselect,
     [Parameter(Mandatory=$false)]
-    [string[]]$Exclude,
+    [string[]]$Exclude,  # 支持多个模式，如 "pattern1","pattern2"
     [Parameter(Mandatory=$false, ValueFromRemainingArguments=$true)]
     [string[]]$DungeonNames
 )
@@ -48,8 +48,8 @@ if (-not $All -and $DungeonNames.Count -eq 0) {
     Write-Host "    .\set-dungeon-selected.ps1 -All -Deselect" -ForegroundColor White
     Write-Host "        将所有副本设为 false (全不选)" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "    .\set-dungeon-selected.ps1 -Exclude <模式> <副本1> ..." -ForegroundColor White
-    Write-Host "        排除匹配模式的文件后再修改" -ForegroundColor Gray
+    Write-Host "    .\set-dungeon-selected.ps1 -Exclude <模式1,模式2...> <副本1> ..." -ForegroundColor White
+    Write-Host "        排除匹配模式的文件（支持逗号分隔的多个模式）后再修改" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  示例:" -ForegroundColor Yellow
     Write-Host ""
@@ -57,13 +57,13 @@ if (-not $All -and $DungeonNames.Count -eq 0) {
     Write-Host "    .\set-dungeon-selected.ps1 -Deselect ""青龙寺"" ""黑暗堡垒""" -ForegroundColor White
     Write-Host "    .\set-dungeon-selected.ps1 -All" -ForegroundColor White
     Write-Host "    .\set-dungeon-selected.ps1 -All -Deselect" -ForegroundColor White
-    Write-Host "    .\set-dungeon-selected.ps1 -All -Exclude ""*_alt.json""" -ForegroundColor White
+    Write-Host "    .\set-dungeon-selected.ps1 -All -Exclude ""*_alt.json"",""*_bak.json""" -ForegroundColor White
     Write-Host "    .\set-dungeon-selected.ps1 -Exclude ""*_alt.json"" ""青龙寺""" -ForegroundColor White
     Write-Host ""
     exit 1
 }
 
-$targetValue = if ($Deselect) { $false } else { $true }
+$targetValue = if ($Deselect) { "false" } else { "true" }
 $configsPath = "e:\Projects\miniwowbot\configs\"
 
 Get-ChildItem $configsPath -Filter *.json | Where-Object {
@@ -82,15 +82,17 @@ Get-ChildItem $configsPath -Filter *.json | Where-Object {
     $original = $content
 
     if ($All) {
-        # 批量处理所有副本
-        $pattern = '"selected": ' + $(if ($Deselect) { 'true' } else { 'false' })
-        $replace = '"selected": ' + $(if ($Deselect) { 'false' } else { 'true' })
+        # 批量处理所有副本，支持匹配不同格式的布尔值并统一替换
+        $oldValuePattern = if ($Deselect) { "true|True" } else { "false|False" }
+        $pattern = """selected"":\s*($oldValuePattern)"
+        $replace = """selected"": $targetValue"
         $content = $content -replace $pattern, $replace
     }
 
     # 处理指定的副本
     foreach ($name in $DungeonNames) {
-        $content = $content -replace """name"": ""$name"", ""selected"": [^}]*?", """name"": ""$name"", ""selected"": $targetValue"
+        # 使用 [^,}]+ 确保匹配并替换掉整个旧的值域（修复 TrueTruefalse 堆叠问题）
+        $content = $content -replace """name"": ""$name"", ""selected"":\s*[^,}]+", """name"": ""$name"", ""selected"": $targetValue"
     }
 
     if ($content -ne $original) {
