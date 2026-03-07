@@ -33,12 +33,14 @@ from auto_dungeon_config import (
 )
 
 # Import from new modules
-from auto_dungeon_container import _container
+from auto_dungeon_container import _container, get_container as container_getter
 from auto_dungeon_daily import DailyCollectManager
 from auto_dungeon_device import DeviceConnectionError, DeviceManager
 from auto_dungeon_navigation import (
     back_to_main,
     is_on_character_selection,
+    open_map as navigation_open_map,
+    switch_to_zone as navigation_switch_to_zone,
 )
 from auto_dungeon_notification import send_notification
 from auto_dungeon_state_machine import DungeonStateMachine
@@ -75,6 +77,9 @@ wait = auto_dungeon_combat.wait
 touch = auto_dungeon_combat.touch
 is_main_world = auto_dungeon_navigation.is_main_world
 SKILL_POSITIONS = DEFAULT_SKILL_POSITIONS
+get_container = container_getter
+open_map = navigation_open_map
+switch_to_zone = navigation_switch_to_zone
 
 
 def auto_combat(completed_dungeons: int = 0, total_dungeons: int = 0) -> None:
