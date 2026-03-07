@@ -290,7 +290,7 @@ class DailyCollectManager:
         activity_clicked = find_text_and_click_safe(
             "活动",
             regions=[3],
-            timeout=5,
+            timeout=10,
             use_cache=False,
         )
         self.logger.info("🔎 主题奖励: 活动入口点击结果=%s", activity_clicked)
