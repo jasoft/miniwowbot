@@ -1,10 +1,10 @@
-"""
-auto_dungeon 每日收集模块
+"""auto_dungeon 每日收集模块。
 
 本模块提供每日收集相关的操作管理。
 """
 
 import logging
+from typing import Any, Optional
 
 from airtest.core.api import touch
 
@@ -44,12 +44,11 @@ class DailyCollectManager:
     """
 
     def __init__(self, config_loader=None, db=None):
-        """
-        初始化每日收集管理器
+        """初始化每日收集管理器。
 
         Args:
-            config_loader: 配置加载器实例
-            db: DungeonProgressDB 实例
+            config_loader: 配置加载器实例。
+            db: DungeonProgressDB 实例。
         """
         self.config_loader = config_loader
         self.db = db
@@ -71,14 +70,13 @@ class DailyCollectManager:
         }
 
     def execute_task(self, task_name: str) -> bool:
-        """
-        根据任务名称执行每日任务
+        """根据任务名称执行每日任务。
 
         Args:
-            task_name: 任务名称
+            task_name: 任务名称。
 
         Returns:
-            bool: 执行是否成功
+            bool: 执行是否成功。
         """
         if task_name not in self.TASK_MAPPING:
             self.logger.warning(f"⚠️ 未知的每日任务: {task_name}")
@@ -87,8 +85,7 @@ class DailyCollectManager:
         method, step_key = self.TASK_MAPPING[task_name]
         try:
             self.logger.info(f"🚀 执行每日任务: {task_name}")
-            self._run_step(step_key, method)
-            return True
+            return self._run_step(step_key, method)
         except Exception as e:
             self.logger.error(f"❌ 执行每日任务 {task_name} 失败: {e}")
             save_error_screenshot(f"daily_{task_name}")
@@ -106,43 +103,104 @@ class DailyCollectManager:
         for _ in range(3):
             self._kill_world_boss()
 
-    def _run_step(self, step_name: str, func, *args, **kwargs):
+    @staticmethod
+    def _summarize_match_result(result: Optional[dict[str, Any]]) -> str:
+        """格式化 OCR/控件查找结果，便于日志输出。
+
+        Args:
+            result: 查找结果字典。
+
+        Returns:
+            适合日志打印的摘要文本。
         """
-        执行单个步骤，支持进度保存
+        if not result:
+            return "None"
+
+        center = result.get("center")
+        text = result.get("text")
+        confidence = result.get("confidence")
+        return (
+            f"text={text!r}, center={center}, confidence={confidence}"
+            if text is not None or confidence is not None
+            else f"center={center}"
+        )
+
+    def _run_step(self, step_name: str, func, *args, **kwargs) -> bool:
+        """执行单个步骤，并按显式结果记录进度。
+
+        Args:
+            step_name: 步骤标识。
+            func: 需要执行的步骤函数。
+            *args: 传递给步骤函数的位置参数。
+            **kwargs: 传递给步骤函数的关键字参数。
+
+        Returns:
+            bool: 步骤是否成功完成。
         """
         if self.db and self.db.is_daily_step_completed(step_name):
             self.logger.info(f"⏭️ 步骤 {step_name} 已完成，跳过")
-            return
+            return True
 
-        func(*args, **kwargs)
+        self.logger.info(f"🧩 开始执行步骤: {step_name}")
+        raw_result = func(*args, **kwargs)
+        step_succeeded = raw_result is not False
+        self.logger.info(
+            "🧾 步骤 %s 执行结束，返回值=%r，判定成功=%s",
+            step_name,
+            raw_result,
+            step_succeeded,
+        )
+
+        if not step_succeeded:
+            self.logger.warning(f"⚠️ 步骤 {step_name} 未完成，本次不写入完成记录")
+            return False
 
         if self.db:
             self.db.mark_daily_step_completed(step_name)
+            self.logger.info(f"💾 已记录每日步骤完成: {step_name}")
+
+        return True
 
     def collect_daily_rewards(self):
-        """
-        执行所有每日收集操作
+        """执行所有每日收集操作。
+
+        Returns:
+            bool: 所有步骤是否全部完成。
         """
         self.logger.info("=" * 60)
         self.logger.info("🎁 开始执行每日收集操作")
         self.logger.info("=" * 60)
 
+        all_steps_completed = True
+
         try:
             # 1. 领取每日挂机奖励
-            self._run_step("idle_rewards", self._collect_idle_rewards)
+            all_steps_completed &= self._run_step(
+                "idle_rewards",
+                self._collect_idle_rewards,
+            )
 
             # 2. 购买商店每日
-            self._run_step("buy_market_items", self._buy_market_items)
+            all_steps_completed &= self._run_step(
+                "buy_market_items",
+                self._buy_market_items,
+            )
 
             # 3. 执行随从派遣
-            self._run_step("retinue_deployment", self._handle_retinue_deployment)
+            all_steps_completed &= self._run_step(
+                "retinue_deployment",
+                self._handle_retinue_deployment,
+            )
 
             # 4. 领取每日免费地下城
-            self._run_step("free_dungeons", self._collect_free_dungeons)
+            all_steps_completed &= self._run_step(
+                "free_dungeons",
+                self._collect_free_dungeons,
+            )
 
             # 5. 开启宝箱（如果配置了宝箱名称）
             if self.config_loader and self.config_loader.get_chest_name():
-                self._run_step(
+                all_steps_completed &= self._run_step(
                     "open_chests",
                     self._open_chests,
                     self.config_loader.get_chest_name(),
@@ -153,26 +211,39 @@ class DailyCollectManager:
                 for _ in range(3):
                     self._kill_world_boss()
 
-            self._run_step("world_boss", kill_boss_loop)
+            all_steps_completed &= self._run_step("world_boss", kill_boss_loop)
 
             # 7. 领取邮件
-            self._run_step("receive_mails", self._receive_mails)
+            all_steps_completed &= self._run_step("receive_mails", self._receive_mails)
 
             # 8. 领取各种主题奖励
-            self._run_step("small_cookie", self._claim_event_rewards)
+            all_steps_completed &= self._run_step(
+                "small_cookie",
+                self._claim_event_rewards,
+            )
 
             # 9. 领取礼包
-            self._run_step("collect_gifts", self._collect_gifts)
+            all_steps_completed &= self._run_step("collect_gifts", self._collect_gifts)
 
             # 10. 领取广告奖励
-            self._run_step("buy_ads_items", self._buy_ads_items)
+            all_steps_completed &= self._run_step(
+                "buy_ads_items",
+                self._buy_ads_items,
+            )
 
             # 11. 猎魔试炼
-            self._run_step("demonhunter_exam", self._demonhunter_exam)
+            all_steps_completed &= self._run_step(
+                "demonhunter_exam",
+                self._demonhunter_exam,
+            )
 
             self.logger.info("=" * 60)
-            self.logger.info("✅ 每日收集操作全部完成")
+            if all_steps_completed:
+                self.logger.info("✅ 每日收集操作全部完成")
+            else:
+                self.logger.warning("⚠️ 每日收集存在未完成步骤，等待下次继续执行")
             self.logger.info("=" * 60)
+            return all_steps_completed
 
         except Exception as e:
             self.logger.error(f"❌ 每日收集操作失败: {e}")
@@ -200,49 +271,138 @@ class DailyCollectManager:
         except Exception as e:
             self.logger.error(f"❌ 猎魔试炼失败: {e}, 活动可能已结束")
 
-    def _claim_event_rewards(self):
-        """领取各种主题奖励"""
+    def _claim_event_rewards(self) -> bool:
+        """领取各种主题奖励。
 
-        self.logger.info("领取各种主题奖励[海盗船,法师塔]")
+        Returns:
+            bool: 是否至少成功进入到活动奖励流程。
+        """
+        event_names = [
+            "海盗船",
+            "法师塔",
+            "野蛮角斗场",
+            "火焰塔",
+            "狗头人世界",
+            "冰霜骑士团",
+        ]
+        self.logger.info("领取各种主题奖励[%s]", ",".join(event_names))
         back_to_main()
-        find_text_and_click("活动", regions=[3])
-        res = text_exists(
-            ["海盗船", "法师塔", "野蛮角斗场", "火焰塔", "狗头人世界", "冰霜骑士团"],
-            regions=[2, 3, 5, 6, 8, 9],
+        activity_clicked = find_text_and_click_safe(
+            "活动",
+            regions=[3],
+            timeout=5,
+            use_cache=False,
         )
-        if res:
-            touch(res["center"])
-            sleep(CLICK_INTERVAL)
-            find_text_and_click("领取", regions=[6])
-            res = find_text("上缴", regions=[5])
-            if res:
-                for _ in range(5):
-                    touch(res["center"])
-                    sleep(CLICK_INTERVAL)
-            else:
-                self.logger.warning("⚠️ 未找到上缴按钮, fallback to position click")
-                for _ in range(5):
-                    touch((360, 640))
-                    sleep(CLICK_INTERVAL)
+        self.logger.info("🔎 主题奖励: 活动入口点击结果=%s", activity_clicked)
+        if not activity_clicked:
+            self.logger.warning("⚠️ 主题奖励: 未找到“活动”入口，本次不记录完成")
+            back_to_main()
+            return False
 
-            find_text_and_click("领取", regions=[9])
-            find_text_and_click("兑换", regions=[9])
+        res = text_exists(
+            event_names,
+            regions=[2, 3, 5, 6, 8, 9],
+            use_cache=False,
+        )
+        self.logger.info(
+            "🔎 主题奖励: 活动卡片搜索结果=%s",
+            self._summarize_match_result(res),
+        )
+        if not res:
+            self.logger.warning("⚠️ 主题奖励: 未识别到目标活动卡片，本次不记录完成")
+            back_to_main()
+            return False
 
-            # 兑换随从碎片
+        touch(res["center"])
+        self.logger.info("👆 主题奖励: 已点击活动卡片 center=%s", res["center"])
+        sleep(CLICK_INTERVAL)
+
+        top_claim_clicked = find_text_and_click_safe(
+            "领取",
+            regions=[6],
+            timeout=3,
+            use_cache=False,
+        )
+        self.logger.info("🔎 主题奖励: 首个领取按钮点击结果=%s", top_claim_clicked)
+
+        donate_button = find_text(
+            "上缴",
+            regions=[5],
+            raise_exception=False,
+            use_cache=False,
+            timeout=3,
+        )
+        self.logger.info(
+            "🔎 主题奖励: 上缴按钮搜索结果=%s",
+            self._summarize_match_result(donate_button),
+        )
+        if donate_button:
+            self.logger.info("👆 主题奖励: 准备连续点击上缴按钮 5 次")
+            for _ in range(5):
+                touch(donate_button["center"])
+                sleep(CLICK_INTERVAL)
+        else:
+            self.logger.warning("⚠️ 未找到上缴按钮, fallback to position click")
+            for _ in range(5):
+                touch((360, 640))
+                sleep(CLICK_INTERVAL)
+
+        bottom_claim_clicked = find_text_and_click_safe(
+            "领取",
+            regions=[9],
+            timeout=3,
+            use_cache=False,
+        )
+        self.logger.info("🔎 主题奖励: 底部领取按钮点击结果=%s", bottom_claim_clicked)
+
+        exchange_tab_clicked = find_text_and_click_safe(
+            "兑换",
+            regions=[9],
+            timeout=3,
+            use_cache=False,
+        )
+        self.logger.info("🔎 主题奖励: 兑换标签点击结果=%s", exchange_tab_clicked)
+
+        exchange_success = False
+        if exchange_tab_clicked:
             game_actions = get_container().game_actions
+            if game_actions is None:
+                self.logger.warning("⚠️ 主题奖励: GameActions 未初始化，跳过兑换动作")
+            else:
+                try:
+                    button = game_actions.find_all().equals("兑换").first()
+                    button.click()
+                    self.logger.info("👆 主题奖励: 已点击兑换按钮")
 
-            button = game_actions.find_all().equals("兑换").first()
-            try:
-                button.click()
-
-                game_actions.find_all(regions=[5]).equals("确定").first().click()
-                if find_text_and_click_safe("确定", regions=[5], timeout=3):
-                    send_notification("兑换紫色碎片成功", "兑换成功, 请立即检查")
-            except Exception as e:
-                self.logger.error(f"❌ 兑换碎片失败: {e}")
-                send_notification("兑换碎片失败", "兑换失败, 请立即检查")
+                    game_actions.find_all(regions=[5]).equals("确定").first().click()
+                    self.logger.info("👆 主题奖励: 已点击兑换确认按钮")
+                    if find_text_and_click_safe(
+                        "确定",
+                        regions=[5],
+                        timeout=3,
+                        use_cache=False,
+                    ):
+                        send_notification("兑换紫色碎片成功", "兑换成功, 请立即检查")
+                    exchange_success = True
+                except Exception as exc:
+                    self.logger.error("❌ 主题奖励: 兑换碎片失败: %s", exc)
+                    send_notification("兑换碎片失败", "兑换失败, 请立即检查")
+        else:
+            self.logger.info("ℹ️ 主题奖励: 未看到兑换标签，跳过碎片兑换流程")
 
         back_to_main()
+        self.logger.info(
+            "🧾 主题奖励流程结果: activity_clicked=%s, card_found=%s, "
+            "top_claim_clicked=%s, bottom_claim_clicked=%s, "
+            "exchange_tab_clicked=%s, exchange_success=%s",
+            activity_clicked,
+            bool(res),
+            top_claim_clicked,
+            bottom_claim_clicked,
+            exchange_tab_clicked,
+            exchange_success,
+        )
+        return True
 
     def _collect_idle_rewards(self):
         """
@@ -511,7 +671,11 @@ class DailyCollectManager:
 
 
 def execute_daily_collect() -> bool:
-    """领取每日挂机奖励"""
+    """执行整套每日收集并按结果决定是否记为完成。
+
+    Returns:
+        bool: 本次是否完整完成每日收集。
+    """
     from database import DungeonProgressDB
 
     _container = get_container()
@@ -527,7 +691,11 @@ def execute_daily_collect() -> bool:
             return False
 
         manager = DailyCollectManager(_container.config_loader, db)
-        manager.collect_daily_rewards()
+        all_steps_completed = manager.collect_daily_rewards()
+        if not all_steps_completed:
+            logger.warning("⚠️ 今日每日收集存在未完成步骤，本次不记录总完成")
+            return False
+
         db.mark_daily_collect_completed()
         logger.info("💾 已记录今日每日收集完成")
         return True
