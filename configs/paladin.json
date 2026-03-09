@@ -9,7 +9,7 @@
             { "name": "真理之地", "selected": false },
             { "name": "预言神殿", "selected": false },
             { "name": "海底王宫", "selected": false },
-            { "name": "泰坦密室", "selected": true},
+            { "name": "泰坦密室", "selected": false},
             { "name": "黑暗庄园", "selected": false },
             { "name": "海底囚牢", "selected": false },
             { "name": "地精岛", "selected": false },
@@ -22,8 +22,8 @@
         ],
         "军团领域": [
             { "name": "大墓地密室", "selected": false },
-            { "name": "流放王座", "selected": true},
-            { "name": "毁灭之地", "selected": true},
+            { "name": "流放王座", "selected": false},
+            { "name": "毁灭之地", "selected": false},
             { "name": "大墓地圣殿", "selected": false },
             { "name": "封印地窟", "selected": false },
             { "name": "魔能宫殿", "selected": false },
@@ -37,17 +37,17 @@
         ],
         "暗影大陆": [
             { "name": "钢铁码头", "selected": false },
-            { "name": "食人魔王国", "selected": true},
+            { "name": "食人魔王国", "selected": false},
             { "name": "黑暗熔炉", "selected": false },
             { "name": "通天峰", "selected": false },
-            { "name": "熔渣车间", "selected": true},
+            { "name": "熔渣车间", "selected": false},
             { "name": "食人魔矿井", "selected": false },
             { "name": "木精圣地", "selected": false },
             { "name": "鲜血庭院", "selected": false },
             { "name": "钢铁车站", "selected": false },
             { "name": "神圣陵墓", "selected": false },
             { "name": "兽人墓地", "selected": false },
-            { "name": "毁灭高台", "selected": true}
+            { "name": "毁灭高台", "selected": false}
         ],
         "迷雾大陆": [
             { "name": "兽人圣殿", "selected": false },
