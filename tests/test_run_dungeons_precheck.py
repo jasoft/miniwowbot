@@ -132,3 +132,29 @@ def test_run_configs_starts_emulator_when_pending(monkeypatch, tmp_path):
     assert rc == 0
     assert calls["ensure"] == 1
     assert calls["invoke"] == 1
+
+
+def test_filter_pending_configs_keeps_only_incomplete(monkeypatch) -> None:
+    """Only incomplete configs should remain after filtering."""
+    monkeypatch.setattr(
+        run_dungeons,
+        "_is_config_completed",
+        lambda cfg, _logger: {"done": True, "todo": False}[cfg],
+    )
+
+    pending = run_dungeons.filter_pending_configs(["done", "todo"], logger=None)
+
+    assert pending == ["todo"]
+
+
+def test_filter_pending_configs_keeps_unknown_results(monkeypatch) -> None:
+    """Unknown precheck results should be kept to avoid skipping work."""
+    monkeypatch.setattr(
+        run_dungeons,
+        "_is_config_completed",
+        lambda cfg, _logger: {"done": True, "unknown": None}[cfg],
+    )
+
+    pending = run_dungeons.filter_pending_configs(["done", "unknown"], logger=None)
+
+    assert pending == ["unknown"]

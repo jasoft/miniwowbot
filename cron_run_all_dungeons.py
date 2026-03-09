@@ -31,6 +31,7 @@ from emulator_control import (
     restart_emulator,
 )
 from logger_config import setup_logger
+from run_dungeons import filter_pending_configs
 
 SCRIPT_DIR = Path(__file__).parent
 IS_WINDOWS = platform.system() == "Windows"
@@ -55,6 +56,7 @@ class SessionTask:
         name: 会话名称。
         emulator: 模拟器地址。
         logfile: 会话日志文件路径。
+        configs: 会话原始配置列表。
         cmd: 启动会话执行的命令行。
         emulator_shutdown_cmd: 自定义模拟器关闭命令（可选）。
         emulator_start_cmd: 自定义模拟器启动命令（可选）。
@@ -65,6 +67,7 @@ class SessionTask:
     name: str
     emulator: str
     logfile: Path
+    configs: list[str]
     cmd: str
     emulator_shutdown_cmd: Optional[str] = None
     emulator_start_cmd: Optional[str] = None
@@ -187,15 +190,17 @@ def parse_session_tasks(
             logger.error(f"❌ 会话 {name} 未提供有效的 configs 列表，已跳过")
             continue
 
-        details = ", ".join(str(item) for item in configs)
+        normalized_configs = [str(item).strip() for item in configs if str(item).strip()]
+        details = ", ".join(normalized_configs)
         logger.info(f"🔧 {name}: 配置[{details}] @ {emulator}")
-        cmd = build_cmd_for_configs(name, emulator, logfile, [str(item) for item in configs])
+        cmd = build_cmd_for_configs(name, emulator, logfile, normalized_configs)
         logger.info(f"🖥️  启动命令行: {cmd}")
         tasks.append(
             SessionTask(
                 name=name,
                 emulator=emulator,
                 logfile=logfile,
+                configs=normalized_configs,
                 cmd=cmd,
                 emulator_shutdown_cmd=emulator_shutdown_cmd,
                 emulator_start_cmd=emulator_start_cmd,
@@ -205,6 +210,52 @@ def parse_session_tasks(
         )
 
     return tasks
+
+
+def filter_pending_session_tasks(
+    tasks: Sequence[SessionTask], logger: logging.Logger
+) -> list[SessionTask]:
+    """过滤出仍需启动的会话任务。
+
+    Args:
+        tasks: 原始会话任务列表。
+        logger: 日志对象。
+
+    Returns:
+        只包含仍有待执行配置的会话任务列表。
+    """
+    pending_tasks: list[SessionTask] = []
+    for task in tasks:
+        pending_configs = filter_pending_configs(task.configs, logger)
+        if not pending_configs:
+            logger.info(f"✅ 会话 {task.name} 当日任务已完成，跳过启动")
+            continue
+
+        if pending_configs != task.configs:
+            logger.info(
+                f"📋 会话 {task.name} 过滤后剩余配置: {', '.join(pending_configs)}"
+            )
+
+        pending_tasks.append(
+            SessionTask(
+                name=task.name,
+                emulator=task.emulator,
+                logfile=task.logfile,
+                configs=pending_configs,
+                cmd=build_cmd_for_configs(
+                    task.name,
+                    task.emulator,
+                    task.logfile,
+                    pending_configs,
+                ),
+                emulator_shutdown_cmd=task.emulator_shutdown_cmd,
+                emulator_start_cmd=task.emulator_start_cmd,
+                mumu_vm_index=task.mumu_vm_index,
+                mumu_manager_path=task.mumu_manager_path,
+            )
+        )
+
+    return pending_tasks
 
 
 def launch_tmux(session: str, cmd: str, logger: logging.Logger) -> bool:
@@ -832,14 +883,23 @@ def main() -> int:
         logger.error("❌ 未解析到可执行会话，无法继续")
         return 2
 
+    pending_tasks = filter_pending_session_tasks(tasks, logger)
+    if not pending_tasks:
+        logger.info("✅ 所有会话当日任务已完成，跳过 shell 与 OCR 启动")
+        if run_poe_stats(logger):
+            logger.info("🎉 所有副本已完成，本次流程成功")
+            return 0
+        logger.error("❌ 预检查未发现待执行会话，但 `poe stats` 仍显示存在未完成副本")
+        return 1
+
     prepare_ocr_service(logger)
 
     for attempt in range(1, FLOW_MAX_RETRIES + 1):
         logger.info(
             f"🔁 开始第 {attempt}/{FLOW_MAX_RETRIES} 次全流程执行，"
-            f"当前会话数: {len(tasks)}"
+            f"当前会话数: {len(pending_tasks)}"
         )
-        if run_single_flow(tasks, logger):
+        if run_single_flow(pending_tasks, logger):
             logger.info("🎉 所有副本已完成，本次流程成功")
             return 0
 

@@ -11,6 +11,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterable, List, Optional
+
 import typer
 
 from logger_config import setup_logger, update_log_context, attach_emulator_file_handler
@@ -131,6 +132,28 @@ def _is_config_completed(config_name: str, logger) -> Optional[bool]:
         return None
 
 
+def filter_pending_configs(configs: Iterable[str], logger) -> List[str]:
+    """过滤出仍需执行的配置列表。
+
+    Args:
+        configs: 待检查的配置名称列表。
+        logger: 日志记录器。
+
+    Returns:
+        仍需执行的配置名称列表。检查失败的配置会保守地保留在结果中。
+    """
+    pending_cfgs: List[str] = []
+    for cfg in configs:
+        normalized_cfg = str(cfg).strip()
+        if not normalized_cfg:
+            continue
+        completed = _is_config_completed(normalized_cfg, logger)
+        if completed is True:
+            continue
+        pending_cfgs.append(normalized_cfg)
+    return pending_cfgs
+
+
 def _invoke_auto_dungeon_once(config_name: str, emulator: str, session: str) -> int:
     """执行一次 auto_dungeon 对应配置。
 
@@ -230,12 +253,7 @@ def run_configs(
             pass
         return 2
 
-    pending_cfgs: List[str] = []
-    for cfg in cfgs:
-        completed = _is_config_completed(cfg, logger)
-        if completed is True:
-            continue
-        pending_cfgs.append(cfg)
+    pending_cfgs = filter_pending_configs(cfgs, logger)
 
     if not pending_cfgs:
         logger.info("✅ 所有配置当日任务已完成，无需启动模拟器，脚本退出")
