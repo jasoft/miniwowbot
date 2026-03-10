@@ -32,6 +32,7 @@ except Exception:
 from datetime import datetime
 import argparse
 
+from config_loader import load_config
 from database import DungeonProgressDB
 from wow_class_colors import get_class_ansi_color, get_class_hex_color
 from auto_dungeon_notification import send_pushover_html_notification
@@ -198,16 +199,21 @@ class ProgressChecker:
             db.close()
 
     def _load_config_dungeons(self, config_name):
-        """加载指定配置的副本列表"""
+        """加载指定配置的已选中副本列表。
+
+        Args:
+            config_name: 配置名称。
+
+        Returns:
+            tuple: 原始区域副本映射与扁平化后的已选中副本列表。
+        """
         config_path = f"configs/{config_name}.json"
         if not os.path.exists(config_path):
             return {}, []
 
         try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                config = json.load(f)
-
-            zone_dungeons = config.get("zone_dungeons", {})
+            config_loader = load_config(config_path)
+            zone_dungeons = config_loader.get_zone_dungeons()
             all_dungeons = []
 
             for zone, dungeons in zone_dungeons.items():
