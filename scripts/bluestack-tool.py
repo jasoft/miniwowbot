@@ -85,10 +85,34 @@ class CommandResult:
 
 
 DEFAULT_INSTANCES = [
-    InstanceConfig(id="1", label="主实例", instance_name="Pie64", adb_serial="emulator-5554", expected_port=5554),
-    InstanceConfig(id="2", label="多开 1", instance_name="Pie64_1", adb_serial="emulator-5564", expected_port=5564),
-    InstanceConfig(id="3", label="多开 2", instance_name="Pie64_2", adb_serial="emulator-5574", expected_port=5574),
-    InstanceConfig(id="4", label="多开 3", instance_name="Pie64_3", adb_serial="emulator-5584", expected_port=5584),
+    InstanceConfig(
+        id="1",
+        label="主实例",
+        instance_name="Pie64",
+        adb_serial="emulator-5554",
+        expected_port=5554,
+    ),
+    InstanceConfig(
+        id="2",
+        label="多开 1",
+        instance_name="Pie64_1",
+        adb_serial="emulator-5564",
+        expected_port=5564,
+    ),
+    InstanceConfig(
+        id="3",
+        label="多开 2",
+        instance_name="Pie64_2",
+        adb_serial="emulator-5574",
+        expected_port=5574,
+    ),
+    InstanceConfig(
+        id="4",
+        label="多开 3",
+        instance_name="Pie64_3",
+        adb_serial="emulator-5584",
+        expected_port=5584,
+    ),
 ]
 
 
@@ -110,7 +134,9 @@ def decode_process_output(output: bytes | str | None) -> str:
     return output.decode("utf-8", errors="replace")
 
 
-def run_list_cmd(command: list[str], timeout: int = 30, allow_failure: bool = False) -> CommandResult:
+def run_list_cmd(
+    command: list[str], timeout: int = 30, allow_failure: bool = False
+) -> CommandResult:
     try:
         completed = subprocess.run(
             command,
@@ -152,6 +178,51 @@ def run_list_cmd(command: list[str], timeout: int = 30, allow_failure: bool = Fa
         returncode=completed.returncode,
         stdout=stdout,
         stderr=stderr,
+        command=command,
+    )
+
+
+def launch_instance_no_wait(command: list[str]) -> CommandResult:
+    """启动实例进程，不等待进程退出。
+
+    使用 Popen 启动进程后立即返回，适用于需要后台启动的场景。
+
+    Args:
+        command: 启动命令列表。
+
+    Returns:
+        CommandResult，启动命令是否成功发送（进程是否启动）。
+    """
+    try:
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except FileNotFoundError:
+        return CommandResult(
+            ok=False,
+            returncode=127,
+            stdout="",
+            stderr=f"命令不存在: {command[0]}",
+            command=command,
+        )
+    except Exception as exc:
+        return CommandResult(
+            ok=False,
+            returncode=1,
+            stdout="",
+            stderr=f"命令启动失败: {exc}",
+            command=command,
+        )
+
+    return CommandResult(
+        ok=True,
+        returncode=0,
+        stdout=f"进程已启动 (PID: {process.pid})",
+        stderr="",
         command=command,
     )
 
@@ -258,7 +329,9 @@ def get_connected_adb_devices(adb_path: str | None) -> tuple[dict[str, str], str
 
 
 def count_processes(process_name: str) -> int:
-    result = run_list_cmd(["tasklist", "/FI", f"IMAGENAME eq {process_name}"] , timeout=20, allow_failure=True)
+    result = run_list_cmd(
+        ["tasklist", "/FI", f"IMAGENAME eq {process_name}"], timeout=20, allow_failure=True
+    )
     if not result.stdout:
         return 0
 
@@ -282,9 +355,43 @@ def is_any_bluestacks_process_running() -> tuple[bool, int]:
     return pid_count > 0, pid_count
 
 
-def collect_instance_status(instance: InstanceConfig, adb_map: dict[str, str], adb_error: str | None = None) -> InstanceRuntimeStatus:
+def resolve_adb_serial_from_map(
+    instance: InstanceConfig, adb_map: dict[str, str]
+) -> tuple[str | None, str | None]:
+    """从 ADB 设备映射中查找实例对应的设备状态。
+
+    支持两种格式的 serial：
+    - emulator-5554 (传统格式)
+    - 127.0.0.1:5555 (IP:Port 格式)
+
+    BlueStacks 端口映射规律：emulator-{port} -> 127.0.0.1:{port+1}
+    例如：emulator-5554 -> 127.0.0.1:5555
+
+    Args:
+        instance: 实例配置。
+        adb_map: ADB 设备映射，键为 serial，值为状态。
+
+    Returns:
+        (匹配的 serial, 设备状态) 元组，如果未找到则返回 (None, None)。
+    """
+    # 优先精确匹配
+    if instance.adb_serial in adb_map:
+        return instance.adb_serial, adb_map[instance.adb_serial]
+
+    # 检查 IP:Port 格式 (BlueStacks 使用 expected_port + 1)
+    if instance.expected_port:
+        ip_port = f"127.0.0.1:{instance.expected_port + 1}"
+        if ip_port in adb_map:
+            return ip_port, adb_map[ip_port]
+
+    return None, None
+
+
+def collect_instance_status(
+    instance: InstanceConfig, adb_map: dict[str, str], adb_error: str | None = None
+) -> InstanceRuntimeStatus:
     player_running, pid_count = is_any_bluestacks_process_running()
-    device_state = adb_map.get(instance.adb_serial)
+    matched_serial, device_state = resolve_adb_serial_from_map(instance, adb_map)
     adb_connected = device_state is not None
 
     if device_state == "device":
@@ -351,7 +458,16 @@ def print_table(rows: list[dict[str, Any]]) -> None:
         print("没有可显示的数据")
         return
 
-    headers = ["id", "label", "instance_name", "adb_serial", "player_running", "adb_connected", "device_state", "status"]
+    headers = [
+        "id",
+        "label",
+        "instance_name",
+        "adb_serial",
+        "player_running",
+        "adb_connected",
+        "device_state",
+        "status",
+    ]
     widths: dict[str, int] = {}
     for header in headers:
         max_width = len(header)
@@ -367,7 +483,9 @@ def print_table(rows: list[dict[str, Any]]) -> None:
         print("  ".join(str(row.get(header, "")).ljust(widths[header]) for header in headers))
 
 
-def emit_result(args: argparse.Namespace, payload: dict[str, Any], rows: list[dict[str, Any]] | None = None) -> None:
+def emit_result(
+    args: argparse.Namespace, payload: dict[str, Any], rows: list[dict[str, Any]] | None = None
+) -> None:
     if args.format == "json":
         print_json(payload)
         return
@@ -401,7 +519,10 @@ def get_target_instance(args: argparse.Namespace) -> InstanceConfig | None:
 def cmd_list(args: argparse.Namespace) -> int:
     adb_path = resolve_adb_path(args.adb)
     adb_map, adb_error = get_connected_adb_devices(adb_path)
-    statuses = [collect_instance_status(instance, adb_map, adb_error) for instance in build_default_instances()]
+    statuses = [
+        collect_instance_status(instance, adb_map, adb_error)
+        for instance in build_default_instances()
+    ]
     rows = [instance_status_to_dict(status) for status in statuses]
 
     payload = build_base_payload("list", True, "已列出所有实例")
@@ -427,7 +548,9 @@ def cmd_status(args: argparse.Namespace) -> int:
 
         status = collect_instance_status(instance, adb_map, adb_error)
         row = instance_status_to_dict(status)
-        payload = build_base_payload("status", status.status == "running", f"实例 {instance.id} 当前状态: {status.status}")
+        payload = build_base_payload(
+            "status", status.status == "running", f"实例 {instance.id} 当前状态: {status.status}"
+        )
         payload["instance"] = row
         payload["adb_path"] = adb_path
         if adb_error:
@@ -435,7 +558,10 @@ def cmd_status(args: argparse.Namespace) -> int:
         emit_result(args, payload, [row])
         return EXIT_OK if status.status == "running" else EXIT_STATE_MISMATCH
 
-    statuses = [collect_instance_status(instance, adb_map, adb_error) for instance in build_default_instances()]
+    statuses = [
+        collect_instance_status(instance, adb_map, adb_error)
+        for instance in build_default_instances()
+    ]
     rows = [instance_status_to_dict(status) for status in statuses]
     summary = {
         "total": len(statuses),
@@ -455,8 +581,32 @@ def cmd_status(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
-def start_bluestacks_instance(instance: InstanceConfig, player_path: str) -> CommandResult:
-    return run_list_cmd([player_path, "--instance", instance.instance_name], timeout=20)
+# no_wait 模式下使用较短超时，因为不需要等待实例完全启动
+LAUNCH_TIMEOUT_NO_WAIT = 10
+LAUNCH_TIMEOUT_WAIT = 120
+
+
+def start_bluestacks_instance(
+    instance: InstanceConfig, player_path: str, no_wait: bool = False
+) -> CommandResult:
+    """启动 BlueStacks 实例。
+
+    Args:
+        instance: 实例配置。
+        player_path: HD-Player.exe 路径。
+        no_wait: 是否不等待实例启动完成。
+
+    Returns:
+        CommandResult，启动命令是否成功发送。
+    """
+    command = [player_path, "--instance", instance.instance_name]
+
+    if no_wait:
+        # 使用 Popen 启动后立即返回
+        return launch_instance_no_wait(command)
+    else:
+        # 等待模式：启动后轮询状态直到 running 或超时
+        return run_list_cmd(command, timeout=5)
 
 
 def cmd_start(args: argparse.Namespace) -> int:
@@ -468,7 +618,9 @@ def cmd_start(args: argparse.Namespace) -> int:
 
     player_path = resolve_bluestacks_player_path(args.player)
     if not player_path:
-        payload = build_base_payload("start", False, "未找到 BlueStacks 可执行文件，可用 --player 指定路径")
+        payload = build_base_payload(
+            "start", False, "未找到 BlueStacks 可执行文件，可用 --player 指定路径"
+        )
         emit_result(args, payload)
         return EXIT_ENVIRONMENT_ERROR
 
@@ -485,7 +637,8 @@ def cmd_start(args: argparse.Namespace) -> int:
         emit_result(args, payload, [row])
         return EXIT_OK
 
-    result = start_bluestacks_instance(instance, player_path)
+    no_wait = getattr(args, "no_wait", False)
+    result = start_bluestacks_instance(instance, player_path, no_wait)
     if not result.ok:
         payload = build_base_payload("start", False, f"启动实例 {instance.id} 失败")
         payload["player_path"] = player_path
@@ -497,14 +650,27 @@ def cmd_start(args: argparse.Namespace) -> int:
         return EXIT_OPERATION_FAILED
 
     if args.no_wait:
-        payload = build_base_payload("start", True, f"已发送启动命令到实例 {instance.id}")
-        payload["instance"] = instance_status_to_dict(before_status)
+        after_adb_map, after_adb_error = get_connected_adb_devices(adb_path)
+        after_status = collect_instance_status(instance, after_adb_map, after_adb_error)
+        after_row = instance_status_to_dict(after_status)
+
+        # 判断是否需要等待 - 如果已经启动成功就返回成功
+        started_successfully = after_status.status == "running"
+
+        payload = build_base_payload(
+            "start",
+            started_successfully,
+            f"已发送启动命令到实例 {instance.id}"
+            + ("" if started_successfully else "，请等待启动完成"),
+        )
+        payload["instance"] = after_row
         payload["player_path"] = player_path
         payload["adb_path"] = adb_path
         payload["launch_command"] = result.command
         payload["waited"] = False
-        emit_result(args, payload, [instance_status_to_dict(before_status)])
-        return EXIT_OK
+        payload["already_running"] = started_successfully
+        emit_result(args, payload, [after_row])
+        return EXIT_OK if started_successfully else EXIT_OK
 
     started_at = time.time()
     final_status, reached = wait_for_instance_status(instance, adb_path, args.timeout, {"running"})
@@ -527,12 +693,192 @@ def cmd_start(args: argparse.Namespace) -> int:
     return EXIT_OK if reached else EXIT_STATE_MISMATCH
 
 
-def stop_instance_via_adb(instance: InstanceConfig, adb_path: str) -> CommandResult:
-    return run_list_cmd([adb_path, "-s", instance.adb_serial, "emu", "kill"], timeout=20, allow_failure=True)
+def stop_instance_via_adb(
+    instance: InstanceConfig, adb_path: str, matched_serial: str | None = None
+) -> CommandResult:
+    """使用 ADB 停止模拟器。
+
+    Args:
+        instance: 实例配置。
+        adb_path: adb 可执行文件路径。
+        matched_serial: 实际匹配的 ADB serial，如果为 None 则使用配置中的 adb_serial。
+    """
+    serial = matched_serial if matched_serial else instance.adb_serial
+    return run_list_cmd([adb_path, "-s", serial, "emu", "kill"], timeout=20, allow_failure=True)
 
 
-def disconnect_instance(instance: InstanceConfig, adb_path: str) -> CommandResult:
-    return run_list_cmd([adb_path, "disconnect", instance.adb_serial], timeout=20, allow_failure=True)
+def disconnect_instance(
+    instance: InstanceConfig, adb_path: str, matched_serial: str | None = None
+) -> CommandResult:
+    """断开 ADB 连接。
+
+    Args:
+        instance: 实例配置。
+        adb_path: adb 可执行文件路径。
+        matched_serial: 实际匹配的 ADB serial，如果为 None 则使用配置中的 adb_serial。
+    """
+    serial = matched_serial if matched_serial else instance.adb_serial
+    return run_list_cmd([adb_path, "disconnect", serial], timeout=20, allow_failure=True)
+
+
+def find_pid_by_port(port: int) -> int | None:
+    """通过端口查找对应的进程 PID。
+
+    Args:
+        port: 端口号，例如 5555, 5565 等。
+
+    Returns:
+        进程的 PID，如果未找到则返回 None。
+    """
+    result = run_list_cmd(["netstat", "-ano"], timeout=10, allow_failure=True)
+    if not result.ok:
+        return None
+
+    for line in result.stdout.split("\n"):
+        if f":{port}" in line and "LISTENING" in line:
+            parts = line.split()
+            if len(parts) >= 5:
+                try:
+                    return int(parts[-1])
+                except ValueError:
+                    continue
+    return None
+
+
+def kill_process_by_pid(pid: int) -> CommandResult:
+    """通过 PID 杀死进程。
+
+    Args:
+        pid: 进程 ID。
+    """
+    return run_list_cmd(["taskkill", "/F", "/PID", str(pid)], timeout=10, allow_failure=True)
+
+
+def find_and_kill_bluestacks_instance(instance: InstanceConfig) -> CommandResult:
+    """通过 WMI 查找并杀死指定实例的 BlueStacks 进程。
+
+    调用 scripts/kill_bluestacks_instance.ps1 PowerShell 脚本来杀死进程。
+    该脚本查找命令行中包含 "--instance <instance_name>" 的 HD-Player.exe 进程。
+
+    Args:
+        instance: 实例配置。
+
+    Returns:
+        CommandResult，命令执行结果。
+    """
+    ps_script_path = Path(__file__).parent / "kill_bluestacks_instance.ps1"
+
+    try:
+        result = subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(ps_script_path),
+                "-InstanceName",
+                instance.instance_name,
+            ],
+            capture_output=True,
+            timeout=30,
+            text=True,
+        )
+        stdout = result.stdout.strip()
+        stderr = result.stderr.strip()
+        ok = result.returncode == 0
+        return CommandResult(
+            ok=ok,
+            returncode=result.returncode,
+            stdout=stdout,
+            stderr=stderr,
+            command=[
+                "powershell",
+                "-File",
+                f"kill_bluestacks_instance.ps1 -InstanceName {instance.instance_name}",
+            ],
+        )
+    except subprocess.TimeoutExpired:
+        return CommandResult(
+            ok=False,
+            returncode=124,
+            stdout="",
+            stderr="命令执行超时",
+            command=[
+                "powershell",
+                "-File",
+                f"kill_bluestacks_instance.ps1 -InstanceName {instance.instance_name}",
+            ],
+        )
+    except Exception as exc:
+        return CommandResult(
+            ok=False,
+            returncode=1,
+            stdout="",
+            stderr=f"命令执行失败: {exc}",
+            command=[
+                "powershell",
+                "-File",
+                f"kill_bluestacks_instance.ps1 -InstanceName {instance.instance_name}",
+            ],
+        )
+
+    # 端口 = expected_port + 1
+    port = instance.expected_port + 1
+
+    # 使用 PowerShell 通过端口查找并杀死进程
+    port = instance.expected_port + 1
+    ps_script = f"""
+$port = {port}
+$connections = netstat -ano | Select-String ":{port}" | Where-Object {{ $_ -match 'LISTENING' }}
+if ($connections) {{
+    foreach ($conn in $connections) {{
+        $line = $conn -split '\\s+' | Where-Object {{ $_ -ne '' }}
+        $pid = $line[-1]
+        if ($pid -match '^\\d+$') {{
+            Write-Output "Killing PID: $pid (Port: $port)"
+            taskkill /F /PID $pid
+        }}
+    }}
+    exit 0
+}} else {{
+    Write-Output "No process listening on port $port"
+    exit 1
+}}
+"""
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps_script],
+            capture_output=True,
+            timeout=30,
+            text=True,
+        )
+        stdout = result.stdout.strip()
+        stderr = result.stderr.strip()
+        ok = result.returncode == 0
+        return CommandResult(
+            ok=ok,
+            returncode=result.returncode,
+            stdout=stdout,
+            stderr=stderr,
+            command=["powershell", "-Command", f"kill by port {port}"],
+        )
+    except subprocess.TimeoutExpired:
+        return CommandResult(
+            ok=False,
+            returncode=124,
+            stdout="",
+            stderr="命令执行超时",
+            command=["powershell", "-Command", f"kill by port {port}"],
+        )
+    except Exception as exc:
+        return CommandResult(
+            ok=False,
+            returncode=1,
+            stdout="",
+            stderr=f"命令执行失败: {exc}",
+            command=["powershell", "-Command", f"kill by port {port}"],
+        )
 
 
 def cmd_stop(args: argparse.Namespace) -> int:
@@ -558,8 +904,23 @@ def cmd_stop(args: argparse.Namespace) -> int:
         emit_result(args, payload, [row])
         return EXIT_OK
 
-    kill_result = stop_instance_via_adb(instance, adb_path)
-    disconnect_result = disconnect_instance(instance, adb_path)
+    # 获取实际匹配的 serial (可能是 127.0.0.1:5555 格式)
+    matched_serial, _ = resolve_adb_serial_from_map(instance, adb_map)
+
+    stop_methods_used: list[str] = []
+
+    # 首先尝试通过端口查找并杀死进程
+    kill_by_port_result = find_and_kill_bluestacks_instance(instance)
+    if kill_by_port_result.ok:
+        stop_methods_used.append("kill by port")
+        kill_result = kill_by_port_result
+    else:
+        # 端口方法失败，回退到 ADB 方法
+        kill_result = stop_instance_via_adb(instance, adb_path, matched_serial)
+        stop_methods_used.append("adb emu kill")
+
+    disconnect_result = disconnect_instance(instance, adb_path, matched_serial)
+    stop_methods_used.append("adb disconnect")
 
     started_at = time.time()
     final_status, reached = wait_for_instance_status(instance, adb_path, args.timeout, {"stopped"})
@@ -572,7 +933,7 @@ def cmd_stop(args: argparse.Namespace) -> int:
     )
     payload["instance"] = row
     payload["adb_path"] = adb_path
-    payload["stop_method"] = "adb emu kill + adb disconnect"
+    payload["stop_method"] = " + ".join(stop_methods_used)
     payload["elapsed_seconds"] = elapsed_seconds
     payload["emu_kill"] = {
         "ok": kill_result.ok,
@@ -590,9 +951,24 @@ def cmd_stop(args: argparse.Namespace) -> int:
     return EXIT_OK if reached else EXIT_STATE_MISMATCH
 
 
+def add_common_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--format", choices=("table", "json"), default="table", help="输出格式（默认: table）"
+    )
+    parser.add_argument("--adb", help="adb 可执行文件路径")
+    parser.add_argument("--player", help="BlueStacks HD-Player.exe 路径")
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=DEFAULT_TIMEOUT,
+        help=f"等待超时秒数（默认: {DEFAULT_TIMEOUT}）",
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     default_mapping = "\n".join(
-        f"  {instance.id} -> {instance.instance_name} / {instance.adb_serial}" for instance in DEFAULT_INSTANCES
+        f"  {instance.id} -> {instance.instance_name} / {instance.adb_serial}"
+        for instance in DEFAULT_INSTANCES
     )
 
     epilog = f"""
@@ -605,8 +981,8 @@ def build_parser() -> argparse.ArgumentParser:
 {default_mapping}
 
 输出格式:
-  --format table   适合人工查看（默认）
-  --format json    适合 app/agent 解析
+  所有子命令都支持 --format table|json
+  推荐 app/agent 使用 --format json
 
 退出码:
   0  成功
@@ -648,30 +1024,32 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=epilog,
     )
-    parser.add_argument("--format", choices=("table", "json"), default="table", help="输出格式（默认: table）")
-    parser.add_argument("--adb", help="adb 可执行文件路径")
-    parser.add_argument("--player", help="BlueStacks HD-Player.exe 路径")
-    parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help=f"等待超时秒数（默认: {DEFAULT_TIMEOUT}）")
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     list_parser = subparsers.add_parser("list", help="列出所有已知实例及当前状态")
+    add_common_arguments(list_parser)
     list_parser.set_defaults(func=cmd_list)
 
     status_parser = subparsers.add_parser("status", help="查询一个或全部实例状态")
+    add_common_arguments(status_parser)
     status_parser.add_argument("--id", help="实例 id，例如 1 / 2 / 3 / 4")
     status_parser.add_argument("--instance", help="临时覆盖实例名，例如 Pie64_1")
     status_parser.add_argument("--adb-serial", help="临时覆盖 adb serial，例如 emulator-5564")
     status_parser.set_defaults(func=cmd_status)
 
     start_parser = subparsers.add_parser("start", help="启动指定实例")
+    add_common_arguments(start_parser)
     start_parser.add_argument("--id", required=True, help="实例 id，例如 1 / 2 / 3 / 4")
     start_parser.add_argument("--instance", help="临时覆盖实例名，例如 Pie64_1")
     start_parser.add_argument("--adb-serial", help="临时覆盖 adb serial，例如 emulator-5564")
-    start_parser.add_argument("--no-wait", action="store_true", help="只发送启动命令，不等待实例进入 running")
+    start_parser.add_argument(
+        "--no-wait", action="store_true", help="只发送启动命令，不等待实例进入 running"
+    )
     start_parser.set_defaults(func=cmd_start)
 
     stop_parser = subparsers.add_parser("stop", help="停止指定实例")
+    add_common_arguments(stop_parser)
     stop_parser.add_argument("--id", required=True, help="实例 id，例如 1 / 2 / 3 / 4")
     stop_parser.add_argument("--instance", help="临时覆盖实例名，例如 Pie64_1")
     stop_parser.add_argument("--adb-serial", help="临时覆盖 adb serial，例如 emulator-5564")
@@ -685,7 +1063,11 @@ def main() -> int:
     args = parser.parse_args()
 
     if getattr(args, "timeout", DEFAULT_TIMEOUT) < 0:
-        payload = build_base_payload(args.command if getattr(args, "command", None) else "unknown", False, "--timeout 不能小于 0")
+        payload = build_base_payload(
+            args.command if getattr(args, "command", None) else "unknown",
+            False,
+            "--timeout 不能小于 0",
+        )
         emit_result(args, payload)
         return EXIT_INVALID_ARGUMENT
 
