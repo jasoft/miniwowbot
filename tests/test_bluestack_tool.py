@@ -8,6 +8,7 @@ bluestack-tool.py 单元测试。
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -338,6 +339,260 @@ class TestWaitForInstanceStatus:
             {"running"},  # 1秒超时
         )
         assert reached is False
+
+
+class TestStartCommand:
+    """测试启动命令关键路径。"""
+
+    def test_start_bluestacks_instance_wait_mode_uses_non_blocking_launch(self) -> None:
+        """验证等待模式先发送启动命令，再由外层轮询状态。"""
+        instance = bt.InstanceConfig(
+            id="1",
+            label="主实例",
+            instance_name="Pie64",
+            adb_serial="emulator-5554",
+        )
+        expected = bt.CommandResult(
+            ok=True,
+            returncode=0,
+            stdout="进程已启动 (PID: 1234)",
+            stderr="",
+            command=["C:\\BlueStacks\\HD-Player.exe", "--instance", "Pie64"],
+        )
+
+        with (
+            patch("bluestack_tool.launch_instance_no_wait", return_value=expected) as mock_launch,
+            patch("bluestack_tool.run_list_cmd") as mock_run,
+        ):
+            result = bt.start_bluestacks_instance(
+                instance,
+                "C:\\BlueStacks\\HD-Player.exe",
+                no_wait=False,
+            )
+
+        assert result == expected
+        mock_launch.assert_called_once_with(
+            ["C:\\BlueStacks\\HD-Player.exe", "--instance", "Pie64"]
+        )
+        mock_run.assert_not_called()
+
+    @patch("bluestack_tool.emit_result")
+    @patch("bluestack_tool.start_bluestacks_instance")
+    @patch("bluestack_tool.collect_instance_status")
+    @patch("bluestack_tool.get_connected_adb_devices")
+    @patch("bluestack_tool.resolve_adb_path")
+    @patch("bluestack_tool.resolve_bluestacks_player_path")
+    def test_cmd_start_no_wait_reports_dispatch_success(
+        self,
+        mock_player_path,
+        mock_adb_path,
+        mock_get_adb_devices,
+        mock_collect_status,
+        mock_start_instance,
+        mock_emit_result,
+    ) -> None:
+        """验证 no-wait 模式在命令成功发出后应返回成功。"""
+        parser = bt.build_parser()
+        args = parser.parse_args(["start", "--id", "1", "--no-wait", "--format", "json"])
+        mock_player_path.return_value = "C:\\BlueStacks\\HD-Player.exe"
+        mock_adb_path.return_value = "C:\\Android\\platform-tools\\adb.exe"
+        mock_get_adb_devices.side_effect = [({}, None), ({}, None)]
+        mock_collect_status.side_effect = [
+            bt.InstanceRuntimeStatus(
+                id="1",
+                label="主实例",
+                instance_name="Pie64",
+                adb_serial="emulator-5554",
+                emulator_type="bluestacks",
+                player_running=False,
+                adb_connected=False,
+                device_state=None,
+                status="stopped",
+                pid_count=0,
+            ),
+            bt.InstanceRuntimeStatus(
+                id="1",
+                label="主实例",
+                instance_name="Pie64",
+                adb_serial="emulator-5554",
+                emulator_type="bluestacks",
+                player_running=True,
+                adb_connected=False,
+                device_state=None,
+                status="starting",
+                pid_count=1,
+            ),
+        ]
+        mock_start_instance.return_value = bt.CommandResult(
+            ok=True,
+            returncode=0,
+            stdout="进程已启动 (PID: 1234)",
+            stderr="",
+            command=["C:\\BlueStacks\\HD-Player.exe", "--instance", "Pie64"],
+        )
+
+        exit_code = bt.cmd_start(args)
+
+        assert exit_code == bt.EXIT_OK
+        payload = mock_emit_result.call_args.args[1]
+        assert payload["ok"] is True
+        assert payload["waited"] is False
+        assert payload["instance"]["status"] == "starting"
+        assert payload["already_running"] is False
+
+
+class TestStopCommand:
+    """测试停止命令关键路径。"""
+
+    @patch("bluestack_tool.subprocess.run")
+    def test_find_and_kill_bluestacks_instance_falls_back_to_port_script(
+        self, mock_run
+    ) -> None:
+        """验证按实例名没有杀到进程时会回退到按端口杀进程。"""
+        instance = bt.InstanceConfig(
+            id="1",
+            label="主实例",
+            instance_name="Pie64",
+            adb_serial="emulator-5554",
+            expected_port=5554,
+        )
+        mock_run.side_effect = [
+            subprocess.CompletedProcess(
+                args=["powershell", "-File", "kill_bluestacks_instance.ps1"],
+                returncode=0,
+                stdout="",
+                stderr="",
+            ),
+            subprocess.CompletedProcess(
+                args=["powershell", "-File", "kill_bluestacks_port.ps1"],
+                returncode=0,
+                stdout="Killing PID: 123 (Port: 5555)",
+                stderr="",
+            ),
+        ]
+
+        result = bt.find_and_kill_bluestacks_instance(instance)
+
+        assert result.ok is True
+        assert "Killing PID: 123" in result.stdout
+        assert mock_run.call_count == 2
+        second_call = mock_run.call_args_list[1].args[0]
+        assert any("kill_bluestacks_port.ps1" in part for part in second_call)
+        assert "5555" in second_call
+
+    @patch("bluestack_tool.subprocess.run")
+    def test_find_and_kill_bluestacks_instance_returns_failure_when_all_strategies_miss(
+        self, mock_run
+    ) -> None:
+        """验证实例名和端口都未命中时返回失败结果。"""
+        instance = bt.InstanceConfig(
+            id="1",
+            label="主实例",
+            instance_name="Pie64",
+            adb_serial="emulator-5554",
+            expected_port=5554,
+        )
+        mock_run.side_effect = [
+            subprocess.CompletedProcess(
+                args=["powershell", "-File", "kill_bluestacks_instance.ps1"],
+                returncode=1,
+                stdout="No process matched instance Pie64",
+                stderr="",
+            ),
+            subprocess.CompletedProcess(
+                args=["powershell", "-File", "kill_bluestacks_port.ps1"],
+                returncode=1,
+                stdout="No HD-Player process matched port 5555",
+                stderr="",
+            ),
+        ]
+
+        result = bt.find_and_kill_bluestacks_instance(instance)
+
+        assert result.ok is False
+        assert "No HD-Player process matched port 5555" in result.stderr
+
+    @patch("bluestack_tool.wait_for_instance_status")
+    @patch("bluestack_tool.emit_result")
+    @patch("bluestack_tool.disconnect_instance")
+    @patch("bluestack_tool.stop_instance_via_adb")
+    @patch("bluestack_tool.find_and_kill_bluestacks_instance")
+    @patch("bluestack_tool.collect_instance_status")
+    @patch("bluestack_tool.get_connected_adb_devices")
+    @patch("bluestack_tool.resolve_adb_path")
+    def test_cmd_stop_falls_back_to_adb_when_instance_kill_has_no_effect(
+        self,
+        mock_adb_path,
+        mock_get_adb_devices,
+        mock_collect_status,
+        mock_find_and_kill,
+        mock_stop_via_adb,
+        mock_disconnect,
+        mock_emit_result,
+        mock_wait,
+    ) -> None:
+        """验证实例级停止失败时会回退到 adb emu kill。"""
+        parser = bt.build_parser()
+        args = parser.parse_args(["stop", "--id", "1", "--format", "json"])
+        mock_adb_path.return_value = "C:\\Android\\platform-tools\\adb.exe"
+        mock_get_adb_devices.return_value = ({"127.0.0.1:5555": "device"}, None)
+        mock_collect_status.return_value = bt.InstanceRuntimeStatus(
+            id="1",
+            label="主实例",
+            instance_name="Pie64",
+            adb_serial="emulator-5554",
+            emulator_type="bluestacks",
+            player_running=True,
+            adb_connected=True,
+            device_state="device",
+            status="running",
+            pid_count=1,
+        )
+        mock_find_and_kill.return_value = bt.CommandResult(
+            ok=False,
+            returncode=1,
+            stdout="",
+            stderr="未找到匹配进程",
+            command=["powershell"],
+        )
+        mock_stop_via_adb.return_value = bt.CommandResult(
+            ok=True,
+            returncode=0,
+            stdout="OK",
+            stderr="",
+            command=["adb", "-s", "127.0.0.1:5555", "emu", "kill"],
+        )
+        mock_disconnect.return_value = bt.CommandResult(
+            ok=True,
+            returncode=0,
+            stdout="disconnected",
+            stderr="",
+            command=["adb", "disconnect", "127.0.0.1:5555"],
+        )
+        mock_wait.return_value = (
+            bt.InstanceRuntimeStatus(
+                id="1",
+                label="主实例",
+                instance_name="Pie64",
+                adb_serial="emulator-5554",
+                emulator_type="bluestacks",
+                player_running=False,
+                adb_connected=False,
+                device_state=None,
+                status="stopped",
+                pid_count=0,
+            ),
+            True,
+        )
+
+        exit_code = bt.cmd_stop(args)
+
+        assert exit_code == bt.EXIT_OK
+        mock_stop_via_adb.assert_called_once()
+        assert mock_stop_via_adb.call_args.args[2] == "127.0.0.1:5555"
+        assert mock_disconnect.call_args.args[2] == "127.0.0.1:5555"
+        payload = mock_emit_result.call_args.args[1]
+        assert payload["stop_method"] == "adb emu kill + adb disconnect"
 
 
 class TestCommandResult:

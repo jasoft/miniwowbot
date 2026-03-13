@@ -600,16 +600,19 @@ def start_bluestacks_instance(
         CommandResult，启动命令是否成功发送。
     """
     command = [player_path, "--instance", instance.instance_name]
-
-    if no_wait:
-        # 使用 Popen 启动后立即返回
-        return launch_instance_no_wait(command)
-    else:
-        # 等待模式：启动后轮询状态直到 running 或超时
-        return run_list_cmd(command, timeout=5)
+    del no_wait
+    return launch_instance_no_wait(command)
 
 
 def cmd_start(args: argparse.Namespace) -> int:
+    """执行 start 子命令。
+
+    Args:
+        args: 命令行参数。
+
+    Returns:
+        退出码。
+    """
     instance = get_target_instance(args)
     if not instance:
         payload = build_base_payload("start", False, f"未知实例 id: {args.id}")
@@ -653,13 +656,11 @@ def cmd_start(args: argparse.Namespace) -> int:
         after_adb_map, after_adb_error = get_connected_adb_devices(adb_path)
         after_status = collect_instance_status(instance, after_adb_map, after_adb_error)
         after_row = instance_status_to_dict(after_status)
-
-        # 判断是否需要等待 - 如果已经启动成功就返回成功
         started_successfully = after_status.status == "running"
 
         payload = build_base_payload(
             "start",
-            started_successfully,
+            True,
             f"已发送启动命令到实例 {instance.id}"
             + ("" if started_successfully else "，请等待启动完成"),
         )
@@ -670,7 +671,7 @@ def cmd_start(args: argparse.Namespace) -> int:
         payload["waited"] = False
         payload["already_running"] = started_successfully
         emit_result(args, payload, [after_row])
-        return EXIT_OK if started_successfully else EXIT_OK
+        return EXIT_OK
 
     started_at = time.time()
     final_status, reached = wait_for_instance_status(instance, adb_path, args.timeout, {"running"})
@@ -754,11 +755,32 @@ def kill_process_by_pid(pid: int) -> CommandResult:
     return run_list_cmd(["taskkill", "/F", "/PID", str(pid)], timeout=10, allow_failure=True)
 
 
-def find_and_kill_bluestacks_instance(instance: InstanceConfig) -> CommandResult:
-    """通过 WMI 查找并杀死指定实例的 BlueStacks 进程。
+def run_powershell_script(script_path: Path, script_args: list[str]) -> CommandResult:
+    """执行 PowerShell 脚本并返回标准化结果。
 
-    调用 scripts/kill_bluestacks_instance.ps1 PowerShell 脚本来杀死进程。
-    该脚本查找命令行中包含 "--instance <instance_name>" 的 HD-Player.exe 进程。
+    Args:
+        script_path: PowerShell 脚本路径。
+        script_args: 传入脚本的参数列表。
+
+    Returns:
+        标准化后的命令执行结果。
+    """
+    command = [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(script_path),
+        *script_args,
+    ]
+    return run_list_cmd(command, timeout=30)
+
+
+def find_and_kill_bluestacks_instance(instance: InstanceConfig) -> CommandResult:
+    """杀死指定实例的 BlueStacks 进程。
+
+    优先按实例名匹配进程；如果没有匹配到，再按实例端口回退查找。
 
     Args:
         instance: 实例配置。
@@ -766,122 +788,57 @@ def find_and_kill_bluestacks_instance(instance: InstanceConfig) -> CommandResult
     Returns:
         CommandResult，命令执行结果。
     """
-    ps_script_path = Path(__file__).parent / "kill_bluestacks_instance.ps1"
+    scripts_dir = Path(__file__).parent
+    instance_script_path = scripts_dir / "kill_bluestacks_instance.ps1"
+    port_script_path = scripts_dir / "kill_bluestacks_port.ps1"
 
-    try:
-        result = subprocess.run(
-            [
-                "powershell",
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                str(ps_script_path),
-                "-InstanceName",
-                instance.instance_name,
-            ],
-            capture_output=True,
-            timeout=30,
-            text=True,
-        )
-        stdout = result.stdout.strip()
-        stderr = result.stderr.strip()
-        ok = result.returncode == 0
-        return CommandResult(
-            ok=ok,
-            returncode=result.returncode,
-            stdout=stdout,
-            stderr=stderr,
-            command=[
-                "powershell",
-                "-File",
-                f"kill_bluestacks_instance.ps1 -InstanceName {instance.instance_name}",
-            ],
-        )
-    except subprocess.TimeoutExpired:
+    instance_result = run_powershell_script(
+        instance_script_path, ["-InstanceName", instance.instance_name]
+    )
+    if instance_result.ok and instance_result.stdout.strip():
+        return instance_result
+
+    if instance.expected_port is None:
+        message = instance_result.stderr or "未配置 expected_port，无法回退到端口停止"
         return CommandResult(
             ok=False,
-            returncode=124,
-            stdout="",
-            stderr="命令执行超时",
-            command=[
-                "powershell",
-                "-File",
-                f"kill_bluestacks_instance.ps1 -InstanceName {instance.instance_name}",
-            ],
-        )
-    except Exception as exc:
-        return CommandResult(
-            ok=False,
-            returncode=1,
-            stdout="",
-            stderr=f"命令执行失败: {exc}",
-            command=[
-                "powershell",
-                "-File",
-                f"kill_bluestacks_instance.ps1 -InstanceName {instance.instance_name}",
-            ],
+            returncode=instance_result.returncode or 1,
+            stdout=instance_result.stdout,
+            stderr=message,
+            command=instance_result.command,
         )
 
-    # 端口 = expected_port + 1
     port = instance.expected_port + 1
+    port_result = run_powershell_script(port_script_path, ["-Port", str(port)])
+    if port_result.ok and port_result.stdout.strip():
+        return port_result
 
-    # 使用 PowerShell 通过端口查找并杀死进程
-    port = instance.expected_port + 1
-    ps_script = f"""
-$port = {port}
-$connections = netstat -ano | Select-String ":{port}" | Where-Object {{ $_ -match 'LISTENING' }}
-if ($connections) {{
-    foreach ($conn in $connections) {{
-        $line = $conn -split '\\s+' | Where-Object {{ $_ -ne '' }}
-        $pid = $line[-1]
-        if ($pid -match '^\\d+$') {{
-            Write-Output "Killing PID: $pid (Port: $port)"
-            taskkill /F /PID $pid
-        }}
-    }}
-    exit 0
-}} else {{
-    Write-Output "No process listening on port $port"
-    exit 1
-}}
-"""
-    try:
-        result = subprocess.run(
-            ["powershell", "-NoProfile", "-Command", ps_script],
-            capture_output=True,
-            timeout=30,
-            text=True,
+    error_parts = [
+        value
+        for value in (
+            instance_result.stderr or instance_result.stdout,
+            port_result.stderr or port_result.stdout,
         )
-        stdout = result.stdout.strip()
-        stderr = result.stderr.strip()
-        ok = result.returncode == 0
-        return CommandResult(
-            ok=ok,
-            returncode=result.returncode,
-            stdout=stdout,
-            stderr=stderr,
-            command=["powershell", "-Command", f"kill by port {port}"],
-        )
-    except subprocess.TimeoutExpired:
-        return CommandResult(
-            ok=False,
-            returncode=124,
-            stdout="",
-            stderr="命令执行超时",
-            command=["powershell", "-Command", f"kill by port {port}"],
-        )
-    except Exception as exc:
-        return CommandResult(
-            ok=False,
-            returncode=1,
-            stdout="",
-            stderr=f"命令执行失败: {exc}",
-            command=["powershell", "-Command", f"kill by port {port}"],
-        )
+        if value
+    ]
+    return CommandResult(
+        ok=False,
+        returncode=port_result.returncode or instance_result.returncode or 1,
+        stdout=port_result.stdout or instance_result.stdout,
+        stderr=" | ".join(error_parts) if error_parts else "未找到匹配的 BlueStacks 进程",
+        command=port_result.command,
+    )
 
 
 def cmd_stop(args: argparse.Namespace) -> int:
+    """执行 stop 子命令。
+
+    Args:
+        args: 命令行参数。
+
+    Returns:
+        退出码。
+    """
     instance = get_target_instance(args)
     if not instance:
         payload = build_base_payload("stop", False, f"未知实例 id: {args.id}")

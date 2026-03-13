@@ -3,13 +3,20 @@ param(
     [string]$InstanceName
 )
 
-# 通过 WMI 查找包含实例名的 HD-Player 进程
-Get-CimInstance Win32_Process |
+$matchedProcesses = @(Get-CimInstance Win32_Process |
     Where-Object {
         $_.Name -eq 'HD-Player.exe' -and
         $_.CommandLine -like "*--instance $InstanceName*"
-    } |
-    ForEach-Object {
-        Write-Output "Killing PID: $($_.ProcessId) (Instance: $InstanceName)"
-        Stop-Process -Id $_.ProcessId -Force
-    }
+    })
+
+if ($matchedProcesses.Count -eq 0) {
+    Write-Output "No process matched instance $InstanceName"
+    exit 1
+}
+
+foreach ($process in $matchedProcesses) {
+    Write-Output "Killing PID: $($process.ProcessId) (Instance: $InstanceName)"
+    Stop-Process -Id $process.ProcessId -Force
+}
+
+exit 0
