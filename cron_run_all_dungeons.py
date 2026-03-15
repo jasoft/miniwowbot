@@ -426,22 +426,49 @@ def _resolve_adb_path() -> str:
     return which(adb_name) or "adb"
 
 
-def stop_emulator(emulator: str, logger: logging.Logger) -> None:
+def stop_emulator(task: SessionTask, logger: logging.Logger) -> None:
     """尝试停止指定模拟器实例。
 
-    优先执行 ``adb -s <emulator> emu kill``，随后执行
-    ``adb disconnect <emulator>`` 作为兜底，保证异常会话不会持续占用连接。
+    优先执行任务自定义的 ``emulator_shutdown_cmd``。
+    如果不提供自定义命令，则执行 ``adb -s <emulator> emu kill``，
+    随后执行 ``adb disconnect <emulator>`` 作为兜底。
 
     Args:
-        emulator: 模拟器地址。
+        task: 会话任务对象。
         logger: 日志对象。
 
     Returns:
         None
     """
+    emulator = task.emulator
     if not emulator:
         return
 
+    # 1. 尝试自定义关闭命令
+    if task.emulator_shutdown_cmd:
+        logger.info(f"🛑 执行自定义关闭命令: {task.emulator_shutdown_cmd}")
+        try:
+            result = subprocess.run(
+                task.emulator_shutdown_cmd,
+                shell=True,
+                capture_output=True,
+                text=False,
+                timeout=60,
+            )
+            stdout = decode_process_output(result.stdout).strip()
+            stderr = decode_process_output(result.stderr).strip()
+            if result.returncode == 0:
+                logger.info(f"✅ 自定义关闭命令成功: {stdout or 'OK'}")
+                return
+            else:
+                logger.warning(
+                    f"⚠️ 自定义关闭命令失败 (exit={result.returncode}): "
+                    f"{stderr or stdout}"
+                )
+        except Exception as exc:
+            logger.warning(f"⚠️ 执行自定义关闭命令异常: {exc}")
+
+    # 2. ADB 兜底
     adb_path = _resolve_adb_path()
     commands = [
         ([adb_path, "-s", emulator, "emu", "kill"], "emu kill"),
@@ -493,7 +520,7 @@ def recover_failed_runtime(
         "将关闭子 shell 与对应模拟器"
     )
     stop_session(runtime, logger)
-    stop_emulator(runtime.task.emulator, logger)
+    stop_emulator(runtime.task, logger)
     runtime.finished_exit_code = 1
 
 
@@ -518,6 +545,8 @@ def stop_other_alive_sessions(
         if is_session_alive(runtime):
             logger.warning(f"⚠️ 停止会话 {runtime.task.name}，准备重启整轮流程")
             stop_session(runtime, logger)
+            # 同时尝试关闭对应模拟器，避免僵尸进程
+            stop_emulator(runtime.task, logger)
             if runtime.finished_exit_code is None:
                 runtime.finished_exit_code = 1
 
@@ -591,7 +620,7 @@ def restart_session(runtime: SessionRuntime, logger: logging.Logger) -> bool:
     )
 
     stop_session(runtime, logger)
-    stop_emulator(runtime.task.emulator, logger)
+    stop_emulator(runtime.task, logger)
 
     runtime.process = None
     emulator_restart_ok = restart_emulator(
@@ -686,6 +715,10 @@ def monitor_sessions(runtimes: Sequence[SessionRuntime], logger: logging.Logger)
                         recover_failed_runtime(runtime, "子 shell 非 0 退出", logger)
                         stop_other_alive_sessions(runtimes, runtime, logger)
                         return False
+                    else:
+                        # 成功结束，关闭模拟器
+                        logger.info(f"✅ 会话 {runtime.task.name} 成功完成，正在关闭对应模拟器...")
+                        stop_emulator(runtime.task, logger)
 
         if alive_count == 0:
             logger.info("✅ 所有 shell 窗口均已结束")

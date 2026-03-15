@@ -4,7 +4,8 @@
             "name": "mage_alt",
             "emulator": "192.168.1.150:5565",
             "configs": ["mage_alt"],
-            "log": "log/autodungeon_mage_alt.log"
+            "log": "log/autodungeon_mage_alt.log",
+            "emulator_shutdown_cmd": "python scripts/bluestack-tool.py stop --id 2"
         },
         {
             "name": "main",
@@ -23,7 +24,8 @@
                 "demonhunter",
                 "warrior"
             ],
-            "log": "log/autodungeon_main.log"
+            "log": "log/autodungeon_main.log",
+            "emulator_shutdown_cmd": "python scripts/bluestack-tool.py stop --id 1"
         }
     ]
 }
