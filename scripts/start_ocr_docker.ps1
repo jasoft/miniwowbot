@@ -19,7 +19,7 @@ docker run -d --name $CONTAINER_NAME `
   -v "${PWD}:/paddle" `
   -v "paddlex_data:/root" `
   --shm-size=8g `
-  -p 8080:8080 `
+  -p 8310:8080 `
   $IMAGE_NAME `
   sh -lc "paddlex --install serving && rm -f OCR.yaml && paddlex --get_pipeline_config OCR --save_path . && sed -i 's/_server_/_mobile_/g' OCR.yaml && paddlex --serve --pipeline OCR.yaml"
 
