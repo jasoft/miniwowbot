@@ -342,11 +342,10 @@ def launch_powershell(
         full_cmd = (
             f"$Host.UI.RawUI.WindowTitle = '{session}'; "
             f"Set-Location '{SCRIPT_DIR}'; "
-            f"{cmd}; "
-            "if ($LASTEXITCODE -eq 0) { exit }"
+            f"{cmd}"
         )
         process = subprocess.Popen(
-            ["pwsh", "-NoExit", "-Command", full_cmd],
+            ["pwsh", "-Command", full_cmd],
             creationflags=subprocess.CREATE_NEW_CONSOLE if IS_WINDOWS else 0,
             text=True,
         )
