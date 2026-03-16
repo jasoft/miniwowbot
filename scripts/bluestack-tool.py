@@ -748,29 +748,46 @@ def run_powershell_script(script_path: Path, script_args: list[str]) -> CommandR
 
 def find_and_kill_bluestacks_instance(instance: InstanceConfig) -> CommandResult:
     """杀死指定实例的 BlueStacks 进程。"""
-    scripts_dir = Path(__file__).parent
-    instance_script_path = scripts_dir / "kill_bluestacks_instance.ps1"
-    port_script_path = scripts_dir / "kill_bluestacks_port.ps1"
-
-    instance_result = run_powershell_script(
-        instance_script_path, ["-InstanceName", instance.instance_name]
-    )
-    if instance_result.ok and instance_result.stdout.strip():
-        return instance_result
-
-    if instance.expected_port is not None:
+    # 1. 尝试按实例名通过缓存找到 PID
+    pids = ProcessCache.find_instance_pids(instance.instance_name)
+    
+    # 2. 如果没找到，尝试按端口查找 PID (兜底)
+    if not pids and instance.expected_port:
         port = instance.expected_port + 1
-        port_result = run_powershell_script(port_script_path, ["-Port", str(port)])
-        if port_result.ok and port_result.stdout.strip():
-            return port_result
+        # 借用 netstat 查找监听端口的 PID
+        try:
+            res = subprocess.run(["netstat", "-ano"], capture_output=True, text=True)
+            if res.returncode == 0:
+                for line in res.stdout.splitlines():
+                    if f":{port}" in line and "LISTENING" in line:
+                        parts = line.strip().split()
+                        if len(parts) >= 5:
+                            pids.append(int(parts[-1]))
+        except Exception:
+            pass
 
-    return CommandResult(
-        ok=False,
-        returncode=1,
-        stdout="",
-        stderr="未找到匹配的 BlueStacks 进程",
-        command=[],
-    )
+    if not pids:
+        return CommandResult(ok=False, returncode=1, stdout="", stderr="未找到匹配的进程", command=[])
+
+    success_count = 0
+    errors = []
+    for pid in set(pids):
+        res = subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, text=True)
+        if res.returncode == 0:
+            success_count += 1
+        else:
+            errors.append(res.stderr.strip())
+
+    if success_count > 0:
+        return CommandResult(
+            ok=True, 
+            returncode=0, 
+            stdout=f"成功终止 {success_count} 个进程", 
+            stderr=" | ".join(errors), 
+            command=[]
+        )
+    
+    return CommandResult(ok=False, returncode=1, stdout="", stderr="终止进程失败: " + " | ".join(errors), command=[])
 
 
 def cmd_stop(args: argparse.Namespace) -> int:
