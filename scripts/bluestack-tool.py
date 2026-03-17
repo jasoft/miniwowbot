@@ -342,24 +342,34 @@ def find_and_kill_bluestacks_instance(instance: InstanceConfig) -> CommandResult
     errors = []
     unique_pids = set(pids)
     
+    # 检测 sudo 是否可用 (Windows sudo 或 gsudo)
+    has_sudo = shutil.which("sudo") is not None
+    
     for pid in unique_pids:
-        # 1. 直接执行强制终结，绝不发送会导致弹窗的软关闭信号
-        # /T 参数非常重要，它会杀掉该进程拉起的所有子进程（如渲染器、声音引擎等）
-        res = subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, text=True)
+        # 1. 尝试使用最高权限强制终结进程树
+        cmd = ["taskkill", "/F", "/T", "/PID", str(pid)]
+        if has_sudo:
+            cmd = ["sudo"] + cmd
+            
+        res = subprocess.run(cmd, capture_output=True, text=True)
         if res.returncode == 0 or "没有找到" in res.stderr:
             success_count += 1
             continue
             
-        # 2. 如果 taskkill 失败（如拒绝访问），尝试用 PowerShell 的 Stop-Process (有时能绕过某些权限限制)
-        ps_kill = ["powershell", "-NoProfile", "-Command", f"Stop-Process -Id {pid} -Force"]
-        res_ps = subprocess.run(ps_kill, capture_output=True, text=True)
+        # 2. 如果 taskkill 依然失败，尝试用 sudo 配合 PowerShell 的原生强杀
+        ps_cmd = f"Stop-Process -Id {pid} -Force"
+        full_ps_cmd = ["powershell", "-NoProfile", "-Command", ps_cmd]
+        if has_sudo:
+            full_ps_cmd = ["sudo"] + full_ps_cmd
+            
+        res_ps = subprocess.run(full_ps_cmd, capture_output=True, text=True)
         if res_ps.returncode == 0:
             success_count += 1
         else:
-            errors.append(f"PID {pid}: taskkill({res.stderr.strip()}) | ps({res_ps.stderr.strip()})")
+            errors.append(f"PID {pid}: kill({res.stderr.strip()}) | ps({res_ps.stderr.strip()})")
 
     if success_count > 0:
-        return CommandResult(ok=True, returncode=0, stdout=f"成功强制终止 {success_count} 个进程树", stderr=" | ".join(errors), command=[])
+        return CommandResult(ok=True, returncode=0, stdout=f"成功以最高权限终止 {success_count} 个进程树", stderr=" | ".join(errors), command=[])
     return CommandResult(ok=False, returncode=1, stdout="", stderr="强制终止失败: " + " | ".join(errors), command=[])
 
 
