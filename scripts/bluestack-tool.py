@@ -340,19 +340,27 @@ def find_and_kill_bluestacks_instance(instance: InstanceConfig) -> CommandResult
 
     success_count = 0
     errors = []
-    for pid in set(pids):
-        # 先试温柔的，再试强硬的
-        subprocess.run(["taskkill", "/PID", str(pid)], capture_output=True)
-        time.sleep(0.5)
-        res = subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, text=True)
+    unique_pids = set(pids)
+    
+    for pid in unique_pids:
+        # 1. 直接执行强制终结，绝不发送会导致弹窗的软关闭信号
+        # /T 参数非常重要，它会杀掉该进程拉起的所有子进程（如渲染器、声音引擎等）
+        res = subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, text=True)
         if res.returncode == 0 or "没有找到" in res.stderr:
             success_count += 1
+            continue
+            
+        # 2. 如果 taskkill 失败（如拒绝访问），尝试用 PowerShell 的 Stop-Process (有时能绕过某些权限限制)
+        ps_kill = ["powershell", "-NoProfile", "-Command", f"Stop-Process -Id {pid} -Force"]
+        res_ps = subprocess.run(ps_kill, capture_output=True, text=True)
+        if res_ps.returncode == 0:
+            success_count += 1
         else:
-            errors.append(f"PID {pid}: {res.stderr.strip()}")
+            errors.append(f"PID {pid}: taskkill({res.stderr.strip()}) | ps({res_ps.stderr.strip()})")
 
     if success_count > 0:
-        return CommandResult(ok=True, returncode=0, stdout=f"成功终止 {success_count} 个进程", stderr=" | ".join(errors), command=[])
-    return CommandResult(ok=False, returncode=1, stdout="", stderr="终止进程失败: " + " | ".join(errors), command=[])
+        return CommandResult(ok=True, returncode=0, stdout=f"成功强制终止 {success_count} 个进程树", stderr=" | ".join(errors), command=[])
+    return CommandResult(ok=False, returncode=1, stdout="", stderr="强制终止失败: " + " | ".join(errors), command=[])
 
 
 def run_list_cmd(command: list[str], timeout: int = 30, allow_failure: bool = False) -> CommandResult:
