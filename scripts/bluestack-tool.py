@@ -50,6 +50,7 @@ class InstanceConfig:
     label: str
     instance_name: str
     adb_serial: str
+    window_title: str | None = None  # 新增：用于匹配物理窗口标题
     emulator_type: str = "bluestacks"
     expected_port: int | None = None
     enabled: bool = True
@@ -85,6 +86,7 @@ DEFAULT_INSTANCES = [
         label="主实例",
         instance_name="Pie64",
         adb_serial="emulator-5554",
+        window_title="主账号", # 匹配实际窗口标题
         expected_port=5554,
     ),
     InstanceConfig(
@@ -92,6 +94,7 @@ DEFAULT_INSTANCES = [
         label="多开 1",
         instance_name="Pie64_1",
         adb_serial="emulator-5564",
+        window_title="金币法师号", # 匹配实际窗口标题
         expected_port=5564,
     ),
     InstanceConfig(
@@ -148,8 +151,7 @@ class ProcessCache:
 
         processes = []
         try:
-            # 使用 PowerShell 一次性获取 PID, Name, CommandLine 和 MainWindowTitle
-            # 这是目前最稳健的多维度获取方案
+            # 1. 获取 Win32_Process 信息 (含 CommandLine)
             ps_cmd = [
                 "powershell", "-NoProfile", "-Command",
                 "Get-CimInstance Win32_Process | " +
@@ -160,18 +162,20 @@ class ProcessCache:
             result = subprocess.run(ps_cmd, capture_output=True, text=True, errors="replace")
             
             if result.returncode == 0 and result.stdout.strip():
-                data = json.loads(result.stdout)
-                if isinstance(data, dict):
-                    data = [data]
-                for item in data:
-                    processes.append({
-                        "ProcessId": item.get("ProcessId"),
-                        "Name": item.get("Name"),
-                        "CommandLine": item.get("CommandLine") or "",
-                        "MainWindowTitle": "" # 稍后补充窗口标题
-                    })
+                try:
+                    data = json.loads(result.stdout)
+                    if isinstance(data, dict): data = [data]
+                    for item in data:
+                        processes.append({
+                            "ProcessId": item.get("ProcessId"),
+                            "Name": item.get("Name"),
+                            "CommandLine": item.get("CommandLine") or "",
+                            "MainWindowTitle": ""
+                        })
+                except Exception:
+                    pass
             
-            # 获取窗口标题作为补充 (Get-Process 的 MainWindowTitle 比较准)
+            # 2. 获取窗口标题 (Get-Process 的 MainWindowTitle)
             ps_title_cmd = [
                 "powershell", "-NoProfile", "-Command",
                 "Get-Process | Where-Object { $_.ProcessName -match 'HD-Player|Bluestacks' } | " +
@@ -179,12 +183,14 @@ class ProcessCache:
             ]
             title_res = subprocess.run(ps_title_cmd, capture_output=True, text=True, errors="replace")
             if title_res.returncode == 0 and title_res.stdout.strip():
-                title_data = json.loads(title_res.stdout)
-                if isinstance(title_data, dict):
-                    title_data = [title_data]
-                title_map = {item.get("Id"): item.get("MainWindowTitle") or "" for item in title_data}
-                for p in processes:
-                    p["MainWindowTitle"] = title_map.get(p["ProcessId"], "")
+                try:
+                    title_data = json.loads(title_res.stdout)
+                    if isinstance(title_data, dict): title_data = [title_data]
+                    title_map = {item.get("Id"): item.get("MainWindowTitle") or "" for item in title_data}
+                    for p in processes:
+                        p["MainWindowTitle"] = title_map.get(p["ProcessId"], "")
+                except Exception:
+                    pass
 
         except Exception:
             pass
@@ -201,6 +207,7 @@ class ProcessCache:
         
         target_name = instance.instance_name
         target_label = instance.label
+        target_title = instance.window_title
         
         for proc in all_procs:
             pid = proc.get("ProcessId")
@@ -209,27 +216,30 @@ class ProcessCache:
             cmdline = proc.get("CommandLine", "")
             title = proc.get("MainWindowTitle", "")
             
-            # 1. 命令行精准匹配
+            # A. 命令行精准匹配
             if f"--instance {target_name}" in cmdline or f"--instance={target_name}" in cmdline:
                 pids.add(int(pid))
                 continue
             
-            # 2. 窗口标题模糊匹配 (当 CommandLine 丢失时很有用)
-            # 用户可能会给窗口起名为 "主账号" 或 "金币法师号"，这些是 label
+            # B. 明确的窗口标题匹配
+            if target_title and target_title == title:
+                pids.add(int(pid))
+                continue
+
+            # C. 标签包含匹配 (兼容之前的逻辑)
             if target_label and target_label in title:
                 pids.add(int(pid))
                 continue
             
-            # 特殊处理：Pie64 可能是默认实例，标题可能是 "BlueStacks App Player" 或 "蓝叠模拟器"
-            if target_name == "Pie64" and ("BlueStacks" in title or "蓝叠" in title):
+            # D. 特殊处理 Pie64 默认标题
+            if target_name == "Pie64" and not target_title and ("BlueStacks" in title or "蓝叠" in title):
                 pids.add(int(pid))
                 continue
 
-        # 3. 端口反查兜底 (最硬核的手段)
-        if not pids and instance.expected_port:
+        # E. 端口反查 (即便进程列表漏了，只要端口在监听，就必须抓到 PID)
+        if instance.expected_port:
             port = instance.expected_port + 1
             try:
-                # 查找监听该端口的 PID
                 res = subprocess.run(["netstat", "-ano"], capture_output=True, text=True)
                 for line in res.stdout.splitlines():
                     if f":{port}" in line and "LISTENING" in line:
@@ -457,25 +467,6 @@ def print_table(rows: list[dict[str, Any]]) -> None:
     print("  ".join([h.ljust(widths[h]) for h in headers]))
     print("  ".join(["-" * widths[h] for h in headers]))
     for r in rows: print("  ".join([str(r.get(h, "")).ljust(widths[h]) for h in headers]))
-
-
-def resolve_instance_by_id(instance_id: str) -> InstanceConfig | None:
-    for inst in DEFAULT_INSTANCES:
-        if inst.id == str(instance_id): return inst
-    return None
-
-
-def resolve_adb_path(cli_path: str | None = None) -> str | None:
-    for p in [cli_path, os.environ.get("ADB_PATH"), shutil.which("adb"), "platform-tools/adb.exe"]:
-        if p and Path(p).exists(): return str(Path(p).resolve())
-    return shutil.which("adb")
-
-
-def resolve_bluestacks_player_path(cli_path: str | None = None) -> str | None:
-    candidates = [cli_path, os.environ.get("BLUESTACKS_PLAYER_PATH"), r"C:\Program Files\BlueStacks_nxt\HD-Player.exe", r"D:\Program Files\BlueStacks_nxt\HD-Player.exe"]
-    for c in candidates:
-        if c and Path(c).exists(): return str(Path(c))
-    return None
 
 
 def main() -> int:
