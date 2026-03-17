@@ -433,20 +433,24 @@ def collect_instance_status(
         port_open = is_port_open(instance.expected_port + 1)
 
     matched_serial, device_state = resolve_adb_serial_from_map(instance, adb_map)
-    adb_connected = device_state is not None or port_open
-
-    if device_state == "device" or port_open:
-        status = "running"
-    elif device_state == "offline":
-        status = "starting" if player_running else "unknown"
-    elif device_state == "unauthorized":
-        status = "error"
-    elif adb_error:
-        status = "error"
-    elif player_running:
-        status = "starting"
-    else:
+    
+    # 关键修正：如果进程已经没了，无论端口通不通，都认为模拟器已经停止
+    if not player_running:
         status = "stopped"
+        adb_connected = False
+        device_state = None
+    else:
+        adb_connected = device_state is not None or port_open
+        if device_state == "device" or port_open:
+            status = "running"
+        elif device_state == "offline":
+            status = "starting"
+        elif device_state == "unauthorized":
+            status = "error"
+        elif adb_error:
+            status = "error"
+        else:
+            status = "starting"
 
     last_error = None
     if adb_error and status == "error":
@@ -460,7 +464,7 @@ def collect_instance_status(
         emulator_type=instance.emulator_type,
         player_running=player_running,
         adb_connected=adb_connected,
-        device_state=device_state if device_state else ("device" if port_open else None),
+        device_state=device_state,
         status=status,
         pid_count=pid_count,
         last_error=last_error,
