@@ -30,6 +30,7 @@ from emulator_control import (
     decode_process_output,
     restart_emulator,
 )
+from auto_dungeon_notification import send_notification
 from logger_config import setup_logger
 from run_dungeons import filter_pending_configs
 
@@ -41,6 +42,7 @@ FLOW_MAX_RETRIES = 5
 SESSION_START_GAP_SECONDS = 1
 SESSION_MAX_IDLE_RESTARTS = 3
 ADB_COMMAND_TIMEOUT_SECONDS = 15
+NOTIFY_ON_EXIT_ONLY_ENV = "MINIWOW_NOTIFY_ON_EXIT_ONLY"
 
 if not IS_WINDOWS:
     os.environ["PATH"] = f"/opt/homebrew/bin:{os.environ.get('PATH', '')}"
@@ -270,6 +272,7 @@ def launch_tmux(session: str, cmd: str, logger: logging.Logger) -> bool:
         是否启动成功。
     """
     try:
+        wrapped_cmd = f"{NOTIFY_ON_EXIT_ONLY_ENV}=1 {cmd}"
         has = subprocess.run(["tmux", "has-session", "-t", session], capture_output=True)
         if has.returncode == 0:
             subprocess.run(["tmux", "kill-session", "-t", session], capture_output=True)
@@ -282,7 +285,7 @@ def launch_tmux(session: str, cmd: str, logger: logging.Logger) -> bool:
                 session,
                 "-c",
                 str(SCRIPT_DIR),
-                cmd,
+                wrapped_cmd,
             ],
             capture_output=True,
         )
@@ -342,6 +345,7 @@ def launch_powershell(
         full_cmd = (
             f"$Host.UI.RawUI.WindowTitle = '{session}'; "
             f"Set-Location '{SCRIPT_DIR}'; "
+            f"$env:{NOTIFY_ON_EXIT_ONLY_ENV} = '1'; "
             f"{cmd}"
         )
         process = subprocess.Popen(
@@ -890,6 +894,34 @@ def run_single_flow(tasks: Sequence[SessionTask], logger: logging.Logger) -> boo
     return run_poe_stats(logger)
 
 
+def send_final_notification(
+    exit_code: int,
+    pending_tasks: Sequence[SessionTask],
+    attempt_count: int,
+    logger: logging.Logger,
+) -> None:
+    """在 cron 结束时发送一次最终汇总通知。
+
+    Args:
+        exit_code: 主流程退出码。
+        pending_tasks: 本轮待执行的会话列表。
+        attempt_count: 实际执行的整轮次数。
+        logger: 日志对象。
+    """
+    title = "poe cron 完成" if exit_code == 0 else "poe cron 失败"
+    session_names = ", ".join(task.name for task in pending_tasks) if pending_tasks else "无"
+    message_lines = [
+        f"退出码: {exit_code}",
+        f"会话数: {len(pending_tasks)}",
+        f"会话: {session_names}",
+        f"整轮执行次数: {attempt_count}",
+    ]
+    try:
+        send_notification(title, "\n".join(message_lines), force=True)
+    except Exception as exc:
+        logger.warning(f"⚠️ 发送最终汇总通知失败: {exc}")
+
+
 def main() -> int:
     """主入口。
 
@@ -898,11 +930,16 @@ def main() -> int:
     """
     logger = setup_logger(name="cron_run_all_dungeons", level="INFO", use_color=True)
     ensure_log_dir()
+    pending_tasks: list[SessionTask] = []
+    attempt_count = 0
+    exit_code = 1
 
     sessions = load_sessions_from_json(SCRIPT_DIR / "emulators.json")
     if not sessions:
         logger.error("❌ emulators.json 未找到或格式错误，无法继续")
-        return 2
+        exit_code = 2
+        send_final_notification(exit_code, pending_tasks, attempt_count, logger)
+        return exit_code
 
     launcher_name = "PowerShell 窗口" if IS_WINDOWS else "tmux 会话"
     logger.info("=" * 50)
@@ -913,34 +950,44 @@ def main() -> int:
     tasks = parse_session_tasks(sessions, logger)
     if not tasks:
         logger.error("❌ 未解析到可执行会话，无法继续")
-        return 2
+        exit_code = 2
+        send_final_notification(exit_code, pending_tasks, attempt_count, logger)
+        return exit_code
 
     pending_tasks = filter_pending_session_tasks(tasks, logger)
     if not pending_tasks:
         logger.info("✅ 所有会话当日任务已完成，跳过 shell 与 OCR 启动")
         if run_poe_stats(logger):
             logger.info("🎉 所有副本已完成，本次流程成功")
-            return 0
-        logger.error("❌ 预检查未发现待执行会话，但 `poe stats` 仍显示存在未完成副本")
-        return 1
+            exit_code = 0
+        else:
+            logger.error("❌ 预检查未发现待执行会话，但 `poe stats` 仍显示存在未完成副本")
+            exit_code = 1
+        send_final_notification(exit_code, pending_tasks, attempt_count, logger)
+        return exit_code
 
     prepare_ocr_service(logger)
 
     for attempt in range(1, FLOW_MAX_RETRIES + 1):
+        attempt_count = attempt
         logger.info(
             f"🔁 开始第 {attempt}/{FLOW_MAX_RETRIES} 次全流程执行，"
             f"当前会话数: {len(pending_tasks)}"
         )
         if run_single_flow(pending_tasks, logger):
             logger.info("🎉 所有副本已完成，本次流程成功")
-            return 0
+            exit_code = 0
+            send_final_notification(exit_code, pending_tasks, attempt_count, logger)
+            return exit_code
 
         if attempt < FLOW_MAX_RETRIES:
             logger.warning("⚠️ 仍有未完成副本，将重试整轮流程")
         else:
             logger.error("❌ 达到最大重试次数，仍未全部完成")
 
-    return 1
+    exit_code = 1
+    send_final_notification(exit_code, pending_tasks, attempt_count, logger)
+    return exit_code
 
 
 if __name__ == "__main__":

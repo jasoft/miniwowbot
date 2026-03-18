@@ -6,6 +6,7 @@ auto_dungeon 通知模块
 """
 
 import logging
+import os
 import urllib.parse
 from typing import Any, Dict, Optional
 
@@ -20,6 +21,8 @@ logger = logging.getLogger(__name__)
 
 # 加载环境变量
 load_dotenv()
+
+NOTIFY_ON_EXIT_ONLY_ENV = "MINIWOW_NOTIFY_ON_EXIT_ONLY"
 
 
 def _get_notification_config() -> Optional[Dict[str, Any]]:
@@ -212,24 +215,33 @@ def send_notification(
     level: str = "active",
     priority: int = 0,
     html: bool = False,
+    force: bool = False,
     **kwargs,
 ) -> bool:
-    """统一的发送通知接口
+    """统一的发送通知接口。
 
     根据配置自动选择通知服务，支持通过 provider 参数指定。
+    当环境变量 ``MINIWOW_NOTIFY_ON_EXIT_ONLY=1`` 且 ``force`` 为 ``False`` 时，
+    会跳过运行期通知，只保留程序退出时的最终汇总通知。
 
     Args:
-        title: 通知标题
-        message: 通知内容
-        provider: 通知服务提供商 ("bark", "pushover", "auto")
-        level: Bark 通知级别 (active, timeSensitive, passive)
-        priority: Pushover 优先级 (-1, 0, 1, 2)
-        html: 是否使用 HTML 格式（Pushover）
-        **kwargs: 其他服务特定参数
+        title: 通知标题。
+        message: 通知内容。
+        provider: 通知服务提供商（``"bark"``、``"pushover"``、``"auto"``）。
+        level: Bark 通知级别（``active``、``timeSensitive``、``passive``）。
+        priority: Pushover 优先级（``-1``、``0``、``1``、``2``）。
+        html: 是否使用 HTML 格式（Pushover）。
+        force: 是否忽略运行期静默策略并强制发送。
+        **kwargs: 其他服务特定参数。
 
     Returns:
-        是否发送成功
+        是否发送成功。
     """
+    notify_on_exit_only = os.environ.get(NOTIFY_ON_EXIT_ONLY_ENV, "").strip().lower()
+    if notify_on_exit_only in {"1", "true", "yes", "on"} and not force:
+        logger.info(f"🔕 已抑制运行期通知: {title}")
+        return False
+
     if provider == "bark":
         return send_bark_notification(title, message, level=level, **kwargs)
     elif provider == "pushover":

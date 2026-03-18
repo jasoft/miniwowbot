@@ -206,3 +206,33 @@ def test_main_only_runs_stats_when_all_sessions_filtered(monkeypatch) -> None:
     assert "prepare_ocr_service" not in calls
     assert "run_single_flow" not in calls
     assert calls.count("run_poe_stats") == 1
+
+
+def test_main_sends_single_final_notification(monkeypatch) -> None:
+    """主流程结束时应只发送一次最终通知。"""
+    logger = logging.getLogger("test_main_final_notification")
+    task = cron.SessionTask(
+        name="main",
+        emulator="127.0.0.1:5555",
+        logfile=Path("log") / "main.log",
+        configs=["main"],
+        cmd="echo test",
+    )
+    notifications: list[tuple[str, str, dict[str, object]]] = []
+
+    monkeypatch.setattr(cron, "setup_logger", lambda **_kwargs: logger)
+    monkeypatch.setattr(cron, "ensure_log_dir", lambda: None)
+    monkeypatch.setattr(cron, "load_sessions_from_json", lambda _path: [{"name": "main"}])
+    monkeypatch.setattr(cron, "parse_session_tasks", lambda _sessions, _logger: [task])
+    monkeypatch.setattr(cron, "filter_pending_session_tasks", lambda _tasks, _logger: [task])
+    monkeypatch.setattr(cron, "prepare_ocr_service", lambda _logger: None)
+    monkeypatch.setattr(cron, "run_single_flow", lambda _tasks, _logger: True)
+    monkeypatch.setattr(
+        cron,
+        "send_notification",
+        lambda title, message, **kwargs: notifications.append((title, message, kwargs)) or True,
+    )
+
+    assert cron.main() == 0
+    assert len(notifications) == 1
+    assert notifications[0][2]["force"] is True
