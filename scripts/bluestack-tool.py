@@ -28,8 +28,9 @@ from typing import Any
 
 if sys.platform == "win32":
     os.environ.setdefault("PYTHONIOENCODING", "utf-8")
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+    # 启用行缓冲，确保日志能实时打印到终端
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True)
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True)
 
 
 EXIT_OK = 0
@@ -240,12 +241,23 @@ class ProcessCache:
         if instance.expected_port:
             port = instance.expected_port + 1
             try:
+                # 获取所有蓝叠相关的合法 PID 集合作为白名单
+                valid_pids = {p.get("ProcessId") for p in all_procs if p.get("ProcessId")}
+                
                 res = subprocess.run(["netstat", "-ano"], capture_output=True, text=True)
                 for line in res.stdout.splitlines():
                     if f":{port}" in line and "LISTENING" in line:
                         parts = line.strip().split()
                         if len(parts) >= 5:
-                            pids.add(int(parts[-1]))
+                            pid = int(parts[-1])
+                            # 只有当该 PID 在之前的进程列表（已过滤名称）中，或者确认它是蓝叠进程时才添加
+                            if pid in valid_pids:
+                                pids.add(pid)
+                            else:
+                                # 进一步安全检查：如果是未知的 PID，通过 tasklist 检查其名称
+                                check_res = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH", "/FO", "CSV"], capture_output=True, text=True)
+                                if any(name.lower() in check_res.stdout.lower() for name in BLUESTACKS_PROCESS_NAMES):
+                                    pids.add(pid)
             except Exception:
                 pass
 
@@ -273,8 +285,25 @@ def is_port_open(port: int, host: str = "127.0.0.1", timeout: float = 0.2) -> bo
         return False
 
 
+def check_adb_responsive(adb_path: str, serial: str, timeout: float = 5.0) -> bool:
+    """严格验证：执行 echo 命令。如果 127.0.0.1 地址失败，尝试 connect。"""
+    try:
+        # 如果是 127 地址，先尝试 connect 确保链路
+        if serial.startswith("127.0.0.1:"):
+            subprocess.run([adb_path, "connect", serial], capture_output=True, timeout=5)
+            
+        res = subprocess.run([adb_path, "-s", serial, "shell", "echo", "alive"], 
+                            capture_output=True, text=True, timeout=timeout)
+        return res.returncode == 0 and "alive" in res.stdout.lower()
+    except Exception:
+        return False
+
+
 def collect_instance_status(
-    instance: InstanceConfig, adb_map: dict[str, str], adb_error: str | None = None
+    instance: InstanceConfig, 
+    adb_map: dict[str, str], 
+    adb_path: str | None = None,
+    adb_error: str | None = None
 ) -> InstanceRuntimeStatus:
     instance_pids = ProcessCache.find_instance_pids(instance)
     player_running = len(instance_pids) > 0
@@ -282,29 +311,37 @@ def collect_instance_status(
 
     port_open = False
     if instance.expected_port:
+        # 探测蓝叠最核心的监听端口 (通常是 expected_port + 1)
         port_open = is_port_open(instance.expected_port + 1)
 
     matched_serial, device_state = resolve_adb_serial_from_map(instance, adb_map)
+    active_serial = matched_serial or (f"127.0.0.1:{instance.expected_port + 1}" if instance.expected_port else instance.adb_serial)
     
-    # 彻底解决逻辑：进程不在即为停止
     if not player_running:
         status = "stopped"
         adb_connected = False
         device_state = None
     else:
         adb_connected = device_state is not None or port_open
-        if device_state == "device" or port_open:
-            status = "running"
-        elif device_state == "offline":
-            status = "starting"
-        else:
-            status = "starting"
+        
+        is_ready = False
+        if adb_path and (device_state == "device" or port_open):
+            # 响应性检查
+            if check_adb_responsive(adb_path, active_serial):
+                is_ready = True
+            elif instance.adb_serial != active_serial:
+                # 备选：尝试配置的原始 serial
+                if check_adb_responsive(adb_path, instance.adb_serial):
+                    active_serial = instance.adb_serial
+                    is_ready = True
+        
+        status = "running" if is_ready else "starting"
 
     return InstanceRuntimeStatus(
         id=instance.id,
         label=instance.label,
         instance_name=instance.instance_name,
-        adb_serial=instance.adb_serial,
+        adb_serial=active_serial,
         emulator_type=instance.emulator_type,
         player_running=player_running,
         adb_connected=adb_connected,
@@ -322,13 +359,32 @@ def wait_for_instance_status(
     desired_statuses: set[str],
 ) -> tuple[InstanceRuntimeStatus, bool]:
     deadline = time.time() + max(timeout_sec, 0)
+    last_heartbeat = 0
     while True:
         ProcessCache.get_all_processes(force_refresh=True)
         adb_map, adb_error = get_connected_adb_devices(adb_path)
-        last_status = collect_instance_status(instance, adb_map, adb_error)
+        # 修正：之前这里漏传了 adb_path 参数
+        last_status = collect_instance_status(instance, adb_map, adb_path, adb_error)
+        
         if last_status.status in desired_statuses:
             return last_status, True
-        if time.time() >= deadline:
+            
+        # 每 2 秒输出一次进度心跳，带上更详细的诊断信息
+        now = time.time()
+        if now - last_heartbeat >= 2:
+            diag = ""
+            if last_status.player_running:
+                if not last_status.adb_connected:
+                    diag = "(进程已在，但 ADB 未识别到端口)"
+                elif last_status.status == "starting":
+                    diag = "(ADB 已连接，但模拟器系统尚未响应 echo 命令)"
+            else:
+                diag = "(模拟器进程尚未启动)"
+            
+            print(f"  > [{instance.instance_name}] 等待 {list(desired_statuses)}... 当前: {last_status.status} {diag}", flush=True)
+            last_heartbeat = now
+            
+        if now >= deadline:
             return last_status, False
         time.sleep(POLL_INTERVAL_SECONDS)
 
@@ -408,7 +464,8 @@ def cmd_list(args: argparse.Namespace) -> int:
     ProcessCache.get_all_processes(force_refresh=True)
     adb_path = resolve_adb_path(args.adb)
     adb_map, adb_error = get_connected_adb_devices(adb_path)
-    statuses = [collect_instance_status(inst, adb_map, adb_error) for inst in build_default_instances()]
+    # 传递 adb_path 以进行严格的响应性检查
+    statuses = [collect_instance_status(inst, adb_map, adb_path, adb_error) for inst in build_default_instances()]
     rows = [asdict(s) for s in statuses]
     if args.format == "json": print(json.dumps({"ok": True, "instances": rows}, ensure_ascii=False, indent=2))
     else: print_table(rows)
@@ -422,7 +479,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     adb_map, adb_error = get_connected_adb_devices(adb_path)
     
     if instance:
-        status = collect_instance_status(instance, adb_map, adb_error)
+        status = collect_instance_status(instance, adb_map, adb_path, adb_error)
         row = asdict(status)
         if args.format == "json": print(json.dumps({"ok": status.status == "running", "instance": row}, ensure_ascii=False, indent=2))
         else: print_table([row]); print(f"\n当前状态: {status.status}")
@@ -437,7 +494,8 @@ def cmd_stop(args: argparse.Namespace) -> int:
     
     adb_path = resolve_adb_path(args.adb)
     ProcessCache.get_all_processes(force_refresh=True)
-    before = collect_instance_status(instance, {}, None)
+    # 停止时不需要严格检查响应性，传入 None 即可
+    before = collect_instance_status(instance, {}, None, None)
     if before.status == "stopped":
         print(f"实例 {args.id} 已停止")
         return EXIT_OK
@@ -465,8 +523,9 @@ def cmd_start(args: argparse.Namespace) -> int:
     
     adb_path = resolve_adb_path(args.adb)
     ProcessCache.get_all_processes(force_refresh=True)
-    if collect_instance_status(instance, {}, None).status == "running":
-        print("实例已在运行")
+    # 启动前检查当前状态
+    if collect_instance_status(instance, {}, adb_path, None).status == "running":
+        print("实例已在运行且响应正常")
         return EXIT_OK
 
     subprocess.Popen([player_path, "--instance", instance.instance_name], start_new_session=True)
@@ -476,6 +535,112 @@ def cmd_start(args: argparse.Namespace) -> int:
     if args.format == "json": print(json.dumps({"ok": reached, "instance": asdict(final_status)}, ensure_ascii=False, indent=2))
     else: print(f"启动{'成功' if reached else '超时'}")
     return EXIT_OK if reached else EXIT_STATE_MISMATCH
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    """诊断模式：复用 start/stop 逻辑测试模拟器全生命周期。"""
+    adb_path = resolve_adb_path(args.adb)
+    player_path = resolve_bluestacks_player_path(args.player)
+    
+    if not adb_path or not player_path:
+        print("错误: 缺少 adb 或 BlueStacks 环境")
+        return EXIT_ENVIRONMENT_ERROR
+
+    # 加载项目配置
+    config_sessions = []
+    try:
+        config_path = Path("emulators.json")
+        if config_path.exists():
+            with open(config_path, "r", encoding="utf-8") as f:
+                config_data = json.load(f)
+                config_sessions = config_data.get("sessions", [])
+    except Exception:
+        pass
+
+    test_ids = ["1", "2"]
+    print(f"=== [Doctor] 开始诊断 (测试实例: {', '.join(test_ids)}, 超时: {args.timeout}s) ===")
+    
+    success_count = 0
+    for tid in test_ids:
+        instance = resolve_instance_by_id(tid)
+        if not instance: continue
+        
+        print(f"\n[Step 1] 启动实例 {tid} ({instance.label})...")
+        # 强制清除缓存，防止之前的状态干扰
+        ProcessCache._cache = None
+        
+        args.id = tid
+        args.no_wait = False
+        start_ret = cmd_start(args)
+        
+        if start_ret == EXIT_OK:
+            # 2. 匹配真实的连接地址
+            target_serial = None
+            for s in config_sessions:
+                s_emu = s.get("emulator", "")
+                if instance.adb_serial.split("-")[-1][:3] in s_emu:
+                    target_serial = s_emu
+                    break
+            
+            if not target_serial:
+                idx = int(tid) - 1
+                if idx < len(config_sessions):
+                    target_serial = config_sessions[idx].get("emulator")
+
+            if not target_serial:
+                target_serial = f"127.0.0.1:{instance.expected_port + 1}" if instance.expected_port else instance.adb_serial
+
+            print(f"[Step 2] 测试连接地址: {target_serial} (带 15s 重试)...")
+            
+            # 增加重试循环，应对启动过程中的 device offline 抖动
+            test_success = False
+            test_deadline = time.time() + 15
+            while time.time() < test_deadline:
+                # 强制刷新连接以清除 stale 状态
+                if ":" in target_serial and not target_serial.startswith("emulator-"):
+                    subprocess.run([adb_path, "disconnect", target_serial], capture_output=True)
+                    subprocess.run([adb_path, "connect", target_serial], capture_output=True)
+
+                test_cmd = [adb_path, "-s", target_serial, "shell", "echo", "alive"]
+                res = subprocess.run(test_cmd, capture_output=True, text=True, timeout=5)
+                
+                if res.returncode == 0 and "alive" in res.stdout.lower():
+                    # 再次获取型号以确认完全就绪
+                    model_res = subprocess.run([adb_path, "-s", target_serial, "shell", "getprop", "ro.product.model"], capture_output=True, text=True, timeout=5)
+                    print(f"  [OK] 实例 {tid} 连接正常，型号: {model_res.stdout.strip()}")
+                    test_success = True
+                    break
+                else:
+                    err = res.stderr.strip() or "device offline/timeout"
+                    print(f"  > 尝试连接中... ({err})")
+                    time.sleep(2)
+
+            if test_success:
+                success_count += 1
+            else:
+                print(f"  [FAIL] 实例 {tid} 在 15s 内未能通过 {target_serial} 的连接测试")
+        else:
+            print(f"  [FAIL] 实例 {tid} 启动失败或超时")
+
+    # 3. 核心服务状态检查 (始终执行)
+    print("\n[Step 3] 检查系统环境...")
+    ip_helper_res = subprocess.run(["powershell", "-NoProfile", "-Command", "Get-Service iphlpsvc"], capture_output=True, text=True)
+    if "Running" in ip_helper_res.stdout:
+        print("  [OK] IP Helper 服务运行正常")
+    else:
+        print("  [CRITICAL] IP Helper 服务状态异常！转发功能可能失效")
+
+    # 4. 关闭测试
+    if not getattr(args, "no_stop", False):
+        print(f"\n[Step 4] 清理测试实例...")
+        for tid in test_ids:
+            args.id = tid
+            cmd_stop(args)
+    else:
+        print("\n[Step 4] 根据参数保留模拟器运行状态。")
+
+    print(f"\n=== 诊断总结: {success_count}/{len(test_ids)} 个实例通过测试 ===")
+    return EXIT_OK if success_count == len(test_ids) else EXIT_OPERATION_FAILED
 
 
 def print_table(rows: list[dict[str, Any]]) -> None:
@@ -490,7 +655,7 @@ def print_table(rows: list[dict[str, Any]]) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="BlueStacks 控制工具 (增强版)")
     subparsers = parser.add_subparsers(dest="command", required=True)
-    for cmd in ["list", "status", "start", "stop"]:
+    for cmd in ["list", "status", "start", "stop", "doctor"]:
         p = subparsers.add_parser(cmd)
         p.add_argument("--id", help="实例 id")
         p.add_argument("--format", choices=["table", "json"], default="table")
@@ -498,6 +663,7 @@ def main() -> int:
         p.add_argument("--player")
         p.add_argument("--timeout", type=int, default=60)
         if cmd == "start": p.add_argument("--no-wait", action="store_true")
+        if cmd == "doctor": p.add_argument("-n", "--no-stop", action="store_true", help="诊断结束后不关闭模拟器")
         p.set_defaults(func=eval(f"cmd_{cmd}"))
     args = parser.parse_args()
     return args.func(args)
