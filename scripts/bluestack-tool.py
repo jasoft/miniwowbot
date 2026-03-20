@@ -121,20 +121,28 @@ def build_default_instances() -> list[InstanceConfig]:
 
 def resolve_instance_by_id(instance_id: str) -> InstanceConfig | None:
     for inst in build_default_instances():
-        if inst.id == str(instance_id): return inst
+        if inst.id == str(instance_id):
+            return inst
     return None
 
 
 def resolve_adb_path(cli_path: str | None = None) -> str | None:
     for p in [cli_path, os.environ.get("ADB_PATH"), shutil.which("adb"), "platform-tools/adb.exe"]:
-        if p and Path(p).exists(): return str(Path(p).resolve())
+        if p and Path(p).exists():
+            return str(Path(p).resolve())
     return shutil.which("adb")
 
 
 def resolve_bluestacks_player_path(cli_path: str | None = None) -> str | None:
-    candidates = [cli_path, os.environ.get("BLUESTACKS_PLAYER_PATH"), r"C:\Program Files\BlueStacks_nxt\HD-Player.exe", r"D:\Program Files\BlueStacks_nxt\HD-Player.exe"]
+    candidates = [
+        cli_path,
+        os.environ.get("BLUESTACKS_PLAYER_PATH"),
+        r"C:\Program Files\BlueStacks_nxt\HD-Player.exe",
+        r"D:\Program Files\BlueStacks_nxt\HD-Player.exe",
+    ]
     for c in candidates:
-        if c and Path(c).exists(): return str(Path(c))
+        if c and Path(c).exists():
+            return str(Path(c))
     return None
 
 
@@ -165,14 +173,17 @@ class ProcessCache:
             if result.returncode == 0 and result.stdout.strip():
                 try:
                     data = json.loads(result.stdout)
-                    if isinstance(data, dict): data = [data]
+                    if isinstance(data, dict):
+                        data = [data]
                     for item in data:
-                        processes.append({
-                            "ProcessId": item.get("ProcessId"),
-                            "Name": item.get("Name"),
-                            "CommandLine": item.get("CommandLine") or "",
-                            "MainWindowTitle": ""
-                        })
+                        processes.append(
+                            {
+                                "ProcessId": item.get("ProcessId"),
+                                "Name": item.get("Name"),
+                                "CommandLine": item.get("CommandLine") or "",
+                                "MainWindowTitle": "",
+                            }
+                        )
                 except Exception:
                     pass
             
@@ -186,7 +197,8 @@ class ProcessCache:
             if title_res.returncode == 0 and title_res.stdout.strip():
                 try:
                     title_data = json.loads(title_res.stdout)
-                    if isinstance(title_data, dict): title_data = [title_data]
+                    if isinstance(title_data, dict):
+                        title_data = [title_data]
                     title_map = {item.get("Id"): item.get("MainWindowTitle") or "" for item in title_data}
                     for p in processes:
                         p["MainWindowTitle"] = title_map.get(p["ProcessId"], "")
@@ -212,7 +224,8 @@ class ProcessCache:
         
         for proc in all_procs:
             pid = proc.get("ProcessId")
-            if not pid: continue
+            if not pid:
+                continue
             
             cmdline = proc.get("CommandLine", "")
             title = proc.get("MainWindowTitle", "")
@@ -269,11 +282,15 @@ def iso_now() -> str:
 
 
 def decode_process_output(output: bytes | str | None) -> str:
-    if output is None: return ""
-    if isinstance(output, str): return output
+    if output is None:
+        return ""
+    if isinstance(output, str):
+        return output
     for encoding in ("utf-8", "gbk", "cp936", sys.getdefaultencoding()):
-        try: return output.decode(encoding)
-        except UnicodeDecodeError: continue
+        try:
+            return output.decode(encoding)
+        except UnicodeDecodeError:
+            continue
     return output.decode("utf-8", errors="replace")
 
 
@@ -281,7 +298,7 @@ def is_port_open(port: int, host: str = "127.0.0.1", timeout: float = 0.2) -> bo
     try:
         with socket.create_connection((host, port), timeout=timeout):
             return True
-    except:
+    except OSError:
         return False
 
 
@@ -440,23 +457,29 @@ def run_list_cmd(command: list[str], timeout: int = 30, allow_failure: bool = Fa
 
 
 def get_connected_adb_devices(adb_path: str | None) -> tuple[dict[str, str], str | None]:
-    if not adb_path: return {}, "未找到 adb"
+    if not adb_path:
+        return {}, "未找到 adb"
     result = run_list_cmd([adb_path, "devices"], timeout=20)
-    if not result.ok: return {}, result.stderr
-    
+    if not result.ok:
+        return {}, result.stderr
+
     devices = {}
     for line in result.stdout.splitlines():
-        if not line.strip() or line.startswith("List of devices"): continue
+        if not line.strip() or line.startswith("List of devices"):
+            continue
         parts = line.split()
-        if len(parts) >= 2: devices[parts[0].strip()] = parts[1].strip()
+        if len(parts) >= 2:
+            devices[parts[0].strip()] = parts[1].strip()
     return devices, None
 
 
 def resolve_adb_serial_from_map(instance: InstanceConfig, adb_map: dict[str, str]) -> tuple[str | None, str | None]:
-    if instance.adb_serial in adb_map: return instance.adb_serial, adb_map[instance.adb_serial]
+    if instance.adb_serial in adb_map:
+        return instance.adb_serial, adb_map[instance.adb_serial]
     if instance.expected_port:
         ip_port = f"127.0.0.1:{instance.expected_port + 1}"
-        if ip_port in adb_map: return ip_port, adb_map[ip_port]
+        if ip_port in adb_map:
+            return ip_port, adb_map[ip_port]
     return None, None
 
 
@@ -467,8 +490,10 @@ def cmd_list(args: argparse.Namespace) -> int:
     # 传递 adb_path 以进行严格的响应性检查
     statuses = [collect_instance_status(inst, adb_map, adb_path, adb_error) for inst in build_default_instances()]
     rows = [asdict(s) for s in statuses]
-    if args.format == "json": print(json.dumps({"ok": True, "instances": rows}, ensure_ascii=False, indent=2))
-    else: print_table(rows)
+    if args.format == "json":
+        print(json.dumps({"ok": True, "instances": rows}, ensure_ascii=False, indent=2))
+    else:
+        print_table(rows)
     return EXIT_OK
 
 
@@ -481,8 +506,17 @@ def cmd_status(args: argparse.Namespace) -> int:
     if instance:
         status = collect_instance_status(instance, adb_map, adb_path, adb_error)
         row = asdict(status)
-        if args.format == "json": print(json.dumps({"ok": status.status == "running", "instance": row}, ensure_ascii=False, indent=2))
-        else: print_table([row]); print(f"\n当前状态: {status.status}")
+        if args.format == "json":
+            print(
+                json.dumps(
+                    {"ok": status.status == "running", "instance": row},
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+        else:
+            print_table([row])
+            print(f"\n当前状态: {status.status}")
         return EXIT_OK if status.status == "running" else EXIT_STATE_MISMATCH
     
     return cmd_list(args)
@@ -490,8 +524,9 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 def cmd_stop(args: argparse.Namespace) -> int:
     instance = resolve_instance_by_id(str(args.id))
-    if not instance: return EXIT_UNKNOWN_INSTANCE
-    
+    if not instance:
+        return EXIT_UNKNOWN_INSTANCE
+
     adb_path = resolve_adb_path(args.adb)
     ProcessCache.get_all_processes(force_refresh=True)
     # 停止时不需要严格检查响应性，传入 None 即可
@@ -510,17 +545,22 @@ def cmd_stop(args: argparse.Namespace) -> int:
 
     final_status, reached = wait_for_instance_status(instance, adb_path, args.timeout, {"stopped"})
     row = asdict(final_status)
-    if args.format == "json": print(json.dumps({"ok": reached, "instance": row}, ensure_ascii=False, indent=2))
-    else: print_table([row]); print(f"\n结果: {'已停止' if reached else '停止超时'}")
+    if args.format == "json":
+        print(json.dumps({"ok": reached, "instance": row}, ensure_ascii=False, indent=2))
+    else:
+        print_table([row])
+        print(f"\n结果: {'已停止' if reached else '停止超时'}")
     return EXIT_OK if reached else EXIT_STATE_MISMATCH
 
 
 def cmd_start(args: argparse.Namespace) -> int:
     instance = resolve_instance_by_id(str(args.id))
-    if not instance: return EXIT_UNKNOWN_INSTANCE
+    if not instance:
+        return EXIT_UNKNOWN_INSTANCE
     player_path = resolve_bluestacks_player_path(args.player)
-    if not player_path: return EXIT_ENVIRONMENT_ERROR
-    
+    if not player_path:
+        return EXIT_ENVIRONMENT_ERROR
+
     adb_path = resolve_adb_path(args.adb)
     ProcessCache.get_all_processes(force_refresh=True)
     # 启动前检查当前状态
@@ -529,11 +569,14 @@ def cmd_start(args: argparse.Namespace) -> int:
         return EXIT_OK
 
     subprocess.Popen([player_path, "--instance", instance.instance_name], start_new_session=True)
-    if args.no_wait: return EXIT_OK
+    if args.no_wait:
+        return EXIT_OK
 
     final_status, reached = wait_for_instance_status(instance, adb_path, args.timeout, {"running"})
-    if args.format == "json": print(json.dumps({"ok": reached, "instance": asdict(final_status)}, ensure_ascii=False, indent=2))
-    else: print(f"启动{'成功' if reached else '超时'}")
+    if args.format == "json":
+        print(json.dumps({"ok": reached, "instance": asdict(final_status)}, ensure_ascii=False, indent=2))
+    else:
+        print(f"启动{'成功' if reached else '超时'}")
     return EXIT_OK if reached else EXIT_STATE_MISMATCH
 
 
@@ -563,8 +606,9 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     success_count = 0
     for tid in test_ids:
         instance = resolve_instance_by_id(tid)
-        if not instance: continue
-        
+        if not instance:
+            continue
+
         print(f"\n[Step 1] 启动实例 {tid} ({instance.label})...")
         # 强制清除缓存，防止之前的状态干扰
         ProcessCache._cache = None
@@ -632,7 +676,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 
     # 4. 关闭测试
     if not getattr(args, "no_stop", False):
-        print(f"\n[Step 4] 清理测试实例...")
+        print("\n[Step 4] 清理测试实例...")
         for tid in test_ids:
             args.id = tid
             cmd_stop(args)
@@ -644,12 +688,14 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 
 
 def print_table(rows: list[dict[str, Any]]) -> None:
-    if not rows: return
+    if not rows:
+        return
     headers = ["id", "label", "instance_name", "status", "pid_count", "adb_connected"]
     widths = {h: max(len(h), max([len(str(r.get(h, ""))) for r in rows])) for h in headers}
     print("  ".join([h.ljust(widths[h]) for h in headers]))
     print("  ".join(["-" * widths[h] for h in headers]))
-    for r in rows: print("  ".join([str(r.get(h, "")).ljust(widths[h]) for h in headers]))
+    for r in rows:
+        print("  ".join([str(r.get(h, "")).ljust(widths[h]) for h in headers]))
 
 
 def main() -> int:
@@ -662,11 +708,19 @@ def main() -> int:
         p.add_argument("--adb")
         p.add_argument("--player")
         p.add_argument("--timeout", type=int, default=60)
-        if cmd == "start": p.add_argument("--no-wait", action="store_true")
-        if cmd == "doctor": p.add_argument("-n", "--no-stop", action="store_true", help="诊断结束后不关闭模拟器")
+        if cmd == "start":
+            p.add_argument("--no-wait", action="store_true")
+        if cmd == "doctor":
+            p.add_argument(
+                "-n",
+                "--no-stop",
+                action="store_true",
+                help="诊断结束后不关闭模拟器",
+            )
         p.set_defaults(func=eval(f"cmd_{cmd}"))
     args = parser.parse_args()
     return args.func(args)
+
 
 if __name__ == "__main__":
     sys.exit(main())
