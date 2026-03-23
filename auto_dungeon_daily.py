@@ -3,10 +3,16 @@
 本模块提供每日收集相关的操作管理。
 """
 
+from dataclasses import dataclass
 import logging
+import os
+import re
+import uuid
 from typing import Any, Optional
 
-from airtest.core.api import touch
+import cv2
+import numpy as np
+from airtest.core.api import snapshot, touch
 
 from auto_dungeon_config import CLICK_INTERVAL
 from auto_dungeon_container import get_container
@@ -31,6 +37,33 @@ from coordinates import (
     ONE_KEY_REWARD,
     QUICK_AFK_COLLECT_BUTTON,
 )
+
+
+FIRE_TOWER_EVENT_NAME = "fire_tower_ticket_exchange"
+FIRE_TOWER_PURPLE_ITEM_KEY = "purple_first"
+FIRE_TOWER_BLUE_ITEM_KEY = "blue_second"
+EXCHANGE_PROGRESS_PATTERN = re.compile(r"(\d+)\s*/\s*(\d+)")
+
+
+@dataclass(frozen=True)
+class EventExchangeItemState:
+    """主题兑换项状态。
+
+    Attributes:
+        row_index: 列表中的行序号，从 0 开始。
+        item_key: 兑换物品标识。
+        required_tickets: 兑换所需奖券数量。
+        current_tickets: 当前识别到的奖券数量。
+        button_center: 对应“兑换”按钮的中心坐标。
+        is_affordable_by_color: 价格颜色是否表现为可买状态。
+    """
+
+    row_index: int
+    item_key: str
+    required_tickets: int
+    current_tickets: Optional[int]
+    button_center: Optional[tuple[int, int]]
+    is_affordable_by_color: Optional[bool]
 
 
 class DailyCollectManager:
@@ -159,6 +192,368 @@ class DailyCollectManager:
             self.db.mark_daily_step_completed(step_name)
             self.logger.info(f"💾 已记录每日步骤完成: {step_name}")
 
+        return True
+
+    def _parse_exchange_progress(self, text: str) -> tuple[Optional[int], Optional[int]]:
+        """解析奖券进度文本。
+
+        Args:
+            text: OCR 识别出的文本，例如 `40/40`。
+
+        Returns:
+            tuple[Optional[int], Optional[int]]: 当前奖券和所需奖券；
+            无法解析时返回 `(None, None)`。
+        """
+        normalized_text = (
+            text.replace("O", "0").replace("o", "0").replace(" ", "").strip()
+        )
+        match = EXCHANGE_PROGRESS_PATTERN.search(normalized_text)
+        if match is None:
+            return None, None
+        return int(match.group(1)), int(match.group(2))
+
+    @staticmethod
+    def _extract_bbox(item: dict[str, Any]) -> Optional[list[list[int]]]:
+        """提取 OCR 项的边界框。
+
+        Args:
+            item: OCR 结果项。
+
+        Returns:
+            Optional[list[list[int]]]: 标准化后的四点边界框。
+        """
+        bbox = item.get("bbox") or item.get("poly")
+        if not bbox:
+            return None
+        return [[int(point[0]), int(point[1])] for point in bbox]
+
+    def _capture_exchange_screen(self) -> tuple[list[dict[str, Any]], Optional[str]]:
+        """截取当前兑换页并返回 OCR 结果。
+
+        Returns:
+            tuple[list[dict[str, Any]], Optional[str]]: OCR 结果及截图路径。
+        """
+        container = get_container()
+        ocr_helper = container.ocr_helper
+        if ocr_helper is None:
+            self.logger.warning("⚠️ OCRHelper 未初始化，无法读取兑换页状态")
+            return [], None
+
+        screenshot_path = os.path.join(
+            ocr_helper.temp_dir,
+            f"exchange_{uuid.uuid4().hex[:8]}.png",
+        )
+        snapshot_func = ocr_helper.snapshot_func or snapshot
+        snapshot_func(filename=screenshot_path)
+        return ocr_helper.find_all_matching_texts(screenshot_path, "", confidence_threshold=0.0), screenshot_path
+
+    def _cleanup_temp_screenshot(self, screenshot_path: Optional[str]) -> None:
+        """清理临时截图文件。
+
+        Args:
+            screenshot_path: 临时截图路径。
+
+        Returns:
+            None.
+        """
+        if screenshot_path and os.path.exists(screenshot_path):
+            os.remove(screenshot_path)
+
+    def _match_exchange_button(
+        self,
+        progress_item: dict[str, Any],
+        button_items: list[dict[str, Any]],
+    ) -> Optional[tuple[int, int]]:
+        """按行匹配兑换按钮。
+
+        Args:
+            progress_item: 进度文本 OCR 项。
+            button_items: 全部“兑换”按钮 OCR 项。
+
+        Returns:
+            Optional[tuple[int, int]]: 匹配到的按钮中心坐标。
+        """
+        progress_center = progress_item.get("center")
+        if not progress_center:
+            return None
+
+        matched_buttons = [
+            button
+            for button in button_items
+            if button.get("center")
+            and button["center"][0] > progress_center[0]
+            and abs(button["center"][1] - progress_center[1]) <= 90
+        ]
+        if not matched_buttons:
+            return None
+
+        matched_buttons.sort(
+            key=lambda button: (
+                abs(button["center"][1] - progress_center[1]),
+                button["center"][0] - progress_center[0],
+            )
+        )
+        return tuple(matched_buttons[0]["center"])
+
+    def _detect_exchange_affordable_by_color(
+        self,
+        screenshot_path: Optional[str],
+        progress_item: dict[str, Any],
+    ) -> Optional[bool]:
+        """根据价格颜色辅助判断是否可兑换。
+
+        Args:
+            screenshot_path: 当前截图路径。
+            progress_item: 奖券进度 OCR 项。
+
+        Returns:
+            Optional[bool]: `True` 表示更像白色可买态，`False` 表示更像红色不可买态，
+            `None` 表示无法判断。
+        """
+        if screenshot_path is None:
+            return None
+
+        bbox = self._extract_bbox(progress_item)
+        if bbox is None:
+            return None
+
+        image = cv2.imread(screenshot_path)
+        if image is None:
+            return None
+
+        xs = [point[0] for point in bbox]
+        ys = [point[1] for point in bbox]
+        x_min, x_max = max(0, min(xs)), min(image.shape[1], max(xs))
+        y_min, y_max = max(0, min(ys)), min(image.shape[0], max(ys))
+        if x_max <= x_min or y_max <= y_min:
+            return None
+
+        region = image[y_min:y_max, x_min:x_max]
+        if region.size == 0:
+            return None
+
+        hsv_region = cv2.cvtColor(region, cv2.COLOR_BGR2HSV)
+        white_mask = cv2.inRange(
+            hsv_region,
+            np.array([0, 0, 180]),
+            np.array([180, 70, 255]),
+        )
+        red_mask_1 = cv2.inRange(
+            hsv_region,
+            np.array([0, 70, 80]),
+            np.array([10, 255, 255]),
+        )
+        red_mask_2 = cv2.inRange(
+            hsv_region,
+            np.array([160, 70, 80]),
+            np.array([180, 255, 255]),
+        )
+        red_mask = cv2.bitwise_or(red_mask_1, red_mask_2)
+
+        total_pixels = region.shape[0] * region.shape[1]
+        if total_pixels == 0:
+            return None
+
+        white_ratio = float(cv2.countNonZero(white_mask)) / float(total_pixels)
+        red_ratio = float(cv2.countNonZero(red_mask)) / float(total_pixels)
+
+        if white_ratio >= 0.08 and white_ratio > red_ratio:
+            return True
+        if red_ratio >= 0.08 and red_ratio > white_ratio:
+            return False
+        return None
+
+    def _load_fire_tower_exchange_states(self) -> list[EventExchangeItemState]:
+        """读取火焰塔兑换页前两个目标物品状态。
+
+        Returns:
+            list[EventExchangeItemState]: 目标物品状态列表。
+        """
+        ocr_results, screenshot_path = self._capture_exchange_screen()
+        try:
+            button_items = [
+                item
+                for item in ocr_results
+                if item.get("text") == "兑换" and item.get("center")
+            ]
+            progress_items = []
+            for item in ocr_results:
+                current_tickets, required_tickets = self._parse_exchange_progress(
+                    item.get("text", "")
+                )
+                if required_tickets not in {40, 30}:
+                    continue
+                if item.get("center") is None:
+                    continue
+                progress_items.append(
+                    {
+                        "ocr": item,
+                        "current_tickets": current_tickets,
+                        "required_tickets": required_tickets,
+                    }
+                )
+
+            progress_items.sort(
+                key=lambda item: (
+                    item["ocr"]["center"][1],
+                    item["ocr"]["center"][0],
+                )
+            )
+
+            target_configs = [
+                (FIRE_TOWER_PURPLE_ITEM_KEY, 40),
+                (FIRE_TOWER_BLUE_ITEM_KEY, 30),
+            ]
+            states = []
+            used_indexes: set[int] = set()
+            for row_index, (item_key, required_tickets) in enumerate(target_configs):
+                matched_index = next(
+                    (
+                        index
+                        for index, item in enumerate(progress_items)
+                        if index not in used_indexes
+                        and item["required_tickets"] == required_tickets
+                    ),
+                    None,
+                )
+                if matched_index is None:
+                    continue
+
+                used_indexes.add(matched_index)
+                matched_item = progress_items[matched_index]
+                states.append(
+                    EventExchangeItemState(
+                        row_index=row_index,
+                        item_key=item_key,
+                        required_tickets=required_tickets,
+                        current_tickets=matched_item["current_tickets"],
+                        button_center=self._match_exchange_button(
+                            matched_item["ocr"],
+                            button_items,
+                        ),
+                        is_affordable_by_color=self._detect_exchange_affordable_by_color(
+                            screenshot_path,
+                            matched_item["ocr"],
+                        ),
+                    )
+                )
+
+            return states
+        finally:
+            self._cleanup_temp_screenshot(screenshot_path)
+
+    def _can_redeem_fire_tower_item(self, item_state: EventExchangeItemState) -> bool:
+        """判断目标物品当前是否可兑换。
+
+        Args:
+            item_state: 兑换项状态。
+
+        Returns:
+            bool: 当前是否满足兑换条件。
+        """
+        if item_state.button_center is None:
+            return False
+        if item_state.current_tickets is not None:
+            return item_state.current_tickets >= item_state.required_tickets
+        return item_state.is_affordable_by_color is True
+
+    def _attempt_fire_tower_item_exchange(
+        self,
+        item_state: EventExchangeItemState,
+    ) -> bool:
+        """尝试兑换指定物品。
+
+        Args:
+            item_state: 兑换项状态。
+
+        Returns:
+            bool: 是否完成点击并确认。
+        """
+        if item_state.button_center is None:
+            self.logger.warning("⚠️ 兑换项 %s 缺少按钮坐标，跳过", item_state.item_key)
+            return False
+
+        touch(item_state.button_center)
+        sleep(CLICK_INTERVAL)
+        confirmed = bool(
+            find_text_and_click_safe(
+                "确定",
+                regions=[5],
+                timeout=3,
+                use_cache=False,
+            )
+        )
+        if not confirmed:
+            self.logger.warning("⚠️ 兑换项 %s 未出现确认按钮", item_state.item_key)
+            return False
+
+        sleep(CLICK_INTERVAL)
+        return True
+
+    def _redeem_fire_tower_ticket_items(self) -> bool:
+        """按顺序兑换火焰塔前两个奖券物品。
+
+        Returns:
+            bool: 本次是否至少成功兑换一个目标物品。
+        """
+        cycle_id = self.db.get_event_cycle_id() if self.db else None
+        redeemed_any = False
+        states = {
+            state.item_key: state
+            for state in self._load_fire_tower_exchange_states()
+        }
+
+        purple_completed = bool(
+            self.db
+            and self.db.is_event_item_completed(
+                FIRE_TOWER_EVENT_NAME,
+                FIRE_TOWER_PURPLE_ITEM_KEY,
+                cycle_id=cycle_id,
+            )
+        )
+        if not purple_completed:
+            purple_state = states.get(FIRE_TOWER_PURPLE_ITEM_KEY)
+            if purple_state is None or not self._can_redeem_fire_tower_item(purple_state):
+                self.logger.info("ℹ️ 火焰塔紫色物品本次不可兑换，停止后续兑换")
+                return False
+            if not self._attempt_fire_tower_item_exchange(purple_state):
+                return False
+            if self.db:
+                self.db.mark_event_item_completed(
+                    FIRE_TOWER_EVENT_NAME,
+                    FIRE_TOWER_PURPLE_ITEM_KEY,
+                    cycle_id=cycle_id,
+                )
+            redeemed_any = True
+            states = {
+                state.item_key: state
+                for state in self._load_fire_tower_exchange_states()
+            }
+
+        blue_completed = bool(
+            self.db
+            and self.db.is_event_item_completed(
+                FIRE_TOWER_EVENT_NAME,
+                FIRE_TOWER_BLUE_ITEM_KEY,
+                cycle_id=cycle_id,
+            )
+        )
+        if blue_completed:
+            return redeemed_any
+
+        blue_state = states.get(FIRE_TOWER_BLUE_ITEM_KEY)
+        if blue_state is None or not self._can_redeem_fire_tower_item(blue_state):
+            self.logger.info("ℹ️ 火焰塔蓝色物品本次不可兑换")
+            return redeemed_any
+        if not self._attempt_fire_tower_item_exchange(blue_state):
+            return redeemed_any
+
+        if self.db:
+            self.db.mark_event_item_completed(
+                FIRE_TOWER_EVENT_NAME,
+                FIRE_TOWER_BLUE_ITEM_KEY,
+                cycle_id=cycle_id,
+            )
         return True
 
     def collect_daily_rewards(self):
@@ -365,28 +760,13 @@ class DailyCollectManager:
 
         exchange_success = False
         if exchange_tab_clicked:
-            game_actions = get_container().game_actions
-            if game_actions is None:
-                self.logger.warning("⚠️ 主题奖励: GameActions 未初始化，跳过兑换动作")
-            else:
-                try:
-                    button = game_actions.find_all().equals("兑换").first()
-                    button.click()
-                    self.logger.info("👆 主题奖励: 已点击兑换按钮")
-
-                    game_actions.find_all(regions=[5]).equals("确定").first().click()
-                    self.logger.info("👆 主题奖励: 已点击兑换确认按钮")
-                    if find_text_and_click_safe(
-                        "确定",
-                        regions=[5],
-                        timeout=3,
-                        use_cache=False,
-                    ):
-                        send_notification("兑换紫色碎片成功", "兑换成功, 请立即检查")
-                    exchange_success = True
-                except Exception as exc:
-                    self.logger.error("❌ 主题奖励: 兑换碎片失败: %s", exc)
-                    send_notification("兑换碎片失败", "兑换失败, 请立即检查")
+            try:
+                exchange_success = self._redeem_fire_tower_ticket_items()
+                if exchange_success:
+                    send_notification("火焰塔奖券兑换成功", "目标物品兑换完成, 请检查")
+            except Exception as exc:
+                self.logger.error("❌ 主题奖励: 兑换碎片失败: %s", exc)
+                send_notification("兑换碎片失败", "兑换失败, 请立即检查")
         else:
             self.logger.info("ℹ️ 主题奖励: 未看到兑换标签，跳过碎片兑换流程")
 

@@ -5,9 +5,10 @@
 """
 
 import os
+import sqlite3
 import sys
 import tempfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # 添加父目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -167,6 +168,79 @@ class TestDailyCollectSpecialDungeon:
         zone_stats_full = dict(temp_db.get_zone_stats(include_special=True))
         assert zone_stats_full["军团领域"] == 1
         assert zone_stats_full["__daily_collect__"] == 1
+
+
+class TestEventExchangeProgress:
+    """测试主题兑换期次与防重逻辑。"""
+
+    def test_event_cycle_id_rolls_over_at_friday_6am_gmt8(self, temp_db):
+        """周五 06:00 GMT+8 前后应切换到新一期。"""
+        gmt8 = timezone(timedelta(hours=8))
+        before_reset = datetime(2026, 3, 20, 5, 59, tzinfo=gmt8)
+        after_reset = datetime(2026, 3, 20, 6, 0, tzinfo=gmt8)
+
+        before_cycle = temp_db.get_event_cycle_id(before_reset)
+        after_cycle = temp_db.get_event_cycle_id(after_reset)
+
+        assert before_cycle == "2026-03-13T06:00:00+08:00"
+        assert after_cycle == "2026-03-20T06:00:00+08:00"
+        assert before_cycle != after_cycle
+
+    def test_mark_event_item_completed_is_idempotent(self, temp_db):
+        """同一期同物品重复写入只能保留一条记录。"""
+        gmt8 = timezone(timedelta(hours=8))
+        cycle_id = temp_db.get_event_cycle_id(
+            datetime(2026, 3, 20, 6, 1, tzinfo=gmt8)
+        )
+
+        assert (
+            temp_db.is_event_item_completed(
+                "fire_tower_ticket_exchange",
+                "purple_first",
+                cycle_id=cycle_id,
+            )
+            is False
+        )
+
+        temp_db.mark_event_item_completed(
+            "fire_tower_ticket_exchange",
+            "purple_first",
+            cycle_id=cycle_id,
+        )
+        temp_db.mark_event_item_completed(
+            "fire_tower_ticket_exchange",
+            "purple_first",
+            cycle_id=cycle_id,
+        )
+
+        assert (
+            temp_db.is_event_item_completed(
+                "fire_tower_ticket_exchange",
+                "purple_first",
+                cycle_id=cycle_id,
+            )
+            is True
+        )
+
+        with sqlite3.connect(temp_db.db_path) as conn:
+            row_count = conn.execute(
+                """
+                SELECT COUNT(*)
+                FROM event_item_progress
+                WHERE config_name = ?
+                  AND cycle_id = ?
+                  AND event_name = ?
+                  AND item_key = ?
+                """,
+                (
+                    temp_db.config_name,
+                    cycle_id,
+                    "fire_tower_ticket_exchange",
+                    "purple_first",
+                ),
+            ).fetchone()[0]
+
+        assert row_count == 1
 
 
 class TestDatabaseCleanup:

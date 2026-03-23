@@ -5,7 +5,7 @@
 使用 Peewee ORM 管理数据库
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from peewee import (
     CharField,
@@ -26,6 +26,9 @@ db = SqliteDatabase(None)
 DAILY_COLLECT_ZONE_NAME = "__daily_collect__"
 DAILY_COLLECT_DUNGEON_NAME = "daily_collect"
 SPECIAL_ZONE_NAMES = (DAILY_COLLECT_ZONE_NAME,)
+EVENT_RESET_TIMEZONE = timezone(timedelta(hours=8))
+EVENT_RESET_WEEKDAY = 4
+EVENT_RESET_HOUR = 6
 
 
 class BaseModel(Model):
@@ -51,6 +54,21 @@ class DungeonProgress(BaseModel):
         indexes = ((("config_name", "date", "zone_name", "dungeon_name"), True),)  # 唯一索引
 
 
+class EventItemProgress(BaseModel):
+    """主题活动兑换进度模型。"""
+
+    config_name = CharField(index=True, default="default")
+    cycle_id = CharField(index=True)
+    event_name = CharField(index=True)
+    item_key = CharField()
+    completed_at = DateTimeField()
+
+    class Meta:  # type: ignore
+        database = db
+        table_name = "event_item_progress"
+        indexes = ((("config_name", "cycle_id", "event_name", "item_key"), True),)
+
+
 class DungeonProgressDB:
     """副本通关进度数据库管理类"""
 
@@ -67,17 +85,22 @@ class DungeonProgressDB:
         self._init_db()
 
     def _init_db(self):
-        """初始化数据库"""
+        """初始化数据库。
+
+        Returns:
+            None.
+        """
         db.init(self.db_path)
         db.connect()
-        db.create_tables([DungeonProgress], safe=True)
+        db.create_tables([DungeonProgress, EventItemProgress], safe=True)
         logger.info(f"📊 数据库初始化完成: {self.db_path}")
         logger.info(f"🎮 当前配置: {self.config_name}")
 
     def _get_logic_date(self):
-        """
-        获取基于逻辑判断的日期对象
-        以每天 6:00 AM 为界限，6:00 AM 之前算昨天，6:00 AM 之后算今天
+        """获取按日常逻辑切分的日期对象。
+
+        Returns:
+            date: 以每天 06:00 为界限换日后的逻辑日期。
         """
         now = datetime.now()
         if now.hour < 6:
@@ -85,8 +108,108 @@ class DungeonProgressDB:
         return now.date()
 
     def get_today_date(self):
-        """获取今天的日期字符串"""
+        """获取今天的逻辑日期字符串。
+
+        Returns:
+            str: `YYYY-MM-DD` 格式的逻辑日期。
+        """
         return self._get_logic_date().isoformat()
+
+    def _normalize_event_time(self, now=None):
+        """把输入时间规范为 GMT+8 时区时间。
+
+        Args:
+            now: 可选的当前时间；若为空则使用系统当前时间。
+
+        Returns:
+            datetime: 规范化后的 GMT+8 时间。
+        """
+        if now is None:
+            return datetime.now(EVENT_RESET_TIMEZONE)
+        if now.tzinfo is None:
+            return now.replace(tzinfo=EVENT_RESET_TIMEZONE)
+        return now.astimezone(EVENT_RESET_TIMEZONE)
+
+    def get_event_cycle_id(self, now=None):
+        """获取主题兑换期次标识。
+
+        Args:
+            now: 可选的当前时间；若为空则使用系统当前时间。
+
+        Returns:
+            str: 以 GMT+8 周五 06:00 为边界的期次起始时间字符串。
+        """
+        current = self._normalize_event_time(now)
+        days_since_reset = (current.weekday() - EVENT_RESET_WEEKDAY) % 7
+        cycle_start = (current - timedelta(days=days_since_reset)).replace(
+            hour=EVENT_RESET_HOUR,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+        if current < cycle_start:
+            cycle_start -= timedelta(days=7)
+        return cycle_start.isoformat(timespec="seconds")
+
+    def is_event_item_completed(self, event_name, item_key, cycle_id=None):
+        """查询某个主题兑换物品在当前期次是否已完成。
+
+        Args:
+            event_name: 主题活动标识。
+            item_key: 兑换物品标识。
+            cycle_id: 可选期次标识；为空时自动按当前时间计算。
+
+        Returns:
+            bool: 若当前配置在该期次已记录兑换成功则返回 `True`。
+        """
+        target_cycle_id = cycle_id or self.get_event_cycle_id()
+        try:
+            EventItemProgress.get(
+                (EventItemProgress.config_name == self.config_name)
+                & (EventItemProgress.cycle_id == target_cycle_id)
+                & (EventItemProgress.event_name == event_name)
+                & (EventItemProgress.item_key == item_key)
+            )
+            return True
+        except EventItemProgress.DoesNotExist:  # type: ignore
+            return False
+
+    def mark_event_item_completed(self, event_name, item_key, cycle_id=None):
+        """记录某个主题兑换物品在当前期次已完成。
+
+        Args:
+            event_name: 主题活动标识。
+            item_key: 兑换物品标识。
+            cycle_id: 可选期次标识；为空时自动按当前时间计算。
+
+        Returns:
+            None.
+        """
+        target_cycle_id = cycle_id or self.get_event_cycle_id()
+        completed_at = self._normalize_event_time()
+        EventItemProgress.insert(
+            config_name=self.config_name,
+            cycle_id=target_cycle_id,
+            event_name=event_name,
+            item_key=item_key,
+            completed_at=completed_at,
+        ).on_conflict(
+            conflict_target=[
+                EventItemProgress.config_name,
+                EventItemProgress.cycle_id,
+                EventItemProgress.event_name,
+                EventItemProgress.item_key,
+            ],
+            update={
+                EventItemProgress.completed_at: completed_at,
+            },
+        ).execute()
+        logger.info(
+            "💾 记录主题兑换完成: %s - %s (%s)",
+            event_name,
+            item_key,
+            target_cycle_id,
+        )
 
     def is_dungeon_completed(self, zone_name, dungeon_name):
         """检查副本今天是否已通关"""
