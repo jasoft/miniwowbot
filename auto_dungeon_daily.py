@@ -3,11 +3,11 @@
 本模块提供每日收集相关的操作管理。
 """
 
-from dataclasses import dataclass
 import logging
 import os
 import re
 import uuid
+from dataclasses import dataclass
 from typing import Any, Optional
 
 import cv2
@@ -37,7 +37,6 @@ from coordinates import (
     ONE_KEY_REWARD,
     QUICK_AFK_COLLECT_BUTTON,
 )
-
 
 FIRE_TOWER_EVENT_NAME = "fire_tower_ticket_exchange"
 FIRE_TOWER_PURPLE_ITEM_KEY = "purple_first"
@@ -204,9 +203,7 @@ class DailyCollectManager:
             tuple[Optional[int], Optional[int]]: 当前奖券和所需奖券；
             无法解析时返回 `(None, None)`。
         """
-        normalized_text = (
-            text.replace("O", "0").replace("o", "0").replace(" ", "").strip()
-        )
+        normalized_text = text.replace("O", "0").replace("o", "0").replace(" ", "").strip()
         match = EXCHANGE_PROGRESS_PATTERN.search(normalized_text)
         if match is None:
             return None, None
@@ -245,7 +242,9 @@ class DailyCollectManager:
         )
         snapshot_func = ocr_helper.snapshot_func or snapshot
         snapshot_func(filename=screenshot_path)
-        return ocr_helper.find_all_matching_texts(screenshot_path, "", confidence_threshold=0.0), screenshot_path
+        return ocr_helper.find_all_matching_texts(
+            screenshot_path, "", confidence_threshold=0.0
+        ), screenshot_path
 
     def _cleanup_temp_screenshot(self, screenshot_path: Optional[str]) -> None:
         """清理临时截图文件。
@@ -372,9 +371,7 @@ class DailyCollectManager:
         ocr_results, screenshot_path = self._capture_exchange_screen()
         try:
             button_items = [
-                item
-                for item in ocr_results
-                if item.get("text") == "兑换" and item.get("center")
+                item for item in ocr_results if item.get("text") == "兑换" and item.get("center")
             ]
             progress_items = []
             for item in ocr_results:
@@ -498,10 +495,7 @@ class DailyCollectManager:
         """
         cycle_id = self.db.get_event_cycle_id() if self.db else None
         redeemed_any = False
-        states = {
-            state.item_key: state
-            for state in self._load_fire_tower_exchange_states()
-        }
+        states = {state.item_key: state for state in self._load_fire_tower_exchange_states()}
 
         purple_completed = bool(
             self.db
@@ -525,10 +519,7 @@ class DailyCollectManager:
                     cycle_id=cycle_id,
                 )
             redeemed_any = True
-            states = {
-                state.item_key: state
-                for state in self._load_fire_tower_exchange_states()
-            }
+            states = {state.item_key: state for state in self._load_fire_tower_exchange_states()}
 
         blue_completed = bool(
             self.db
@@ -763,7 +754,7 @@ class DailyCollectManager:
             try:
                 exchange_success = self._redeem_fire_tower_ticket_items()
                 if exchange_success:
-                    send_notification("火焰塔奖券兑换成功", "目标物品兑换完成, 请检查")
+                    send_notification("奖券兑换成功", "目标物品兑换完成, 请检查")
             except Exception as exc:
                 self.logger.error("❌ 主题奖励: 兑换碎片失败: %s", exc)
                 send_notification("兑换碎片失败", "兑换失败, 请立即检查")
