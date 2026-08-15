@@ -26,32 +26,27 @@ https://api.day.app/your_device_key/
 
 复制你的 `your_device_key` 部分。
 
-### 3. 配置系统配置文件
+### 3. 配置本地环境变量
 
-编辑项目根目录下的 `system_config.json` 文件：
+在项目根目录创建本地 `.env` 文件（该文件已被 Git 忽略）：
 
-```json
-{
-    "description": "系统级配置 - 包含通知等全局设置",
-    "bark": {
-        "enabled": true,
-        "server": "https://api.day.app/your_device_key",
-        "title": "副本助手通知",
-        "group": "dungeon_helper"
-    },
-    "timeout": {
-        "wait_for_main": 300
-    }
-}
+```dotenv
+BARK_ENABLED=true
+BARK_SERVER=https://api.day.app/your_device_key/
+BARK_TITLE=副本助手通知
+BARK_GROUP=dungeon_helper
 ```
 
 **配置说明：**
 
-- `enabled`: 是否启用 Bark 通知（`true` 启用，`false` 禁用）
-- `server`: Bark 服务器地址，替换 `your_device_key` 为你的实际 Device Key
-- `title`: 通知标题（可选，默认为 "副本助手通知"）
-- `group`: 通知分组（可选，用于在 Bark 中分组显示）
+- `BARK_ENABLED`: 是否启用 Bark 通知（`true` 启用，`false` 禁用）
+- `BARK_SERVER`: Bark 服务器地址，替换 `your_device_key` 为你的实际 Device Key
+- `BARK_TITLE`: 通知标题（可选，默认为 "副本助手通知"）
+- `BARK_GROUP`: 通知分组（可选，用于在 Bark 中分组显示）
 - `timeout.wait_for_main`: 等待主界面的超时时间（秒），默认 300 秒（5 分钟）
+
+敏感的 Device Key 只允许保存在本机 `.env` 或部署平台的密钥管理中，不能写入
+`system_config.json`、源码、测试数据或 GitHub Actions 日志。
 
 ### 4. 测试通知功能
 
@@ -108,30 +103,22 @@ python test_bark_notification.py
 
 ### 自定义通知标题和分组
 
-```json
-{
-    "bark": {
-        "enabled": true,
-        "server": "https://api.day.app/your_device_key",
-        "title": "游戏助手",
-        "group": "game_automation"
-    }
-}
+```dotenv
+BARK_ENABLED=true
+BARK_SERVER=https://api.day.app/your_device_key/
+BARK_TITLE=游戏助手
+BARK_GROUP=game_automation
 ```
 
 ### 使用自建 Bark 服务器
 
 如果你搭建了自己的 Bark 服务器：
 
-```json
-{
-    "bark": {
-        "enabled": true,
-        "server": "https://your-bark-server.com/your_device_key",
-        "title": "副本助手通知",
-        "group": "dungeon_helper"
-    }
-}
+```dotenv
+BARK_ENABLED=true
+BARK_SERVER=https://your-bark-server.com/your_device_key/
+BARK_TITLE=副本助手通知
+BARK_GROUP=dungeon_helper
 ```
 
 ## 通知级别
@@ -150,7 +137,7 @@ python test_bark_notification.py
    - 打开 Bark App，确保没有错误提示
 
 2. **检查 Device Key 是否正确**
-   - 在 `system_config.json` 中确认 `server` 地址正确
+   - 在本机 `.env` 中确认 `BARK_SERVER` 地址正确
 
 3. **检查网络连接**
    - 确保设备可以访问 Bark 服务器
@@ -162,7 +149,7 @@ python test_bark_notification.py
      ```
 
 5. **检查配置是否已启用**
-   - 确认 `bark.enabled` 设置为 `true`
+   - 确认 `.env` 中 `BARK_ENABLED=true`
 
 ### 测试脚本报错？
 
@@ -187,7 +174,8 @@ uv pip install requests
 
 ## 相关文件
 
-- `system_config.json`: 系统配置文件
+- `.env`: 本机私有通知配置（不会提交到 Git）
+- `.env.example`: 不含密钥的配置模板
 - `system_config_loader.py`: 系统配置加载器
 - `test_bark_notification.py`: Bark 通知测试脚本
 - `auto_dungeon.py`: 主程序（包含通知发送逻辑）
