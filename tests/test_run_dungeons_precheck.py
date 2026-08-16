@@ -72,6 +72,7 @@ def test_run_configs_skips_emulator_when_completed(monkeypatch, tmp_path):
     monkeypatch.setattr(run_dungeons, "SCRIPT_DIR", tmp_path)
     monkeypatch.setattr(run_dungeons, "_is_windows", lambda: False)
     monkeypatch.setattr(run_dungeons, "DungeonProgressDB", _make_db_class(1))
+    monkeypatch.setattr(run_dungeons, "send_notification", lambda *args, **kwargs: None)
 
     calls = {"ensure": 0, "invoke": 0}
 
@@ -106,6 +107,7 @@ def test_run_configs_starts_emulator_when_pending(monkeypatch, tmp_path):
     monkeypatch.setattr(run_dungeons, "SCRIPT_DIR", tmp_path)
     monkeypatch.setattr(run_dungeons, "_is_windows", lambda: False)
     monkeypatch.setattr(run_dungeons, "DungeonProgressDB", _make_db_class(0))
+    monkeypatch.setattr(run_dungeons, "send_notification", lambda *args, **kwargs: None)
 
     calls = {"ensure": 0, "invoke": 0}
 
