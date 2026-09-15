@@ -875,21 +875,26 @@ def ensure_docker_daemon(logger: logging.Logger) -> bool:
     return False
 
 
-def ensure_ocr_container(logger: logging.Logger) -> bool:
-    """确保 PaddleX OCR 容器处于运行状态。
+def ocr_container_exists(logger: logging.Logger) -> bool:
+    """检查 PaddleX OCR 容器是否存在（不关心它是否正在运行）。
 
-    优先复用已存在的容器（``docker start``），仅在容器不存在或启动失败时
-    才调用启动脚本重建，避免每次任务都重新加载服务。
+    容器处于**停止状态是正常且期望的**：它的生命周期由 AutoStopProxy 管理
+    —— 收到请求时自动启动容器，空闲超过 ``-timeout`` 后自动停止容器，以此
+    避免 GPU 服务长期占用内存。
+
+    因此这里刻意**不主动启动容器**：绕过代理直接启动会让代理失去空闲计时，
+    容器将永远不被回收。只有当容器**不存在**（例如被 ``docker rm``）时，
+    代理才无法拉起它，此时需要调用启动脚本重建。
 
     Args:
         logger: 日志对象。
 
     Returns:
-        容器已启动返回 ``True``，无法启动返回 ``False``。
+        容器存在返回 ``True``；不存在或查询失败返回 ``False``。
     """
     try:
         inspect = subprocess.run(
-            ["docker", "inspect", "-f", "{{.State.Running}}", DOCKER_CONTAINER_NAME],
+            ["docker", "inspect", "-f", "{{.State.Status}}", DOCKER_CONTAINER_NAME],
             capture_output=True,
             timeout=30,
         )
@@ -897,31 +902,19 @@ def ensure_ocr_container(logger: logging.Logger) -> bool:
         logger.error(f"❌ 查询容器状态异常: {exc}")
         return False
 
-    if inspect.returncode == 0:
-        running = decode_process_output(inspect.stdout).strip().lower() == "true"
-        if running:
-            logger.info(f"✅ OCR 容器 {DOCKER_CONTAINER_NAME} 已在运行")
-            return True
+    if inspect.returncode != 0:
+        logger.warning(f"⚠️ OCR 容器 {DOCKER_CONTAINER_NAME} 不存在")
+        return False
 
-        logger.info(f"🔧 OCR 容器 {DOCKER_CONTAINER_NAME} 已停止，执行 docker start...")
-        try:
-            start = subprocess.run(
-                ["docker", "start", DOCKER_CONTAINER_NAME],
-                capture_output=True,
-                timeout=120,
-            )
-        except Exception as exc:
-            logger.error(f"❌ docker start 异常: {exc}")
-            return False
-        if start.returncode == 0:
-            logger.info("✅ OCR 容器已启动")
-            return True
-        logger.warning(
-            f"⚠️ docker start 失败: {decode_process_output(start.stderr).strip()}"
+    status = decode_process_output(inspect.stdout).strip().lower()
+    if status == "running":
+        logger.info(f"✅ OCR 容器 {DOCKER_CONTAINER_NAME} 正在运行")
+    else:
+        logger.info(
+            f"ℹ️ OCR 容器 {DOCKER_CONTAINER_NAME} 当前为 {status}（符合预期："
+            "由 AutoStopProxy 在收到请求时按需启动）"
         )
-
-    logger.info("🔧 容器不存在或启动失败，调用启动脚本重建...")
-    return launch_ocr_service(logger)
+    return True
 
 
 def launch_ocr_service(logger: logging.Logger) -> bool:
@@ -970,7 +963,15 @@ def launch_ocr_service(logger: logging.Logger) -> bool:
 
 
 def prepare_ocr_service(logger: logging.Logger) -> bool:
-    """确保 OCR 服务可用，必要时拉起 Docker 与容器。
+    """确保 OCR 服务可用。
+
+    请求统一走 AutoStopProxy（见 ``.env`` 的 ``OCR_SERVER_URL``，默认 ``:8311``），
+    容器的生命周期由该代理管理：收到请求时自动 ``docker start``、空闲超时后
+    自动 ``docker stop``。
+
+    因此这里只做两件事：保证 Docker 守护进程可用（代理需要它才能启动容器）、
+    保证容器没有被删除；随后轮询代理的 ``/health`` —— 该请求本身就会触发代理
+    按需拉起容器。**不主动启动容器**，以免绕过代理使其空闲回收机制失效。
 
     Args:
         logger: 日志对象。
@@ -979,7 +980,7 @@ def prepare_ocr_service(logger: logging.Logger) -> bool:
         服务就绪返回 ``True``；不可用返回 ``False``（调用方应终止本次运行，
         避免在没有 OCR 的情况下空跑多轮重试）。
     """
-    logger.info("🔧 检查 OCR 服务 (PaddleX Docker)...")
+    logger.info("🔧 检查 OCR 服务 (经 AutoStopProxy 按需拉起)...")
 
     if check_ocr_health(logger):
         logger.info("✅ OCR 服务 (/health) 响应正常")
@@ -988,11 +989,16 @@ def prepare_ocr_service(logger: logging.Logger) -> bool:
     if not ensure_docker_daemon(logger):
         return False
 
-    if not ensure_ocr_container(logger):
-        logger.error("❌ OCR 容器启动失败")
-        return False
+    if not ocr_container_exists(logger):
+        logger.warning("⚠️ OCR 容器不存在，调用启动脚本重建...")
+        if not launch_ocr_service(logger):
+            logger.error("❌ OCR 容器重建失败")
+            return False
 
-    logger.info(f"⏳ 等待 OCR 服务就绪 (最多 {OCR_STARTUP_WAIT_SECONDS} 秒)...")
+    logger.info(
+        f"⏳ 等待 OCR 服务就绪 (最多 {OCR_STARTUP_WAIT_SECONDS} 秒，"
+        "由 AutoStopProxy 按需启动容器)..."
+    )
     start_time = time.time()
     while time.time() - start_time < OCR_STARTUP_WAIT_SECONDS:
         if check_ocr_health(logger):
