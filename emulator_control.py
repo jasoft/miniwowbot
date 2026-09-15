@@ -410,13 +410,62 @@ def _start_single_emulator(
         )
 
     adb_path = _resolve_adb_path()
-    return _run_list_cmd(
+    connect_ok = _run_list_cmd(
         [adb_path, "connect", emulator],
         logger,
         f"重新连接 ADB {emulator}",
         timeout=20,
         allow_failure=True,
     )
+    if not connect_ok:
+        return False
+
+    # `adb connect` 成功并不代表实例已启动（端口被服务占用也会返回 connected），
+    # 必须确认设备真正 online，否则会把"什么都没做"误判成重启成功。
+    if _is_adb_device_online(adb_path, emulator, logger):
+        return True
+
+    logger.error(
+        f"❌ ADB 设备未上线，实例可能未真正启动: {emulator}（请在 emulators.json 中配置 emulator_start_cmd）"
+    )
+    return False
+
+
+def _is_adb_device_online(
+    adb_path: str,
+    emulator: str,
+    logger: logging.Logger,
+    retries: int = 6,
+) -> bool:
+    """确认目标 ADB 设备是否真正处于 ``device``（online）状态。
+
+    Args:
+        adb_path: ADB 可执行文件路径。
+        emulator: 规范化后的模拟器地址，例如 ``192.168.1.150:5565``。
+        logger: 日志对象。
+        retries: 轮询次数，每次间隔 5 秒。
+
+    Returns:
+        True 表示设备已就绪；False 表示轮询结束仍未上线。
+    """
+    for attempt in range(1, retries + 1):
+        try:
+            result = subprocess.run(
+                [adb_path, "devices"],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            for line in (result.stdout or "").splitlines():
+                parts = line.split()
+                if len(parts) >= 2 and parts[0] == emulator and parts[1] == "device":
+                    logger.info(f"✅ ADB 设备已在线: {emulator}")
+                    return True
+        except Exception as exc:
+            logger.debug(f"⚠️ 检查 ADB 设备状态失败: {exc}")
+        if attempt < retries:
+            time.sleep(5)
+    return False
 
 
 def _resolve_vm_index_and_manager(

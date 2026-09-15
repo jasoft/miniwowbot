@@ -59,6 +59,9 @@ from system_config_loader import load_system_config
 # 初始化模块级 logger
 logger = logging.getLogger(__name__)
 
+# 启动游戏后等待进入角色选择界面的最长时间（秒）
+CHARACTER_SELECTION_WAIT_SECONDS = 180
+
 # 配置 Airtest 图像识别策略
 ST.CVSTRATEGY = OCR_STRATEGY
 airtest_logger = logging.getLogger("airtest")
@@ -532,8 +535,14 @@ def main():
     start_app("com.ms.ysjyzr")
 
     # 等待进入角色选择界面
-    if is_on_character_selection(120):
-        logger.info("已在角色选择界面")
+    # 必须确认已真正进入角色选择界面再继续：过去这里忽略返回值直接往下走，
+    # 结果在游戏还没加载完时就去选角色，抛出的 RuntimeError 会触发整个流程重启，
+    # 表现为"在选人画面反复杀游戏重启"。
+    if not is_on_character_selection(CHARACTER_SELECTION_WAIT_SECONDS):
+        raise TimeoutError(
+            f"启动游戏后 {CHARACTER_SELECTION_WAIT_SECONDS} 秒内未进入角色选择界面"
+        )
+    logger.info("已在角色选择界面")
 
     # 选择角色
     char_class = _container.config_loader.get_char_class()
@@ -577,7 +586,10 @@ def main_wrapper():
     """主函数包装器 - 处理超时和重启逻辑"""
     global logger
 
-    max_restarts = 10
+    # 每次重启都会"关闭游戏 → 启动游戏"，10 次过高，会把偶发抖动放大成
+    # "在选人画面反复杀游戏重启"的死循环；上层（run_dungeons 重试 3 次、
+    # cron 整轮重试）还会再叠加，这里收敛到 3 次。
+    max_restarts = 3
     restart_count = 0
 
     while restart_count < max_restarts:

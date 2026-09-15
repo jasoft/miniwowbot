@@ -26,9 +26,10 @@ class TestEnsureConnectedTimeout:
         sig = inspect.signature(manager.ensure_connected)
         max_retries_default = sig.parameters["max_retries"].default
 
-        # 之前是 100 次，太多了，应该 <= 5
+        # 之前是 100 次，太多了；但同样要给 BlueStacks 冷启动留足时间：
+        # 默认 6 次 × 15s ≈ 75s，仍是有界的，不会长时间卡住。
         print(f"当前默认重试次数: {max_retries_default}")
-        assert max_retries_default <= 5, f"默认重试次数 {max_retries_default} 太大，会导致长时间卡住"
+        assert max_retries_default <= 8, f"默认重试次数 {max_retries_default} 太大，会导致长时间卡住"
 
     @patch("time.sleep")
     def test_total_wait_time_is_limited(self, mock_sleep):

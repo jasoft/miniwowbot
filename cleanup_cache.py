@@ -6,6 +6,66 @@
 import argparse
 import os
 import shutil
+import time
+
+
+def cleanup_temp_dir(temp_dir=None, max_age_hours=24.0, logger=None):
+    """删除 ``output/temp`` 下滞留时间超过 ``max_age_hours`` 的残留文件。
+
+    正常流程中每张 OCR 临时截图用完即删（``delete_temp_screenshots=True``），
+    本函数只兜底清理进程被中断（崩溃/强杀/沙箱拦截）时留下的文件。
+    按文件修改时间判断，因此不会误删并发会话正在使用的新文件。
+
+    Args:
+        temp_dir: 临时目录路径，默认 ``output/temp``。
+        max_age_hours: 判定为残留的最小滞留小时数。
+        logger: 可选日志对象；未提供时使用 ``print`` 输出。
+
+    Returns:
+        ``(removed, failed, freed_bytes)`` 三元组。
+    """
+    if temp_dir is None:
+        temp_dir = os.path.join("output", "temp")
+
+    def _log(level, msg):
+        if logger is not None:
+            try:
+                getattr(logger, level)(msg)
+                return
+            except Exception:
+                pass
+        print(msg)
+
+    if not os.path.isdir(temp_dir):
+        return 0, 0, 0
+
+    deadline = time.time() - max_age_hours * 3600
+    removed = 0
+    failed = 0
+    freed = 0
+
+    for filename in os.listdir(temp_dir):
+        filepath = os.path.join(temp_dir, filename)
+        try:
+            if not os.path.isfile(filepath):
+                continue
+            if os.path.getmtime(filepath) > deadline:
+                continue
+            size = os.path.getsize(filepath)
+            os.remove(filepath)
+            removed += 1
+            freed += size
+        except Exception as exc:
+            failed += 1
+            _log("warning", f"⚠️ 清理临时文件失败: {filename} - {exc}")
+
+    if removed or failed:
+        _log(
+            "info",
+            f"🧹 清理残留临时截图: 删除 {removed} 个 / 失败 {failed} 个，"
+            f"释放 {freed / 1024 / 1024:.2f} MB",
+        )
+    return removed, failed, freed
 
 
 def cleanup_output_directory(full_clean=False):

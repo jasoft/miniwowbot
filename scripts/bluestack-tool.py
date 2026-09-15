@@ -275,7 +275,7 @@ class ProcessCache:
                 # 获取所有蓝叠相关的合法 PID 集合作为白名单
                 valid_pids = {p.get("ProcessId") for p in all_procs if p.get("ProcessId")}
 
-                res = subprocess.run(["netstat", "-ano"], capture_output=True, text=True)
+                res = subprocess.run(["netstat", "-ano"], capture_output=True, text=True, errors="replace")
                 for line in res.stdout.splitlines():
                     if f":{port}" in line and "LISTENING" in line:
                         parts = line.strip().split()
@@ -289,7 +289,7 @@ class ProcessCache:
                                 check_res = subprocess.run(
                                     ["tasklist", "/FI", f"PID eq {pid}", "/NH", "/FO", "CSV"],
                                     capture_output=True,
-                                    text=True,
+                                    text=True, errors="replace",
                                 )
                                 if any(name.lower() in check_res.stdout.lower() for name in BLUESTACKS_PROCESS_NAMES):
                                     pids.add(pid)
@@ -334,7 +334,7 @@ def check_adb_responsive(adb_path: str, serial: str, timeout: float = 5.0) -> bo
         res = subprocess.run(
             [adb_path, "-s", serial, "shell", "echo", "alive"],
             capture_output=True,
-            text=True,
+            text=True, errors="replace",
             timeout=timeout,
         )
         return res.returncode == 0 and "alive" in res.stdout.lower()
@@ -464,7 +464,7 @@ def find_and_kill_bluestacks_instance(instance: InstanceConfig) -> CommandResult
         if has_sudo:
             cmd = ["sudo"] + cmd
 
-        res = subprocess.run(cmd, capture_output=True, text=True)
+        res = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
         if res.returncode == 0 or "没有找到" in res.stderr:
             success_count += 1
             continue
@@ -475,7 +475,7 @@ def find_and_kill_bluestacks_instance(instance: InstanceConfig) -> CommandResult
         if has_sudo:
             full_ps_cmd = ["sudo"] + full_ps_cmd
 
-        res_ps = subprocess.run(full_ps_cmd, capture_output=True, text=True)
+        res_ps = subprocess.run(full_ps_cmd, capture_output=True, text=True, errors="replace")
         if res_ps.returncode == 0:
             success_count += 1
         else:
@@ -717,7 +717,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
                     subprocess.run([adb_path, "connect", target_serial], capture_output=True)
 
                 test_cmd = [adb_path, "-s", target_serial, "shell", "echo", "alive"]
-                res = subprocess.run(test_cmd, capture_output=True, text=True, timeout=5)
+                res = subprocess.run(test_cmd, capture_output=True, text=True, errors="replace", timeout=5)
 
                 if res.returncode == 0 and "alive" in res.stdout.lower():
                     # 再次获取型号以确认完全就绪
@@ -731,7 +731,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
                             "ro.product.model",
                         ],
                         capture_output=True,
-                        text=True,
+                        text=True, errors="replace",
                         timeout=5,
                     )
                     print(f"  [OK] 实例 {tid} 连接正常，型号: {model_res.stdout.strip()}")
@@ -754,7 +754,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     ip_helper_res = subprocess.run(
         ["powershell", "-NoProfile", "-Command", "Get-Service iphlpsvc"],
         capture_output=True,
-        text=True,
+        text=True, errors="replace",
     )
     if "Running" in ip_helper_res.stdout:
         print("  [OK] IP Helper 服务运行正常")

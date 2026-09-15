@@ -30,6 +30,7 @@ from emulator_control import (
     decode_process_output,
     restart_emulator,
 )
+from cleanup_cache import cleanup_temp_dir
 from logger_config import setup_logger
 from run_dungeons import filter_pending_configs
 
@@ -41,6 +42,13 @@ FLOW_MAX_RETRIES = 5
 SESSION_START_GAP_SECONDS = 1
 SESSION_MAX_IDLE_RESTARTS = 3
 ADB_COMMAND_TIMEOUT_SECONDS = 15
+# OCR 服务就绪等待（容器启动需下载/加载模型，原 30 秒明显不够）
+OCR_STARTUP_WAIT_SECONDS = 300
+# Docker Desktop 冷启动等待（未运行时自动拉起）
+DOCKER_DESKTOP_WAIT_SECONDS = 300
+DOCKER_POLL_INTERVAL_SECONDS = 5
+DOCKER_CONTAINER_NAME = "paddlex"
+DOCKER_DESKTOP_EXE = r"C:\Program Files\Docker\Docker\Docker Desktop.exe"
 
 if not IS_WINDOWS:
     os.environ["PATH"] = f"/opt/homebrew/bin:{os.environ.get('PATH', '')}"
@@ -326,7 +334,10 @@ def is_tmux_session_alive(session: str) -> bool:
 
 
 def launch_powershell(
-    session: str, cmd: str, logger: logging.Logger
+    session: str,
+    cmd: str,
+    logger: logging.Logger,
+    extra_env: Optional[dict] = None,
 ) -> Optional[subprocess.Popen[str]]:
     """在 Windows 上启动一个新的 PowerShell 窗口执行命令。
 
@@ -334,16 +345,29 @@ def launch_powershell(
         session: 窗口标题（会话名）。
         cmd: 需要执行的命令。
         logger: 日志对象。
+        extra_env: 需要在子会话内生效的环境变量（例如每个会话自己的
+            ``EMULATOR_START_CMD``，必须包含实例号，否则两个会话会去启动同一台实例）。
 
     Returns:
         成功时返回进程句柄，失败时返回 ``None``。
     """
     try:
+        env_prefix = ""
+        if extra_env:
+            for key, value in extra_env.items():
+                if value is None or str(value).strip() == "":
+                    continue
+                safe_value = str(value).replace("'", "''")
+                env_prefix += f"$env:{key} = '{safe_value}'; "
+
         full_cmd = (
             f"$Host.UI.RawUI.WindowTitle = '{session}'; "
             f"Set-Location '{SCRIPT_DIR}'; "
+            f"{env_prefix}"
             f"{cmd}"
         )
+        if env_prefix:
+            logger.info(f"🧩 会话 {session} 注入环境变量: {extra_env}")
         process = subprocess.Popen(
             ["pwsh", "-Command", full_cmd],
             creationflags=subprocess.CREATE_NEW_CONSOLE if IS_WINDOWS else 0,
@@ -581,7 +605,14 @@ def start_session(runtime: SessionRuntime, logger: logging.Logger) -> bool:
     runtime.finished_exit_code = None
 
     if IS_WINDOWS:
-        process = launch_powershell(runtime.task.name, runtime.task.cmd, logger)
+        session_env = {}
+        if runtime.task.emulator_start_cmd:
+            # 每个会话用自己实例的启动命令，避免两个会话抢同一台实例；
+            # .env 里的 EMULATOR_START_CMD 不含实例号，会被这里覆盖。
+            session_env["EMULATOR_START_CMD"] = runtime.task.emulator_start_cmd
+        process = launch_powershell(
+            runtime.task.name, runtime.task.cmd, logger, extra_env=session_env
+        )
         if process is None:
             return False
         runtime.process = process
@@ -782,6 +813,117 @@ def check_ocr_health(logger: logging.Logger) -> bool:
     return False
 
 
+def is_docker_daemon_ready() -> bool:
+    """检查 Docker 守护进程是否可用。
+
+    Returns:
+        守护进程可用返回 ``True``。
+    """
+    try:
+        result = subprocess.run(["docker", "info"], capture_output=True, timeout=20)
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+def ensure_docker_daemon(logger: logging.Logger) -> bool:
+    """确保 Docker 守护进程可用，必要时拉起 Docker Desktop。
+
+    计划任务在清晨触发时 Docker Desktop 常常尚未启动（未设置开机自启），
+    此处主动拉起并轮询等待，避免 OCR 服务缺失导致整轮空跑。
+
+    Args:
+        logger: 日志对象。
+
+    Returns:
+        守护进程就绪返回 ``True``，等待超时返回 ``False``。
+    """
+    if is_docker_daemon_ready():
+        logger.info("✅ Docker 守护进程就绪")
+        return True
+
+    if not IS_WINDOWS:
+        logger.error("❌ Docker 守护进程不可用，当前平台不支持自动拉起")
+        return False
+
+    desktop_exe = Path(DOCKER_DESKTOP_EXE)
+    if not desktop_exe.exists():
+        logger.error(f"❌ 未找到 Docker Desktop: {desktop_exe}")
+        return False
+
+    logger.warning("⏳ Docker 守护进程未运行，尝试启动 Docker Desktop...")
+    try:
+        subprocess.Popen(
+            [str(desktop_exe)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception as exc:
+        logger.error(f"❌ 启动 Docker Desktop 失败: {exc}")
+        return False
+
+    start_time = time.time()
+    while time.time() - start_time < DOCKER_DESKTOP_WAIT_SECONDS:
+        if is_docker_daemon_ready():
+            logger.info(
+                f"✅ Docker 守护进程已就绪 (耗时 {time.time() - start_time:.1f}s)"
+            )
+            return True
+        time.sleep(DOCKER_POLL_INTERVAL_SECONDS)
+
+    logger.error(f"❌ Docker 守护进程等待超时（>{DOCKER_DESKTOP_WAIT_SECONDS}s）")
+    return False
+
+
+def ensure_ocr_container(logger: logging.Logger) -> bool:
+    """确保 PaddleX OCR 容器处于运行状态。
+
+    优先复用已存在的容器（``docker start``），仅在容器不存在或启动失败时
+    才调用启动脚本重建，避免每次任务都重新加载服务。
+
+    Args:
+        logger: 日志对象。
+
+    Returns:
+        容器已启动返回 ``True``，无法启动返回 ``False``。
+    """
+    try:
+        inspect = subprocess.run(
+            ["docker", "inspect", "-f", "{{.State.Running}}", DOCKER_CONTAINER_NAME],
+            capture_output=True,
+            timeout=30,
+        )
+    except Exception as exc:
+        logger.error(f"❌ 查询容器状态异常: {exc}")
+        return False
+
+    if inspect.returncode == 0:
+        running = decode_process_output(inspect.stdout).strip().lower() == "true"
+        if running:
+            logger.info(f"✅ OCR 容器 {DOCKER_CONTAINER_NAME} 已在运行")
+            return True
+
+        logger.info(f"🔧 OCR 容器 {DOCKER_CONTAINER_NAME} 已停止，执行 docker start...")
+        try:
+            start = subprocess.run(
+                ["docker", "start", DOCKER_CONTAINER_NAME],
+                capture_output=True,
+                timeout=120,
+            )
+        except Exception as exc:
+            logger.error(f"❌ docker start 异常: {exc}")
+            return False
+        if start.returncode == 0:
+            logger.info("✅ OCR 容器已启动")
+            return True
+        logger.warning(
+            f"⚠️ docker start 失败: {decode_process_output(start.stderr).strip()}"
+        )
+
+    logger.info("🔧 容器不存在或启动失败，调用启动脚本重建...")
+    return launch_ocr_service(logger)
+
+
 def launch_ocr_service(logger: logging.Logger) -> bool:
     """启动 OCR Docker 服务（如果未就绪）。
 
@@ -827,35 +969,39 @@ def launch_ocr_service(logger: logging.Logger) -> bool:
         return False
 
 
-def prepare_ocr_service(logger: logging.Logger) -> None:
-    """确保 OCR 服务可用。
+def prepare_ocr_service(logger: logging.Logger) -> bool:
+    """确保 OCR 服务可用，必要时拉起 Docker 与容器。
 
     Args:
         logger: 日志对象。
 
     Returns:
-        None
+        服务就绪返回 ``True``；不可用返回 ``False``（调用方应终止本次运行，
+        避免在没有 OCR 的情况下空跑多轮重试）。
     """
-    logger.info("🔧 启动 OCR 服务 (PaddleX Docker)...")
-    is_already_healthy = check_ocr_health(logger)
+    logger.info("🔧 检查 OCR 服务 (PaddleX Docker)...")
 
-    if launch_ocr_service(logger):
-        logger.info("✅ OCR 服务已启动")
-        if is_already_healthy:
-            logger.info("⚡ OCR 服务 (/health) 已正常，跳过等待")
-            return
+    if check_ocr_health(logger):
+        logger.info("✅ OCR 服务 (/health) 响应正常")
+        return True
 
-        logger.info("⏳ 新启动的服务，等待就绪 (最多 30 秒)...")
-        start_time = time.time()
-        while time.time() - start_time < 30:
-            if check_ocr_health(logger):
-                logger.info(f"✅ OCR 服务已就绪 (耗时 {time.time() - start_time:.1f}s)")
-                return
-            time.sleep(1)
-        logger.warning("⚠️ 等待超时，服务可能仍在启动中...")
-        return
+    if not ensure_docker_daemon(logger):
+        return False
 
-    logger.error("❌ OCR 服务启动失败，后续任务可能会受影响")
+    if not ensure_ocr_container(logger):
+        logger.error("❌ OCR 容器启动失败")
+        return False
+
+    logger.info(f"⏳ 等待 OCR 服务就绪 (最多 {OCR_STARTUP_WAIT_SECONDS} 秒)...")
+    start_time = time.time()
+    while time.time() - start_time < OCR_STARTUP_WAIT_SECONDS:
+        if check_ocr_health(logger):
+            logger.info(f"✅ OCR 服务已就绪 (耗时 {time.time() - start_time:.1f}s)")
+            return True
+        time.sleep(2)
+
+    logger.error(f"❌ OCR 服务等待超时（>{OCR_STARTUP_WAIT_SECONDS}s），视为不可用")
+    return False
 
 
 def run_single_flow(tasks: Sequence[SessionTask], logger: logging.Logger) -> bool:
@@ -899,6 +1045,13 @@ def main() -> int:
     logger = setup_logger(name="cron_run_all_dungeons", level="INFO", use_color=True)
     ensure_log_dir()
 
+    # 兜底清理上次被中断（崩溃/强杀）时残留的 OCR 临时截图，
+    # 只删滞留超过 24 小时的文件，不会影响本次即将产生的截图。
+    try:
+        cleanup_temp_dir(str(SCRIPT_DIR / "output" / "temp"), logger=logger)
+    except Exception as exc:  # 清理失败绝不能阻断主流程
+        logger.warning(f"⚠️ 清理残留临时截图失败（已忽略）: {exc}")
+
     sessions = load_sessions_from_json(SCRIPT_DIR / "emulators.json")
     if not sessions:
         logger.error("❌ emulators.json 未找到或格式错误，无法继续")
@@ -924,7 +1077,9 @@ def main() -> int:
         logger.error("❌ 预检查未发现待执行会话，但 `poe stats` 仍显示存在未完成副本")
         return 1
 
-    prepare_ocr_service(logger)
+    if not prepare_ocr_service(logger):
+        logger.error("❌ OCR 服务不可用，终止本次运行（避免空跑多轮重试）")
+        return 3
 
     for attempt in range(1, FLOW_MAX_RETRIES + 1):
         logger.info(

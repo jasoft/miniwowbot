@@ -167,6 +167,11 @@ def _invoke_auto_dungeon_once(config_name: str, emulator: str, session: str) -> 
         退出码，0 表示成功，其它表示失败
     """
     import importlib
+    import logging
+    import traceback
+
+    # 复用 run_configs 已配置好的同名 logger
+    invoke_logger = logging.getLogger("run_dungeons")
 
     config_file = SCRIPT_DIR / "configs" / f"{config_name}.json"
     argv_backup = sys.argv[:]
@@ -189,8 +194,20 @@ def _invoke_auto_dungeon_once(config_name: str, emulator: str, session: str) -> 
             return 0
         except SystemExit as se:  # type: ignore[no-redef]
             code = se.code if isinstance(se.code, int) else 1
+            if code != 0:
+                # SystemExit 不会带上栈信息，之前这里静默返回非 0，
+                # 导致"流程莫名中断、日志里什么都看不到"，这里补上栈。
+                invoke_logger.error(
+                    f"❌ 配置 {config_name} 被 SystemExit({code}) 中断，调用栈:\n"
+                    f"{''.join(traceback.format_stack()[:-1])}"
+                )
             return int(code)
-    except Exception:
+    except BaseException as exc:  # noqa: BLE001 - 兜底：绝不允许静默失败
+        # 原来只写 `except Exception: return 1`，任何异常都不留痕迹。
+        invoke_logger.error(
+            f"❌ 配置 {config_name} 执行异常: {type(exc).__name__}: {exc}\n"
+            f"{traceback.format_exc()}"
+        )
         return 1
     finally:
         sys.argv = argv_backup

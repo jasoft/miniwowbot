@@ -161,7 +161,7 @@ class EmulatorConnectionManager:
     def ensure_connected(
         self,
         emulator: str,
-        max_retries: int = 3,
+        max_retries: int = 6,
         wait_base: int = 15,
         max_wait: int = 60,
     ) -> bool:
@@ -170,7 +170,9 @@ class EmulatorConnectionManager:
 
         Args:
             emulator: 模拟器地址，如 '192.168.1.150:5555'
-            max_retries: 最大重试次数，默认3次（之前100次会导致长时间卡住）
+            max_retries: 最大重试次数，默认6次。BlueStacks 冷启动通常需要 60~120 秒，
+                过去默认 3 次（约 45 秒）会在冷启动还没完成时就判定失败，
+                进而触发上层"整轮重启"，表现为反复杀模拟器/重启游戏。
             wait_base: 基础等待时间（秒），默认15秒
             max_wait: 最大等待时间（秒），默认60秒
 
