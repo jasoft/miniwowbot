@@ -715,6 +715,61 @@ class DailyCollectManager:
         self.logger.info("✅ 兑换项 %s 券数已减少，确认兑换成功", item_state.item_key)
         return True
 
+    def _select_blue_item_state(
+        self,
+        states: list[EventExchangeItemState],
+    ) -> Optional[EventExchangeItemState]:
+        """挑选蓝色目标行：紫色行之后的第一行 30 张券。
+
+        目标行的券价与紫色行一样以页面为准。紫色行不在列表里时
+        （本期已兑换后该行被游戏移除，或本次没读到），
+        直接取列表里第一行 30 张券 —— 实测蓝色就是 30 张券里最靠上的那行。
+
+        Args:
+            states: 当前兑换页行状态。
+
+        Returns:
+            Optional[EventExchangeItemState]: 选中的蓝色行；无匹配时返回 None。
+        """
+        purple_row = next(
+            (state for state in states if state.required_tickets == FIRE_TOWER_PURPLE_REQUIRED),
+            None,
+        )
+        after_row = purple_row.row_index if purple_row is not None else -1
+        return self._select_fire_tower_target(
+            states,
+            FIRE_TOWER_BLUE_REQUIRED,
+            after_row=after_row,
+        )
+
+    def _notify_exchange_failure(
+        self,
+        item_key: str,
+        item_state: EventExchangeItemState,
+    ) -> None:
+        """券数已够却没能兑换成功时告警，避免静默漏领。
+
+        与「券不够、留到下次」不同：券已足够就说明本次应当换到手，
+        换不成属于异常（点击未生效、兑换后读不到页面等），需要人工看一眼。
+
+        Args:
+            item_key: 兑换物品标识。
+            item_state: 兑换项状态。
+
+        Returns:
+            None.
+        """
+        self.logger.warning(
+            "⚠️ 兑换项 %s 券数已够（%s/%d）却未兑换成功，发送告警",
+            item_key,
+            item_state.current_tickets,
+            item_state.required_tickets,
+        )
+        self._notify_step_failure(
+            f"exchange_{item_key}",
+            f"券已够（{item_state.current_tickets}/{item_state.required_tickets}）但兑换未生效",
+        )
+
     def _redeem_fire_tower_ticket_items(self) -> bool:
         """按顺序兑换目标奖券物品。
 
@@ -722,21 +777,15 @@ class DailyCollectManager:
         30 张券的蓝色物品。同一期只各兑一次，兑换结果按期次写库，
         避免重复消耗奖券。
 
+        判据一律取**页面真实券数**而非本地累计，因此漏运行几天、
+        一次攒够 70 张时也能在同一轮里把两个都换到，不会漏领。
+
         Returns:
             bool: 本次是否至少成功兑换一个目标物品。
         """
         cycle_id = self.db.get_event_cycle_id() if self.db else None
         states = self._load_fire_tower_exchange_states()
 
-        purple_state = self._select_fire_tower_target(states, FIRE_TOWER_PURPLE_REQUIRED)
-        if purple_state is None:
-            self.logger.warning(
-                "⚠️ 兑换页未找到 %d 张券的目标行，本次跳过兑换",
-                FIRE_TOWER_PURPLE_REQUIRED,
-            )
-            return False
-
-        redeemed_any = False
         purple_completed = bool(
             self.db
             and self.db.is_event_item_completed(
@@ -745,7 +794,16 @@ class DailyCollectManager:
                 cycle_id=cycle_id,
             )
         )
+        purple_state = self._select_fire_tower_target(states, FIRE_TOWER_PURPLE_REQUIRED)
+        redeemed_any = False
+
         if not purple_completed:
+            if purple_state is None:
+                self.logger.warning(
+                    "⚠️ 兑换页未找到 %d 张券的目标行，本次跳过兑换",
+                    FIRE_TOWER_PURPLE_REQUIRED,
+                )
+                return False
             if not self._can_redeem_fire_tower_item(purple_state):
                 self.logger.info(
                     "ℹ️ 紫色物品本次不可兑换（券 %s/%d），停止后续兑换",
@@ -754,6 +812,7 @@ class DailyCollectManager:
                 )
                 return False
             if not self._attempt_fire_tower_item_exchange(purple_state):
+                self._notify_exchange_failure(FIRE_TOWER_PURPLE_ITEM_KEY, purple_state)
                 return False
             if self.db:
                 self.db.mark_event_item_completed(
@@ -763,6 +822,10 @@ class DailyCollectManager:
                 )
             redeemed_any = True
             states = self._load_fire_tower_exchange_states()
+        elif purple_state is None:
+            # 紫色本期已兑换，且那一行已从列表下架（游戏会移除换过的行）。
+            # 此处不能放弃，否则紧随其后的蓝色永远换不到。
+            self.logger.info("ℹ️ 紫色本期已兑换且该行已下架，继续检查蓝色物品")
 
         blue_completed = bool(
             self.db
@@ -775,16 +838,13 @@ class DailyCollectManager:
         if blue_completed:
             return redeemed_any
 
-        blue_state = self._select_fire_tower_target(
-            states,
-            FIRE_TOWER_BLUE_REQUIRED,
-            after_row=purple_state.row_index,
-        )
+        blue_state = self._select_blue_item_state(states)
         if blue_state is None or not self._can_redeem_fire_tower_item(blue_state):
             self.logger.info("ℹ️ 蓝色物品本次不可兑换")
             return redeemed_any
 
         if not self._attempt_fire_tower_item_exchange(blue_state):
+            self._notify_exchange_failure(FIRE_TOWER_BLUE_ITEM_KEY, blue_state)
             return redeemed_any
 
         if self.db:
