@@ -52,7 +52,7 @@
         "迷雾大陆": [
             { "name": "兽人圣殿", "selected": false },
             { "name": "恐魔之心", "selected": false },
-            { "name": "古魔宝库", "selected": true},
+            { "name": "古魔宝库", "selected": false},
             { "name": "兽人都城", "selected": false },
             { "name": "古魔宫殿", "selected": false },
             { "name": "风暴之巅", "selected": false },
@@ -70,7 +70,7 @@
             { "name": "黑暗堡垒", "selected": false },
             { "name": "潮汐宫殿", "selected": false },
             { "name": "黑暗监狱", "selected": false },
-            { "name": "泰坦密室", "selected": true},
+            { "name": "泰坦密室", "selected": false},
             { "name": "大地神殿", "selected": false },
             { "name": "失落之城", "selected": false },
             { "name": "天空之城", "selected": false },
@@ -121,6 +121,8 @@
         ]
     }
 }
+
+
 
 
 
