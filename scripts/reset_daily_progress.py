@@ -291,6 +291,8 @@ def main(
         return
 
     summary = summarize_records(records)
+    for name in target_configs:
+        summary.setdefault(name, {})
     typer.echo("")
     typer.secho(f"待删除 {len(records)} 条记录:", fg=typer.colors.YELLOW)
     print_summary(summary)
