@@ -54,7 +54,10 @@ override-dependencies = ["pywin32==311; sys_platform == 'win32'"]
 [tool.poe.tasks]
 web = "uv run streamlit run dashboard_runtime_status.py"
 stats = "uv run check_progress.py"
+reset-daily = "uv run python -m scripts.reset_daily_progress"
 cron = "uv run cron_run_all_dungeons.py"
+cron-1 = "uv run ./run_dungeons.py --emulator 192.168.1.150:5555 --session warrior --config warrior"
+cron-2 = "uv run ./run_dungeons.py --emulator 192.168.1.150:5565 --session mage --config mage_alt"
 test = "pytest tests/"
 lint = "ruff check . &&  pyright"
 tui = "uv run auto_dungeon_tui.py"
