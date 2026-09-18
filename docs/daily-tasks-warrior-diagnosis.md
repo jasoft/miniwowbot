@@ -49,18 +49,22 @@
 即 git 里它的 `selected` 一直是 `false`。工作区版本（09:13 改的）把它改成了 `true` ——
 但代码没放开，所以改 true 只是**从「静默跳过」变成「报未知任务」**，结果一样。
 
-### 3. 实测口径：怎么努力都差 1 个
+### 3. 实测口径：怎么努力都差 1 个（✅ 2026-09-18 18:15 已修复）
 
-| 量 | 值 |
-|---|---|
-| `get_selected_dungeon_count()` | **22** = 「日常任务」11 项 + 亡灵之地 11 副本 |
-| `get_today_completed_count()` 理论上限 | **21**（日常恒缺 1） |
-| `_is_config_completed('warrior')` | **False**（插桩实测：即使全部副本打完也返回 False） |
+| 量 | 修复前 | 修复后 |
+|---|---|---|
+| `get_selected_dungeon_count()` | **22** = 「日常任务」11 项 + 亡灵之地 11 副本 | **11**（纯副本） |
+| `get_today_completed_count()` 理论上限 | **21**（日常恒缺 1） | 随副本数，不再差 1 |
+| `_is_config_completed('warrior')` | **False**（插桩实测：即使全部副本打完也返回 False） | 副本打完即 True |
 
 `config_loader._load_config()` 把 `daily_tasks` 包成「日常任务」区域塞进 `zone_dungeons`，
 `get_selected_dungeon_count()` 遍历时把它一起数了进去 —— 这是口径 bug。
 
-## 为什么会放大
+**修法**：新增 `ConfigLoader.get_dungeon_zones()` 只返回真副本区域，副本计数系列方法改用它；
+`get_zone_dungeons()` 保持含「日常任务」供执行流程遍历。DB 层把「日常任务」纳入
+`SPECIAL_ZONE_NAMES`（与 `__daily_collect__` 同等对待），使两侧口径对齐。
+
+## 为什么会放大（✅ 已随口径修复一起解决）
 
 ```
 _is_config_completed → False
@@ -71,17 +75,15 @@ _is_config_completed → False
 ```
 
 再叠加 `emulators.json` 里 warrior 排在 **main session 第 12 位（最末）**：
-前置流程一断（今天 06:42 执行过 `poe panic-stop`）它当天就一条记录都没有 ——
-今天 warrior 数据库确实为空。
+前置流程一断（今天 06:42 执行过 `poe panic-stop`）它当天就一条记录都没有。
 
-## 另外两处「假完成」风险
+## 另外两处「假完成」风险（✅ 2026-09-18 已修复）
 
-| 位置 | 问题 |
-|---|---|
-| `_run_step()` | 判成功用 `raw_output is not False`，而多数任务方法**不返回值**（None）→ 一律记 ✅ |
-| `_demonhunter_exam()` | try/except 吞异常 → 活动下线时照样记 ✅ |
+| 位置 | 问题 | 现状 |
+|---|---|---|
+| `_run_step()` | 判成功用 `raw_output is not False`，而多数任务方法**不返回值**（None）→ 一律记 ✅ | 改为 `raw_result is True` + 失败 Pushover 告警（带截图） |
+| `_demonhunter_exam()` | try/except 吞异常 → 活动下线时照样记 ✅ | 所有任务方法必须显式返回 bool |
 
-这两处会让「数据库显示完成、游戏里其实没领到」的情况静默发生。
 
 ## 待定选项（等大王拍板）
 

@@ -211,6 +211,8 @@ class DungeonBot:
         )
 
         if not battle_started:
+            # 没有「免费」按钮 = 本角色当天的免费次数已被消耗，即今天已经打过了，
+            # 标记完成是**正确语义**，不是「把失败当成功」（同 auto_dungeon_core）。
             self.logger.warning("⚠️ 无免费按钮，标记为已完成")
             self.db.mark_dungeon_completed(zone_name, dungeon_name)
             from auto_dungeon_core import click_back

@@ -144,6 +144,9 @@ def process_dungeon(
     )
 
     if not battle_started:
+        # 没有「免费」按钮 = 本角色当天的免费次数已被消耗，
+        # 即这个副本今天**已经打过了**（免费次数：每副本每角色每天 1 次，跨难度档共用）。
+        # 因此这里标记完成是**正确语义**，不是「把失败当成功」——不要再当 bug 修掉。
         logger.warning("⚠️ 无免费按钮，标记为已完成")
         db.mark_dungeon_completed(zone_name, dungeon_name)
         click_back()
