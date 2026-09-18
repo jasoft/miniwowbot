@@ -2,14 +2,18 @@
 
 模拟主题兑换一周 70 张奖券的真实节奏（每天 10 张，周五 06:00 换期）：
 
-- 券攒到 **40** → 立刻换第一行「紫色随从碎片」（40 张）
-- 换完剩下的券攒到 **30** → 换紧随其后那行「蓝色随从碎片」（30 张）
+- 券攒到 **40** → 立刻换第 1 行「紫色随从碎片」（40 张）
+- 换完剩下的券攒到 **30** → 换第 2 行「蓝色随从碎片」（30 张）
 
 兑换判据一律以**页面真实券数**为准，不依赖本地累计，
 因此漏运行几天、一次攒够 70 张也能补齐，不会漏领。
 
+界面事实（大王确认）：两行在列表里的顺序每期不变，兑换后该行**也不会下架**，
+每期变化的只是可换的碎片内容。因此模拟器不实现任何「兑换后移除该行」的行为 ——
+这正是要守住的不变量。
+
 模拟器 `FakeExchangePage` 会像游戏一样在兑换后真实扣减券余额，
-并支持模拟「已兑换的行从列表下架」，用于验证行序变化时的鲁棒性。
+并通过点击坐标反查行序，确保代码点的确实是目标那一行。
 """
 
 from __future__ import annotations
@@ -28,44 +32,46 @@ BLUE = auto_dungeon_daily.FIRE_TOWER_BLUE_ITEM_KEY
 
 
 class FakeExchangePage:
-    """模拟兑换页：持有券余额，兑换后真实扣券。
+    """模拟兑换页：持有券余额，兑换后真实扣券，行序始终不变。
 
     Attributes:
         balance: 当前奖券余额（页面上每一行显示的都是这个余额）。
-        visible: 页面上还显示的各行券价，顺序即行序。
+        visible: 页面上各行的券价，顺序即行序；兑换不会改变它。
+        hidden_rows: 模拟 OCR 没读到某些行（行序保留，只是本次不可见）。
         redeemed_rows: 本次流程里成功兑换的行，元素为 (行序, 券价)。
-        drop_redeemed_row: 兑换成功后是否把该行从列表移除（模拟游戏行为）。
     """
 
     def __init__(
         self,
         balance: int,
         visible: Optional[tuple[int, ...]] = None,
-        drop_redeemed_row: bool = False,
+        hidden_rows: Optional[set[int]] = None,
     ) -> None:
         self.balance = balance
         self.visible = list(REAL_LAYOUT if visible is None else visible)
-        self.drop_redeemed_row = drop_redeemed_row
+        self.hidden_rows = set(hidden_rows or ())
         self.redeemed_rows: list[tuple[int, int]] = []
 
     def snapshot(self) -> list[auto_dungeon_daily.EventExchangeItemState]:
-        """按当前页面状态生成行状态列表（行序即列表下标）。"""
+        """按当前页面状态生成行状态列表（行序即列表下标，读数失败的行略过）。"""
         return [
             auto_dungeon_daily.EventExchangeItemState(
                 row_index=index,
-                item_key=auto_dungeon_daily.DailyCollectManager._resolve_fire_tower_item_key(
-                    required
-                ),
+                item_key=auto_dungeon_daily.DailyCollectManager._resolve_fire_tower_item_key(index),
                 required_tickets=required,
                 current_tickets=self.balance,
                 button_center=(530, 386 + 123 * index),
                 is_affordable_by_color=None,
             )
             for index, required in enumerate(self.visible)
+            if index not in self.hidden_rows
         ]
 
     def redeem_at(self, row_index: int) -> bool:
-        """模拟点击某一行的「兑换」按钮。"""
+        """模拟点击某一行的「兑换」按钮。
+
+        兑换后只扣券，**不会**把该行从列表移除 —— 游戏里那一行依然在。
+        """
         if row_index < 0 or row_index >= len(self.visible):
             return False
         required = self.visible[row_index]
@@ -73,8 +79,6 @@ class FakeExchangePage:
             return False
         self.balance -= required
         self.redeemed_rows.append((row_index, required))
-        if self.drop_redeemed_row:
-            self.visible.pop(row_index)
         return True
 
     def row_of_point(self, point: tuple[int, int]) -> int:
@@ -98,12 +102,8 @@ def _make_db(completed: set[str]) -> MagicMock:
     return db
 
 
-def _build_manager(monkeypatch, page: FakeExchangePage, completed: set[str]):
-    """构造接入了模拟兑换页的 DailyCollectManager。"""
-    manager = auto_dungeon_daily.DailyCollectManager(
-        config_loader=MagicMock(),
-        db=_make_db(completed),
-    )
+def _attach_page(monkeypatch, manager, page: FakeExchangePage) -> None:
+    """把模拟兑换页接到 manager 上（含点击、无弹窗、免等待）。"""
     monkeypatch.setattr(
         manager,
         "_load_fire_tower_exchange_states",
@@ -123,14 +123,23 @@ def _build_manager(monkeypatch, page: FakeExchangePage, completed: set[str]):
     )
     # 跳过等待，测试不必真的睡
     monkeypatch.setattr(auto_dungeon_daily, "sleep", lambda *args, **kwargs: None)
+
+
+def _build_manager(monkeypatch, page: FakeExchangePage, completed: set[str]):
+    """构造接入了模拟兑换页的 DailyCollectManager。"""
+    manager = auto_dungeon_daily.DailyCollectManager(
+        config_loader=MagicMock(),
+        db=_make_db(completed),
+    )
+    _attach_page(monkeypatch, manager, page)
     return manager
 
 
 def _redeemed_item_keys(page: FakeExchangePage) -> list[str]:
     """把模拟器记录的行序还原成物品标识，便于断言。"""
     return [
-        auto_dungeon_daily.DailyCollectManager._resolve_fire_tower_item_key(required)
-        for _, required in page.redeemed_rows
+        auto_dungeon_daily.DailyCollectManager._resolve_fire_tower_item_key(row_index)
+        for row_index, _ in page.redeemed_rows
     ]
 
 
@@ -240,26 +249,38 @@ def test_purple_completed_does_not_consume_tickets_again(monkeypatch) -> None:
 
 
 # --------------------------------------------------------------------------
-# 页面行序变化：已兑换的行可能从列表下架
+# 行序不变量：兑换后该行不下架，行序错位时才保守跳过
 # --------------------------------------------------------------------------
 
 
-def test_redeem_blue_when_purple_row_disappeared(monkeypatch) -> None:
-    """紫色已换过、且它那一行已从列表下架时，仍要能换到蓝色。"""
-    page = FakeExchangePage(balance=30, visible=(30, 30, 20, 50))
+def test_row_layout_unchanged_after_purple_redeemed(monkeypatch) -> None:
+    """紫色兑换后该行必须仍在原位，第二次点击仍落在第 2 行。"""
+    page = FakeExchangePage(balance=70)
+    manager = _build_manager(monkeypatch, page, set())
+
+    assert manager._redeem_fire_tower_ticket_items() is True
+
+    # 页面布局原样保留：紫色行没有消失，也没把蓝色挤上来
+    assert page.visible == list(REAL_LAYOUT)
+    assert page.redeemed_rows == [(0, 40), (1, 30)]
+
+
+def test_redeem_blue_when_purple_row_unreadable(monkeypatch) -> None:
+    """紫色已换过、第 1 行恰好没读到 OCR 时，第 2 行仍要能换到。"""
+    page = FakeExchangePage(balance=30, hidden_rows={0})
     completed = {PURPLE}
     manager = _build_manager(monkeypatch, page, completed)
 
     assert manager._redeem_fire_tower_ticket_items() is True
 
-    # 下架后蓝色成为第一行，仍必须选中它
-    assert page.redeemed_rows == [(0, 30)]
+    # 行序由按钮枚举决定，第 1 行读不到不影响第 2 行仍是行序 1
+    assert page.redeemed_rows == [(1, 30)]
     assert page.balance == 0
 
 
-def test_skip_when_purple_row_missing_but_not_redeemed(monkeypatch) -> None:
-    """紫色未换过却读不到它那一行时，保守放弃，乱换会消耗错券。"""
-    page = FakeExchangePage(balance=70, visible=(30, 30, 20, 50))
+def test_skip_when_purple_row_unreadable_and_not_redeemed(monkeypatch) -> None:
+    """紫色未换过却读不到第 1 行时保守放弃：行序映射可能不完整，乱点会换错行。"""
+    page = FakeExchangePage(balance=70, hidden_rows={0})
     completed: set[str] = set()
     manager = _build_manager(monkeypatch, page, completed)
 
@@ -269,18 +290,17 @@ def test_skip_when_purple_row_missing_but_not_redeemed(monkeypatch) -> None:
     assert page.balance == 70
 
 
-def test_redeem_both_when_purple_row_disappears_after_redeem(monkeypatch) -> None:
-    """紫色行兑换后立刻下架时，第二个仍要换到蓝色而不是别的 30 张券行。"""
-    page = FakeExchangePage(balance=70, drop_redeemed_row=True)
+def test_hidden_second_row_does_not_shift_purple(monkeypatch) -> None:
+    """第 2 行读不到时只跳过蓝色，紫色照常按行序 0 兑换。"""
+    page = FakeExchangePage(balance=70, hidden_rows={1})
     completed: set[str] = set()
     manager = _build_manager(monkeypatch, page, completed)
 
     assert manager._redeem_fire_tower_ticket_items() is True
 
-    # 紫色下架后蓝色升到行0，两次点击落在同一位置但换到的是不同物品
-    assert page.redeemed_rows == [(0, 40), (0, 30)]
-    assert completed == {PURPLE, BLUE}
-    assert page.balance == 0
+    assert page.redeemed_rows == [(0, 40)]
+    assert page.balance == 30
+    assert completed == {PURPLE}
 
 
 # --------------------------------------------------------------------------
@@ -435,3 +455,68 @@ def test_whole_week_without_runs_still_redeems_both(monkeypatch) -> None:
     assert _redeemed_item_keys(page) == [PURPLE, BLUE]
     assert page.balance == 0
     assert completed == {PURPLE, BLUE}
+
+
+# --------------------------------------------------------------------------
+# 跨期：每期可换的碎片会更换，但两行的位置不变，新一期要能重新各换一次
+# --------------------------------------------------------------------------
+
+
+def test_new_event_cycle_allows_redeeming_same_rows_again(monkeypatch) -> None:
+    """换期后（碎片内容变化、行序不变）同样那两行必须能再换一遍。"""
+    page = FakeExchangePage(balance=70)
+    redeemed: set[tuple[str, str]] = set()
+    clock = {"cycle": "week-1"}
+
+    db = MagicMock()
+    db.get_event_cycle_id.side_effect = lambda: clock["cycle"]
+    db.is_event_item_completed.side_effect = (
+        lambda event_name, item_key, cycle_id=None: (cycle_id, item_key) in redeemed
+    )
+    db.mark_event_item_completed.side_effect = (
+        lambda event_name, item_key, cycle_id=None: redeemed.add((cycle_id, item_key))
+    )
+    manager = auto_dungeon_daily.DailyCollectManager(
+        config_loader=MagicMock(),
+        db=db,
+    )
+    _attach_page(monkeypatch, manager, page)
+
+    # 第 1 期：攒够 70 张，连换两行
+    assert manager._redeem_fire_tower_ticket_items() is True
+    assert page.balance == 0
+
+    # 换期：碎片换了，位置没换；券重新攒到 70
+    clock["cycle"] = "week-2"
+    page.balance += 70
+
+    assert manager._redeem_fire_tower_ticket_items() is True
+
+    # 两期各换一遍，落点始终是行 0 与行 1
+    assert page.redeemed_rows == [(0, 40), (1, 30), (0, 40), (1, 30)]
+    assert page.visible == list(REAL_LAYOUT)
+    assert redeemed == {
+        ("week-1", PURPLE),
+        ("week-1", BLUE),
+        ("week-2", PURPLE),
+        ("week-2", BLUE),
+    }
+
+
+def test_same_cycle_does_not_redeem_twice(monkeypatch) -> None:
+    """同一期内重复运行不会把两行再换一遍（券不会被重复消耗）。"""
+    page = FakeExchangePage(balance=70)
+    completed: set[str] = set()
+    manager = _build_manager(monkeypatch, page, completed)
+
+    assert manager._redeem_fire_tower_ticket_items() is True
+    assert page.balance == 0
+
+    # 再补 70 张券，同一期内仍然不该有任何兑换动作
+    page.balance = 70
+    page.redeemed_rows.clear()
+
+    assert manager._redeem_fire_tower_ticket_items() is False
+
+    assert page.redeemed_rows == []
+    assert page.balance == 70

@@ -34,6 +34,7 @@ from coordinates import (
     DAILY_REWARD_BOX_OFFSET_Y,
     DAILY_REWARD_CONFIRM,
     DEPLOY_CONFIRM_BUTTON,
+    EVENT_EXCHANGE_TAB_BUTTON,
     MAIL_CLAIM_ALL_BUTTON,
     ONE_KEY_DEPLOY,
     ONE_KEY_REWARD,
@@ -41,10 +42,19 @@ from coordinates import (
 )
 
 FIRE_TOWER_EVENT_NAME = "fire_tower_ticket_exchange"
+
+# 物品标识按**位置**命名而非颜色：每期活动可换的碎片会更换，
+# 但那两行在列表里的位置固定不变，因此位置才是稳定的身份。
 FIRE_TOWER_PURPLE_ITEM_KEY = "purple_first"
 FIRE_TOWER_BLUE_ITEM_KEY = "blue_second"
 
-# 目标物品所需奖券数：第一行紫色（随从碎片）40 张，其后第一行蓝色 30 张
+# 目标行序：界面顺序每期固定不变，兑换后该行也不会从列表下架。
+# 第一行 = 当期随从碎片（40 张券），第二行 = 蓝色随从碎片（30 张券）。
+FIRE_TOWER_PURPLE_ROW_INDEX = 0
+FIRE_TOWER_BLUE_ROW_INDEX = 1
+
+# 两行的券价（真机观测值）。仅作为界面一致性告警的参照，
+# 兑换判定一律以页面读到的券数为准。
 FIRE_TOWER_PURPLE_REQUIRED = 40
 FIRE_TOWER_BLUE_REQUIRED = 30
 
@@ -62,6 +72,9 @@ EXCHANGE_VERIFY_DELAY = 1.5
 
 # 邮箱面板存在入场渲染延迟，首次找不到「一键领取」时的等待秒数
 MAIL_PANEL_WAIT_SECONDS = 2.0
+
+# 活动面板存在入场渲染延迟，首次找不到「兑换」标签时的等待秒数
+EXCHANGE_TAB_WAIT_SECONDS = 2.0
 
 
 @dataclass(frozen=True)
@@ -434,23 +447,23 @@ class DailyCollectManager:
         )
 
     @staticmethod
-    def _resolve_fire_tower_item_key(required_tickets: int) -> str:
-        """把券价映射为物品标识。
+    def _resolve_fire_tower_item_key(row_index: int) -> str:
+        """把行序映射为物品标识。
 
-        页面上同一券价可能出现多行（实测有两行都是 30 张），
-        因此该标识只用于日志与数据库记录，目标行的选取由券价＋行序共同决定。
+        页面顺序每期固定，因此标识取**行序**而非券价：券价在页面上并不唯一
+        （实测有两行都是 30 张），而且每期可换的碎片会更换，用券价命名会错位。
 
         Args:
-            required_tickets: 该行兑换所需奖券数。
+            row_index: 该行在列表中的序号，从 0 开始。
 
         Returns:
-            str: 物品标识；非目标券价时返回 `required_<n>` 形式。
+            str: 物品标识；非目标行时返回 `row_<n>` 形式。
         """
-        if required_tickets == FIRE_TOWER_PURPLE_REQUIRED:
+        if row_index == FIRE_TOWER_PURPLE_ROW_INDEX:
             return FIRE_TOWER_PURPLE_ITEM_KEY
-        if required_tickets == FIRE_TOWER_BLUE_REQUIRED:
+        if row_index == FIRE_TOWER_BLUE_ROW_INDEX:
             return FIRE_TOWER_BLUE_ITEM_KEY
-        return f"required_{required_tickets}"
+        return f"row_{row_index}"
 
     def _detect_exchange_affordable_by_color(
         self,
@@ -562,7 +575,7 @@ class DailyCollectManager:
                 states.append(
                     EventExchangeItemState(
                         row_index=row_index,
-                        item_key=self._resolve_fire_tower_item_key(required_tickets),
+                        item_key=self._resolve_fire_tower_item_key(row_index),
                         required_tickets=required_tickets,
                         current_tickets=current_tickets,
                         button_center=self._exchange_click_point(
@@ -591,31 +604,23 @@ class DailyCollectManager:
             self._cleanup_temp_screenshot(screenshot_path)
 
     @staticmethod
-    def _select_fire_tower_target(
+    def _row_state(
         states: list[EventExchangeItemState],
-        required_tickets: int,
-        after_row: int = -1,
+        row_index: int,
     ) -> Optional[EventExchangeItemState]:
-        """按券价与行序挑选目标行。
+        """按固定的行序取目标行。
 
-        页面上同一券价可能有多行（实测有两行都是 30 张），
-        只按券价取值会取到错误的那一行，因此额外要求行序在 `after_row` 之后。
+        目标位置由界面顺序决定，与券价无关：页面上同一券价可能有多行
+        （实测有两行都是 30 张），按券价取值会取到错误的那一行。
 
         Args:
             states: 兑换行状态列表。
-            required_tickets: 目标券价。
-            after_row: 只接受行序大于该值的行。
+            row_index: 目标行序，从 0 开始。
 
         Returns:
-            Optional[EventExchangeItemState]: 选中的行；无匹配时返回 None。
+            Optional[EventExchangeItemState]: 该行的状态；该行没读到时为 None。
         """
-        for state in states:
-            if state.required_tickets != required_tickets:
-                continue
-            if state.row_index <= after_row:
-                continue
-            return state
-        return None
+        return next((state for state in states if state.row_index == row_index), None)
 
     def _verify_fire_tower_exchange(
         self,
@@ -715,33 +720,6 @@ class DailyCollectManager:
         self.logger.info("✅ 兑换项 %s 券数已减少，确认兑换成功", item_state.item_key)
         return True
 
-    def _select_blue_item_state(
-        self,
-        states: list[EventExchangeItemState],
-    ) -> Optional[EventExchangeItemState]:
-        """挑选蓝色目标行：紫色行之后的第一行 30 张券。
-
-        目标行的券价与紫色行一样以页面为准。紫色行不在列表里时
-        （本期已兑换后该行被游戏移除，或本次没读到），
-        直接取列表里第一行 30 张券 —— 实测蓝色就是 30 张券里最靠上的那行。
-
-        Args:
-            states: 当前兑换页行状态。
-
-        Returns:
-            Optional[EventExchangeItemState]: 选中的蓝色行；无匹配时返回 None。
-        """
-        purple_row = next(
-            (state for state in states if state.required_tickets == FIRE_TOWER_PURPLE_REQUIRED),
-            None,
-        )
-        after_row = purple_row.row_index if purple_row is not None else -1
-        return self._select_fire_tower_target(
-            states,
-            FIRE_TOWER_BLUE_REQUIRED,
-            after_row=after_row,
-        )
-
     def _notify_exchange_failure(
         self,
         item_key: str,
@@ -770,21 +748,70 @@ class DailyCollectManager:
             f"券已够（{item_state.current_tickets}/{item_state.required_tickets}）但兑换未生效",
         )
 
-    def _redeem_fire_tower_ticket_items(self) -> bool:
+    def _warn_on_unexpected_layout(self, states: list[EventExchangeItemState]) -> None:
+        """券价与历史观测不一致时告警。
+
+        界面顺序每期固定，但可换的碎片会更换，券价也可能随之变化 ——
+        所以这里只告警、不改变行为（兑换判定一律以页面读数为准）。
+        它同时能兜住另一种更隐蔽的情况：券价文本被 OCR 误读。
+
+        Args:
+            states: 当前兑换页行状态。
+
+        Returns:
+            None.
+        """
+        expected_prices = {
+            FIRE_TOWER_PURPLE_ROW_INDEX: FIRE_TOWER_PURPLE_REQUIRED,
+            FIRE_TOWER_BLUE_ROW_INDEX: FIRE_TOWER_BLUE_REQUIRED,
+        }
+        for row_index, expected in expected_prices.items():
+            state = self._row_state(states, row_index)
+            if state is not None and state.required_tickets != expected:
+                self.logger.warning(
+                    "⚠️ 第 %d 行券价读到 %d（观测 %d），可能本期碎片更换，请核对",
+                    row_index + 1,
+                    state.required_tickets,
+                    expected,
+                )
+
+    def _redeem_fire_tower_ticket_items(
+        self,
+        states: Optional[list[EventExchangeItemState]] = None,
+    ) -> bool:
         """按顺序兑换目标奖券物品。
 
-        顺序固定为：先兑 40 张券的紫色物品（随从碎片），再兑紧随其后那行
-        30 张券的蓝色物品。同一期只各兑一次，兑换结果按期次写库，
-        避免重复消耗奖券。
+        目标按**固定行序**定位：第一行是当期随从碎片（40 张券），
+        第二行是蓝色随从碎片（30 张券）。界面顺序每期不变，
+        兑换后该行也不会从列表下架，因此行序是稳定的锚点；
+        每期变化的只是可换的碎片内容。
+
+        顺序固定为「先紫后蓝」，同一期只各兑一次，兑换结果按期次写库，
+        避免重复消耗奖券。紫色没换到手之前不会去换蓝色 —— 否则券被消耗掉，
+        紫色就永远攒不到 40 张。
 
         判据一律取**页面真实券数**而非本地累计，因此漏运行几天、
         一次攒够 70 张时也能在同一轮里把两个都换到，不会漏领。
+
+        Args:
+            states: 已读取的兑换页行状态；为 None 时自行读取
+                （调用方刚读过时可直接传入，省掉一次 OCR）。
 
         Returns:
             bool: 本次是否至少成功兑换一个目标物品。
         """
         cycle_id = self.db.get_event_cycle_id() if self.db else None
-        states = self._load_fire_tower_exchange_states()
+        if states is None:
+            states = self._load_fire_tower_exchange_states()
+        self._warn_on_unexpected_layout(states)
+
+        if not states:
+            # 一行都读不到说明没切到兑换页、或页面变了、或 OCR 挂了 ——
+            # 此时无法判断券数，也就无法判断是不是漏领，
+            # 必须让大王看一眼，不能静默跳过。
+            self.logger.warning("⚠️ 兑换页未读到任何行（可能没切到兑换页），发送告警")
+            self._notify_step_failure("exchange_page", "兑换页未读到任何行")
+            return False
 
         purple_completed = bool(
             self.db
@@ -794,14 +821,16 @@ class DailyCollectManager:
                 cycle_id=cycle_id,
             )
         )
-        purple_state = self._select_fire_tower_target(states, FIRE_TOWER_PURPLE_REQUIRED)
+        purple_state = self._row_state(states, FIRE_TOWER_PURPLE_ROW_INDEX)
         redeemed_any = False
 
         if not purple_completed:
             if purple_state is None:
+                # 行序是定位目标的唯一依据，第 1 行读不到就无法确认行序映射
+                # 是否完整，此时乱点会换错行、白耗奖券，宁可留到下次。
                 self.logger.warning(
-                    "⚠️ 兑换页未找到 %d 张券的目标行，本次跳过兑换",
-                    FIRE_TOWER_PURPLE_REQUIRED,
+                    "⚠️ 兑换页未读到第 %d 行（紫色目标），本次跳过兑换",
+                    FIRE_TOWER_PURPLE_ROW_INDEX + 1,
                 )
                 return False
             if not self._can_redeem_fire_tower_item(purple_state):
@@ -822,10 +851,6 @@ class DailyCollectManager:
                 )
             redeemed_any = True
             states = self._load_fire_tower_exchange_states()
-        elif purple_state is None:
-            # 紫色本期已兑换，且那一行已从列表下架（游戏会移除换过的行）。
-            # 此处不能放弃，否则紧随其后的蓝色永远换不到。
-            self.logger.info("ℹ️ 紫色本期已兑换且该行已下架，继续检查蓝色物品")
 
         blue_completed = bool(
             self.db
@@ -838,8 +863,14 @@ class DailyCollectManager:
         if blue_completed:
             return redeemed_any
 
-        blue_state = self._select_blue_item_state(states)
-        if blue_state is None or not self._can_redeem_fire_tower_item(blue_state):
+        blue_state = self._row_state(states, FIRE_TOWER_BLUE_ROW_INDEX)
+        if blue_state is None:
+            self.logger.info(
+                "ℹ️ 兑换页未读到第 %d 行（蓝色目标），本次跳过",
+                FIRE_TOWER_BLUE_ROW_INDEX + 1,
+            )
+            return redeemed_any
+        if not self._can_redeem_fire_tower_item(blue_state):
             self.logger.info("ℹ️ 蓝色物品本次不可兑换")
             return redeemed_any
 
@@ -986,6 +1017,50 @@ class DailyCollectManager:
             back_to_main()
             return False
 
+    def _open_exchange_tab(self) -> list[EventExchangeItemState]:
+        """切到活动面板的兑换页并返回行状态。
+
+        活动面板底部的「兑换」是**图形标签**，实测 OCR 读不出它的文字
+        （底部只能读到「用海盗奖券兑换物品」这类描述），而兑换页每一行又各有
+        一个「兑换」按钮。于是按文字查找会出两个问题：
+
+        1. 找不到标签，历史上整个兑换流程因此被静默跳过（券够了也换不到）
+        2. 行内按钮同样落在 3x3 网格的 region 9，会被当成标签点击 ——
+           实测点中第 5 行按钮会弹出「确定要兑换这件商品吗？」，券够时就会买错东西
+
+        所以标签只能按固定坐标点击。但该按钮是**开关**：已经停在兑换页时再点一次
+        会退回活动主页（实测第 1 次点击后读不到行、第 2 次点击才回来）。
+        因此先读一次页面 —— 已经在兑换页就直接复用，不在才点。
+
+        Returns:
+            list[EventExchangeItemState]: 兑换页行状态；没能打开时返回空列表。
+        """
+        states = self._load_fire_tower_exchange_states()
+        if states:
+            self.logger.info("🔎 主题奖励: 兑换页已打开，读到 %d 行", len(states))
+            return states
+
+        for attempt in (1, 2):
+            sleep(
+                EXCHANGE_TAB_WAIT_SECONDS,
+                "等待活动面板渲染完成" if attempt == 1 else "等待兑换页切换完成",
+            )
+            touch(EVENT_EXCHANGE_TAB_BUTTON)
+            sleep(CLICK_INTERVAL)
+            states = self._load_fire_tower_exchange_states()
+            if states:
+                self.logger.info(
+                    "🔎 主题奖励: 已打开兑换页（第 %d 次点击标签，读到 %d 行）",
+                    attempt,
+                    len(states),
+                )
+                return states
+            self.logger.warning(
+                "⚠️ 主题奖励: 点击「兑换」标签后仍未读到兑换页（第 %d 次）",
+                attempt,
+            )
+        return []
+
     def _claim_event_rewards(self) -> bool:
         """领取各种主题奖励。
 
@@ -1073,36 +1148,27 @@ class DailyCollectManager:
         )
         self.logger.info("🔎 主题奖励: 底部领取按钮点击结果=%s", bottom_claim_clicked)
 
-        exchange_tab_clicked = find_text_and_click_safe(
-            "兑换",
-            regions=[9],
-            timeout=3,
-            use_cache=False,
-        )
-        self.logger.info("🔎 主题奖励: 兑换标签点击结果=%s", exchange_tab_clicked)
+        exchange_tab_states = self._open_exchange_tab()
 
         exchange_success = False
-        if exchange_tab_clicked:
-            try:
-                exchange_success = self._redeem_fire_tower_ticket_items()
-                if exchange_success:
-                    send_notification("奖券兑换成功", "目标物品兑换完成, 请检查")
-            except Exception as exc:
-                self.logger.error("❌ 主题奖励: 兑换碎片失败: %s", exc)
-                send_notification("兑换碎片失败", "兑换失败, 请立即检查")
-        else:
-            self.logger.info("ℹ️ 主题奖励: 未看到兑换标签，跳过碎片兑换流程")
+        try:
+            exchange_success = self._redeem_fire_tower_ticket_items(exchange_tab_states)
+            if exchange_success:
+                send_notification("奖券兑换成功", "目标物品兑换完成, 请检查")
+        except Exception as exc:
+            self.logger.error("❌ 主题奖励: 兑换碎片失败: %s", exc)
+            send_notification("兑换碎片失败", "兑换失败, 请立即检查")
 
         back_to_main()
         self.logger.info(
             "🧾 主题奖励流程结果: activity_clicked=%s, card_found=%s, "
             "top_claim_clicked=%s, bottom_claim_clicked=%s, "
-            "exchange_tab_clicked=%s, exchange_success=%s",
+            "exchange_rows=%d, exchange_success=%s",
             activity_clicked,
             bool(res),
             top_claim_clicked,
             bottom_claim_clicked,
-            exchange_tab_clicked,
+            len(exchange_tab_states),
             exchange_success,
         )
         return True
