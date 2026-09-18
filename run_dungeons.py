@@ -100,25 +100,48 @@ def _get_config_path(config_name: str) -> Path:
 def _is_config_completed(config_name: str, logger) -> Optional[bool]:
     """检查指定配置当日任务是否已完成。
 
+    副本进度口径**不含「日常任务」**（见 `ConfigLoader.get_selected_dungeon_count()`），
+    日常任务里存在当天无法完成的项目，计入会让预检查恒判「未完成」并触发整轮重试。
+    因此这里分两部分判断：
+
+    - 有选定副本：只看副本完成数
+    - 没有选定副本：看每日收集的总完成标记
+
     Args:
         config_name: 配置名称（不含扩展名）。
         logger: 日志记录器。
 
     Returns:
-        True 表示已完成或无选定副本；False 表示仍有未完成任务；None 表示检查失败。
+        True 表示已完成或无待办；False 表示仍有未完成任务；None 表示检查失败。
     """
     try:
         config_path = _get_config_path(config_name)
         config_loader = load_config(str(config_path))
         total_selected = config_loader.get_selected_dungeon_count()
+        has_daily_tasks = config_loader.is_daily_collect_enabled() and bool(
+            config_loader.daily_tasks
+        )
 
-        if total_selected <= 0:
-            logger.info(f"ℹ️ 配置 {config_name} 未选定任何副本，跳过执行")
+        if total_selected <= 0 and not has_daily_tasks:
+            logger.info(f"ℹ️ 配置 {config_name} 未选定副本且未启用每日收集，跳过执行")
             return True
 
+        daily_collect_done = False
+        completed = 0
         with DungeonProgressDB(config_name=config_loader.get_config_name()) as db:
             db.cleanup_old_records(days_to_keep=7)
-            completed = db.get_today_completed_count()
+            if total_selected > 0:
+                completed = db.get_today_completed_count()
+            else:
+                # 没有副本可看，只能以每日收集的总完成标记为准
+                daily_collect_done = bool(db.is_daily_collect_completed())
+
+        if total_selected <= 0:
+            if daily_collect_done:
+                logger.info(f"✅ 配置 {config_name} 今日每日任务已完成")
+                return True
+            logger.info(f"📌 配置 {config_name} 未选定副本，仍需执行每日任务")
+            return False
 
         if completed >= total_selected:
             logger.info(f"✅ 配置 {config_name} 今日已完成 {completed}/{total_selected}")

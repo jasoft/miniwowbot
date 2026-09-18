@@ -201,11 +201,15 @@ class ProgressChecker:
     def _load_config_dungeons(self, config_name):
         """加载指定配置的已选中副本列表。
 
+        只统计**真正的副本**：`ConfigLoader` 会把 `daily_tasks` 合成成「日常任务」区域
+        并入 `zone_dungeons`，但它不是副本，必须排除（否则日常任务里当天做不完的项目
+        会让整轮检查恒判「未完成」，退出码恒 1 → 触发整轮重试）。
+
         Args:
             config_name: 配置名称。
 
         Returns:
-            tuple: 原始区域副本映射与扁平化后的已选中副本列表。
+            tuple: 原副本区域映射与扁平化后的已选中副本列表。
         """
         config_path = f"configs/{config_name}.json"
         if not os.path.exists(config_path):
@@ -213,7 +217,7 @@ class ProgressChecker:
 
         try:
             config_loader = load_config(config_path)
-            zone_dungeons = config_loader.get_zone_dungeons()
+            zone_dungeons = config_loader.get_dungeon_zones()
             all_dungeons = []
 
             for zone, dungeons in zone_dungeons.items():

@@ -22,10 +22,19 @@ logger = logging.getLogger(__name__)
 # 数据库实例
 db = SqliteDatabase(None)
 
-# 特殊副本：每日收集
+# 特殊区域：每日收集（流程内部标记，不是游戏副本）
 DAILY_COLLECT_ZONE_NAME = "__daily_collect__"
 DAILY_COLLECT_DUNGEON_NAME = "daily_collect"
-SPECIAL_ZONE_NAMES = (DAILY_COLLECT_ZONE_NAME,)
+
+# 特殊区域：日常任务。
+# 它由 `ConfigLoader` 从配置的 `daily_tasks` 合成后并入 `zone_dungeons`，
+# 目的是让执行流程能遍历到它，但它**不是副本**。
+# 因此默认的统计/计数（`include_special=False`）一律排除，与每日收集同等对待；
+# 需要连日常任务一起看时才传 `include_special=True`。
+DAILY_TASK_ZONE_NAME = "日常任务"
+
+# 非副本区域：默认不计入副本数量、副本统计与进度口径
+SPECIAL_ZONE_NAMES = (DAILY_COLLECT_ZONE_NAME, DAILY_TASK_ZONE_NAME)
 EVENT_RESET_TIMEZONE = timezone(timedelta(hours=8))
 EVENT_RESET_WEEKDAY = 4
 EVENT_RESET_HOUR = 6

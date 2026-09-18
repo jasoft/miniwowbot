@@ -35,11 +35,36 @@ def _write_daily_task_config(tmp_path: Path, name: str) -> Path:
     return config_path
 
 
-def _make_db_class(completed_count: int):
+def _write_dungeon_config(tmp_path: Path, name: str) -> Path:
+    """写入「1 个选定副本 + 1 个已选日常任务」的最小配置。
+
+    Args:
+        tmp_path: 临时目录根路径。
+        name: 配置名（不含扩展名）。
+
+    Returns:
+        生成的配置文件路径。
+    """
+    config_dir = tmp_path / "configs"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    config_path = config_dir / f"{name}.json"
+    payload = {
+        "class": "战士",
+        "daily_tasks": [{"name": "领取主题奖励", "selected": True}],
+        "zone_dungeons": {
+            "亡灵之地": [{"name": "聚魂之地", "selected": True}],
+        },
+    }
+    config_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    return config_path
+
+
+def _make_db_class(completed_count: int, daily_collect_completed: bool = False):
     """构造返回固定完成数的数据库替身。
 
     Args:
-        completed_count: 需要返回的已完成数量。
+        completed_count: 需要返回的已完成副本数量。
+        daily_collect_completed: 每日收集的总完成标记。
 
     Returns:
         模拟的数据库类。
@@ -63,6 +88,10 @@ def _make_db_class(completed_count: int):
         def get_today_completed_count(self, include_special: bool = False) -> int:
             """返回固定的已完成数量。"""
             return completed_count
+
+        def is_daily_collect_completed(self) -> bool:
+            """返回固定的每日收集完成标记。"""
+            return daily_collect_completed
 
         def __enter__(self) -> "DummyDB":
             """进入上下文。"""
@@ -113,18 +142,84 @@ def test_execute_daily_collect_incomplete_run_does_not_mark_finished(monkeypatch
     fake_db.mark_daily_collect_completed.assert_not_called()
 
 
-def test_is_config_completed_returns_false_when_daily_task_pending(
+def test_is_config_completed_ignores_daily_tasks(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    """仅剩未完成日常任务时，配置预检查仍应判定为未完成。"""
+    """只有日常任务、没有选定副本时，配置预检查应判定为已完成。
+
+    副本进度口径**不含**「日常任务」：日常任务里存在当天无法完成的项目
+    （例如活动下线），若计入则预检查会恒判「未完成」并触发整轮重试。
+    日常任务本身做没做成，由 `execute_daily_collect()` 的逐步判定 + 失败告警负责。
+    """
     _write_daily_task_config(tmp_path, "warrior")
     monkeypatch.setattr(run_dungeons, "SCRIPT_DIR", tmp_path)
     monkeypatch.setattr(run_dungeons, "DungeonProgressDB", _make_db_class(0))
 
     logger = logging.getLogger("test_run_dungeons_pending_daily")
 
+    assert run_dungeons._is_config_completed("warrior", logger) is True
+
+
+def test_is_config_completed_counts_only_dungeons(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """有选定副本时，日常任务不参与计数：副本没打完就仍算未完成。"""
+    _write_dungeon_config(tmp_path, "warrior")
+    monkeypatch.setattr(run_dungeons, "SCRIPT_DIR", tmp_path)
+
+    logger = logging.getLogger("test_run_dungeons_only_dungeons")
+
+    # 选定副本 1 个，已完成 0 个 → 未完成（日常任务完成与否不影响）
+    monkeypatch.setattr(run_dungeons, "DungeonProgressDB", _make_db_class(0))
     assert run_dungeons._is_config_completed("warrior", logger) is False
+
+    # 副本数达到 1 → 已完成
+    monkeypatch.setattr(run_dungeons, "DungeonProgressDB", _make_db_class(1))
+    assert run_dungeons._is_config_completed("warrior", logger) is True
+
+
+def test_is_config_completed_daily_only_config_uses_daily_flag(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """没有选定副本但启用了每日收集时，以每日收集的完成标记为准。
+
+    防止「副本数为 0 → 直接跳过」把只跑日常任务的配置整轮短路掉。
+    """
+    config_dir = tmp_path / "configs"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "druid.json").write_text(
+        json.dumps(
+            {
+                "class": "德鲁伊",
+                "enable_daily_collect": True,
+                "daily_tasks": [{"name": "领取主题奖励", "selected": True}],
+                "zone_dungeons": {},
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(run_dungeons, "SCRIPT_DIR", tmp_path)
+    logger = logging.getLogger("test_run_dungeons_daily_only")
+
+    # 每日收集未完成 → 仍需执行
+    monkeypatch.setattr(
+        run_dungeons,
+        "DungeonProgressDB",
+        _make_db_class(0, daily_collect_completed=False),
+    )
+    assert run_dungeons._is_config_completed("druid", logger) is False
+
+    # 每日收集已完成 → 跳过
+    monkeypatch.setattr(
+        run_dungeons,
+        "DungeonProgressDB",
+        _make_db_class(0, daily_collect_completed=True),
+    )
+    assert run_dungeons._is_config_completed("druid", logger) is True
 
 
 def _make_exchange_state(

@@ -251,8 +251,10 @@ def build_runtime_rows(
             
             if meta:
                 planned_sum += int(meta.get('planned_count', 0))
-            
-            completed_sum += get_today_completed_count(db_path, cfg_stripped, include_special=True)
+
+            # planned_count 只数 zone_dungeons（真副本），因此完成数也必须排除
+            # 「日常任务」与 __daily_collect__，否则会出现完成数大于计划数（如 21/11）。
+            completed_sum += get_today_completed_count(db_path, cfg_stripped, include_special=False)
 
         progress_str = f'{completed_sum}/{planned_sum}'
 

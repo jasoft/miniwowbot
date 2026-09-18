@@ -9,6 +9,7 @@ import json
 import os
 from typing import Dict, List, Optional, TypeVar
 
+from database.dungeon_db import DAILY_TASK_ZONE_NAME
 from logger_config import setup_logger_from_config
 from project_paths import ensure_project_path
 
@@ -103,13 +104,14 @@ class ConfigLoader:
                 logger.info(f"🎁 指定宝箱: {self.chest_name}")
             if self.daily_tasks:
                 logger.info(f"📋 每日任务数: {len(self.daily_tasks)}")
-            logger.info(f"🌍 区域数量: {len(self.zone_dungeons)}")
-            logger.info(
-                f"🎯 副本总数: {sum(len(dungeons) for dungeons in self.zone_dungeons.values())}"
-            )
+
+            # 以下均为**副本口径**：不含合成出来的「日常任务」区域
+            dungeon_zones = self.get_dungeon_zones()
+            logger.info(f"🌍 区域数量: {len(dungeon_zones)}")
+            logger.info(f"🎯 副本总数: {sum(len(dungeons) for dungeons in dungeon_zones.values())}")
             selected_count = sum(
                 sum(1 for d in dungeons if d.get("selected", True))
-                for dungeons in self.zone_dungeons.values()
+                for dungeons in dungeon_zones.values()
             )
             logger.info(f"✅ 选定副本: {selected_count}")
 
@@ -151,12 +153,31 @@ class ConfigLoader:
 
     def get_zone_dungeons(self) -> Dict[str, List[Dict]]:
         """
-        获取副本配置
+        获取区域映射（**含**「日常任务」合成区域）
+
+        执行流程需要遍历「日常任务」才能执行每日任务，
+        因此本方法保持原样；**做副本计数/统计请用 `get_dungeon_zones()`**。
 
         Returns:
-            副本配置字典
+            区域 -> 条目列表 的字典
         """
         return self.get_attr("zone_dungeons", {})
+
+    def get_dungeon_zones(self) -> Dict[str, List[Dict]]:
+        """
+        获取**真正的副本**区域映射（排除「日常任务」）
+
+        「日常任务」是 `_load_config()` 从 `daily_tasks` 合成后并入 `zone_dungeons` 的，
+        它不是副本。所有「副本数量 / 副本进度」口径都应以本方法为准。
+
+        Returns:
+            区域 -> 条目列表 的字典，不含「日常任务」
+        """
+        return {
+            zone_name: dungeons
+            for zone_name, dungeons in self.get_zone_dungeons().items()
+            if zone_name != DAILY_TASK_ZONE_NAME
+        }
 
     def get_ocr_correction_map(self) -> Dict[str, str]:
         """
@@ -187,26 +208,26 @@ class ConfigLoader:
 
     def get_all_dungeons(self) -> List[str]:
         """
-        获取所有副本列表（扁平化）
+        获取所有副本列表（扁平化，**不含**「日常任务」）
 
         Returns:
             所有副本名称的列表
         """
         all_dungeons = []
-        for dungeons in self.zone_dungeons.values():
+        for dungeons in self.get_dungeon_zones().values():
             for dungeon in dungeons:
                 all_dungeons.append(dungeon["name"])
         return all_dungeons
 
     def get_all_selected_dungeons(self) -> List[str]:
         """
-        获取所有选定的副本列表（扁平化）
+        获取所有选定的副本列表（扁平化，**不含**「日常任务」）
 
         Returns:
             所有选定的副本名称的列表
         """
         selected_dungeons = []
-        for dungeons in self.zone_dungeons.values():
+        for dungeons in self.get_dungeon_zones().values():
             for dungeon in dungeons:
                 if dungeon.get("selected", True):
                     selected_dungeons.append(dungeon["name"])
@@ -214,22 +235,25 @@ class ConfigLoader:
 
     def get_dungeon_count(self) -> int:
         """
-        获取副本总数
+        获取副本总数（**不含**「日常任务」）
 
         Returns:
             副本总数
         """
-        return sum(len(dungeons) for dungeons in self.zone_dungeons.values())
+        return sum(len(dungeons) for dungeons in self.get_dungeon_zones().values())
 
     def get_selected_dungeon_count(self) -> int:
         """
-        获取选定的副本总数
+        获取选定的副本总数（**不含**「日常任务」）
+
+        「日常任务」不是副本，若计入会导致进度口径恒不满足
+        （日常任务里存在当天无法完成的项目 → 永远差 1 → 整轮重试）。
 
         Returns:
             选定的副本总数
         """
         count = 0
-        for dungeons in self.zone_dungeons.values():
+        for dungeons in self.get_dungeon_zones().values():
             for dungeon in dungeons:
                 if dungeon.get("selected", True):
                     count += 1
