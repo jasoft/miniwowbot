@@ -8,6 +8,7 @@ import os
 import re
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Optional
 
 import cv2
@@ -33,6 +34,7 @@ from coordinates import (
     DAILY_REWARD_BOX_OFFSET_Y,
     DAILY_REWARD_CONFIRM,
     DEPLOY_CONFIRM_BUTTON,
+    MAIL_CLAIM_ALL_BUTTON,
     ONE_KEY_DEPLOY,
     ONE_KEY_REWARD,
     QUICK_AFK_COLLECT_BUTTON,
@@ -42,6 +44,9 @@ FIRE_TOWER_EVENT_NAME = "fire_tower_ticket_exchange"
 FIRE_TOWER_PURPLE_ITEM_KEY = "purple_first"
 FIRE_TOWER_BLUE_ITEM_KEY = "blue_second"
 EXCHANGE_PROGRESS_PATTERN = re.compile(r"(\d+)\s*/\s*(\d+)")
+
+# 邮箱面板存在入场渲染延迟，首次找不到「一键领取」时的等待秒数
+MAIL_PANEL_WAIT_SECONDS = 2.0
 
 
 @dataclass(frozen=True)
@@ -121,19 +126,36 @@ class DailyCollectManager:
         except Exception as e:
             self.logger.error(f"❌ 执行每日任务 {task_name} 失败: {e}")
             save_error_screenshot(f"daily_{task_name}")
+            # 异常路径绕过了 _run_step 的失败处理，这里补发告警
+            self._notify_step_failure(step_key, f"抛出异常: {e}")
             return False
 
-    def _open_chests_wrapper(self):
-        """宝箱包装器"""
-        if self.config_loader and self.config_loader.get_chest_name():
-            self._open_chests(self.config_loader.get_chest_name())
-        else:
-            self.logger.info("ℹ️ 未配置宝箱名称，跳过开启宝箱")
+    def _open_chests_wrapper(self) -> bool:
+        """开启宝箱。
 
-    def _kill_world_boss_wrapper(self):
-        """世界BOSS包装器"""
-        for _ in range(3):
-            self._kill_world_boss()
+        Returns:
+            bool: 宝箱开启流程是否完成；未配置宝箱名称视为无需执行，返回 True。
+        """
+        if self.config_loader and self.config_loader.get_chest_name():
+            return self._open_chests(self.config_loader.get_chest_name())
+
+        self.logger.info("ℹ️ 未配置宝箱名称，跳过开启宝箱")
+        return True
+
+    def _kill_world_boss_wrapper(self) -> bool:
+        """世界BOSS：最多尝试 3 次，任意一次成功即视为完成。
+
+        Returns:
+            bool: 3 次尝试中是否有一次成功。
+        """
+        for attempt in range(1, 4):
+            if self._kill_world_boss():
+                return True
+            if attempt < 3:
+                self.logger.info(f"🔁 世界BOSS 第 {attempt} 次未完成，准备重试")
+
+        self.logger.warning("⚠️ 世界BOSS 连续 3 次未完成")
+        return False
 
     @staticmethod
     def _summarize_match_result(result: Optional[dict[str, Any]]) -> str:
@@ -160,6 +182,12 @@ class DailyCollectManager:
     def _run_step(self, step_name: str, func, *args, **kwargs) -> bool:
         """执行单个步骤，并按显式结果记录进度。
 
+        只有步骤函数**显式返回 True** 才算成功：返回 False 或 None 一律视为未完成。
+        历史上这里用 ``raw_result is not False`` 判定，而多数任务方法并不返回值
+        （返回 None），于是无论实际做没做成都被记成完成 —— 数据库显示“已完成”，
+        游戏里其实没领到，属于静默的假完成。收紧判定后，任何未显式声明成功的
+        步骤都会保留未完成状态，并通过 :meth:`_notify_step_failure` 发出告警。
+
         Args:
             step_name: 步骤标识。
             func: 需要执行的步骤函数。
@@ -175,7 +203,7 @@ class DailyCollectManager:
 
         self.logger.info(f"🧩 开始执行步骤: {step_name}")
         raw_result = func(*args, **kwargs)
-        step_succeeded = raw_result is not False
+        step_succeeded = raw_result is True
         self.logger.info(
             "🧾 步骤 %s 执行结束，返回值=%r，判定成功=%s",
             step_name,
@@ -185,6 +213,7 @@ class DailyCollectManager:
 
         if not step_succeeded:
             self.logger.warning(f"⚠️ 步骤 {step_name} 未完成，本次不写入完成记录")
+            self._notify_step_failure(step_name, raw_result)
             return False
 
         if self.db:
@@ -192,6 +221,72 @@ class DailyCollectManager:
             self.logger.info(f"💾 已记录每日步骤完成: {step_name}")
 
         return True
+
+    @staticmethod
+    def _failure_notice_marker(step_name: str, today: str) -> str:
+        """返回“该步骤当天是否已告警”的标记文件路径。
+
+        Args:
+            step_name: 步骤标识。
+            today: 逻辑日期（``YYYY-MM-DD``）。
+
+        Returns:
+            str: 标记文件的绝对路径。
+        """
+        return os.path.join(os.getcwd(), "log", "notify_state", f"{today}_{step_name}.flag")
+
+    def _notify_step_failure(self, step_name: str, raw_result: Any) -> None:
+        """每日任务未完成时发送告警（Pushover），并附带现场截图。
+
+        同一天内同一步骤只告警一次：整轮失败会触发 ``FLOW_MAX_RETRIES`` 次重试，
+        若无去重会让同一个问题反复推送。标记文件写在
+        ``log/notify_state/<逻辑日期>_<步骤>.flag``。
+
+        Args:
+            step_name: 步骤标识。
+            raw_result: 步骤函数的原始返回值，用于区分“显式失败”与“未声明成功”。
+        """
+        today = self.db.get_today_date() if self.db else datetime.now().strftime("%Y-%m-%d")
+        marker = self._failure_notice_marker(step_name, today)
+        if os.path.exists(marker):
+            self.logger.info(f"🔕 步骤 {step_name} 今日已告警过，跳过重复通知")
+            return
+
+        screenshot = save_error_screenshot(f"daily_step_{step_name}")
+        if raw_result is False:
+            result_desc = "返回 False（显式判定失败）"
+        elif isinstance(raw_result, str):
+            result_desc = raw_result
+        else:
+            result_desc = f"返回 {raw_result!r}（未声明成功）"
+
+        message = (
+            f"每日任务未完成：{step_name}\n"
+            f"结果：{result_desc}\n"
+            f"截图：{os.path.basename(screenshot) if screenshot else '（截图失败）'}"
+        )
+        payload: dict[str, Any] = {"image": screenshot} if screenshot else {}
+
+        try:
+            sent = send_notification(
+                title="⚠️ 每日任务未完成",
+                message=message,
+                provider="pushover",
+                priority=1,
+                **payload,
+            )
+            self.logger.info(f"📱 失败通知发送结果: {sent}")
+        except Exception as e:
+            # 通知失败不应影响主流程，更不应阻断后续任务的执行
+            self.logger.warning(f"⚠️ 发送失败通知异常: {e}")
+            return
+
+        try:
+            os.makedirs(os.path.dirname(marker), exist_ok=True)
+            with open(marker, "w", encoding="utf-8") as fh:
+                fh.write(f"{datetime.now().isoformat(timespec='seconds')} step={step_name}\n")
+        except Exception as e:
+            self.logger.debug(f"写入告警标记失败: {e}")
 
     def _parse_exchange_progress(self, text: str) -> tuple[Optional[int], Optional[int]]:
         """解析奖券进度文本。
@@ -593,11 +688,10 @@ class DailyCollectManager:
                 )
 
             # 6. 打三次世界 boss
-            def kill_boss_loop():
-                for _ in range(3):
-                    self._kill_world_boss()
-
-            all_steps_completed &= self._run_step("world_boss", kill_boss_loop)
+            all_steps_completed &= self._run_step(
+                "world_boss",
+                self._kill_world_boss_wrapper,
+            )
 
             # 7. 领取邮件
             all_steps_completed &= self._run_step("receive_mails", self._receive_mails)
@@ -635,27 +729,49 @@ class DailyCollectManager:
             self.logger.error(f"❌ 每日收集操作失败: {e}")
             raise
 
-    def _collect_gifts(self):
-        """领取礼包"""
+    def _collect_gifts(self) -> bool:
+        """领取礼包。
+
+        Returns:
+            bool: 是否成功打开「礼包」界面并走完领取流程。
+        """
         self.logger.info("领取礼包")
         back_to_main()
-        find_text_and_click("礼包", regions=[3])
-        find_text_and_click("旅行日志", regions=[3])
-        find_text_and_click("领取奖励", regions=[8])
-        back_to_main()
+        if not find_text_and_click_safe("礼包", regions=[3]):
+            self.logger.warning("⚠️ 未找到「礼包」入口，本次不记录完成")
+            back_to_main()
+            return False
 
-    def _demonhunter_exam(self):
-        """猎魔试炼"""
+        find_text_and_click_safe("旅行日志", regions=[3])
+        find_text_and_click_safe("领取奖励", regions=[8])
+        back_to_main()
+        return True
+
+    def _demonhunter_exam(self) -> bool:
+        """猎魔试炼。
+
+        该活动会下线。入口找不到即视为未完成，而不是静默记成成功。
+
+        Returns:
+            bool: 是否成功进入猎魔试炼并完成签到。
+        """
         self.logger.info("猎魔试炼")
         back_to_main()
 
         try:
-            find_text_and_click("猎魔试炼")
-            find_text_and_click("签到")
-            find_text_and_click("一键签到")
+            if not find_text_and_click_safe("猎魔试炼"):
+                self.logger.warning("⚠️ 未找到「猎魔试炼」入口，活动可能已结束，本次不记录完成")
+                back_to_main()
+                return False
+
+            find_text_and_click_safe("签到")
+            find_text_and_click_safe("一键签到")
             back_to_main()
+            return True
         except Exception as e:
             self.logger.error(f"❌ 猎魔试炼失败: {e}, 活动可能已结束")
+            back_to_main()
+            return False
 
     def _claim_event_rewards(self) -> bool:
         """领取各种主题奖励。
@@ -775,30 +891,38 @@ class DailyCollectManager:
         )
         return True
 
-    def _collect_idle_rewards(self):
-        """
-        领取每日挂机奖励
+    def _collect_idle_rewards(self) -> bool:
+        """领取每日挂机奖励（含快速挂机领取）。
+
+        Returns:
+            bool: 是否成功进入「战斗」界面并走完领取流程。
         """
         self.logger.info("📦 开始领取每日挂机奖励")
         back_to_main()
 
         try:
             res = switch_to("战斗")
-            assert res
+            if not res:
+                self.logger.warning("⚠️ 未找到「战斗」入口，挂机奖励未领取")
+                back_to_main()
+                return False
+
             # 点击奖励箱子
             touch((res["center"][0], res["center"][1] + DAILY_REWARD_BOX_OFFSET_Y))
             sleep(CLICK_INTERVAL)
             touch(DAILY_REWARD_CONFIRM)
             sleep(CLICK_INTERVAL)
-            find_text_and_click("确定", regions=[5])
+            find_text_and_click_safe("确定", regions=[5])
             self.logger.info("✅ 每日挂机奖励领取成功")
             # 2. 执行快速挂机领取（如果启用）
             self._collect_quick_afk()
 
             back_to_main()
+            return True
         except Exception as e:
             self.logger.warning(f"⚠️ 未找到战斗按钮或点击失败: {e}")
-            raise
+            back_to_main()
+            return False
 
     def _close_ads(self):
         """
@@ -830,14 +954,25 @@ class DailyCollectManager:
         else:
             self.logger.warning("⚠️ 未找到快速挂机按钮")
 
-    def _buy_ads_items(self):
-        """
-        购买广告物品
+    def _buy_ads_items(self) -> bool:
+        """购买广告物品（领取广告奖励）。
+
+        注意：该流程每件商品需等待约 150 秒才能点下一件，一轮约 37 分钟，
+        且强依赖广告可正常播放。
+
+        Returns:
+            bool: 是否成功进入「商店」并走完购买流程。
         """
         self.logger.info("🛒 购买广告物品")
         back_to_main()
-        find_text_and_click("主城", regions=[9])
-        find_text_and_click("商店", regions=[4])
+        if not (
+            find_text_and_click_safe("主城", regions=[9])
+            and find_text_and_click_safe("商店", regions=[4])
+        ):
+            self.logger.warning("⚠️ 未能进入「商店」，广告奖励未领取")
+            back_to_main()
+            return False
+
         first_item_pos = (111, 395)
 
         for i in range(3):
@@ -856,35 +991,41 @@ class DailyCollectManager:
 
         back_to_main()
         self.logger.info("✅ 购买广告商品成功")
+        return True
 
-    def _handle_retinue_deployment(self):
-        """
-        处理随从派遣操作
+    def _handle_retinue_deployment(self) -> bool:
+        """处理随从派遣（含招募与符文抽取）。
+
+        Returns:
+            bool: 是否成功进入「随从」界面。找不到入口说明界面或条件异常，
+            本次不记录完成。
         """
         self.logger.info("👥 开始处理随从派遣")
         back_to_main()
 
-        if find_text_and_click_safe("随从", regions=[7]):
-            # 领取派遣奖励
-            find_text_and_click("派遣", regions=[8])
-            touch(ONE_KEY_REWARD)
+        if not find_text_and_click_safe("随从", regions=[7]):
+            self.logger.warning("⚠️ 未找到「随从」入口，本次不记录完成")
             back_to_main()
+            return False
 
-            # 重新派遣
-            find_text_and_click("派遣", regions=[8])
-            touch(ONE_KEY_DEPLOY)
-            sleep(1)
-            touch(DEPLOY_CONFIRM_BUTTON)
-            back_to_main()
+        # 领取派遣奖励
+        find_text_and_click_safe("派遣", regions=[8])
+        touch(ONE_KEY_REWARD)
+        back_to_main()
 
-            self.logger.info("✅ 随从派遣处理完成")
+        # 重新派遣
+        find_text_and_click_safe("派遣", regions=[8])
+        touch(ONE_KEY_DEPLOY)
+        sleep(1)
+        touch(DEPLOY_CONFIRM_BUTTON)
+        back_to_main()
 
-            back_to_main()
-        else:
-            self.logger.warning("⚠️ 未找到随从按钮，跳过派遣操作")
+        self.logger.info("✅ 随从派遣处理完成")
+
+        back_to_main()
 
         # 招募
-        find_text_and_click("酒馆", regions=[7])
+        find_text_and_click_safe("酒馆", regions=[7])
         res = find_text(
             "招募10次",
             regions=[8, 9],
@@ -899,32 +1040,37 @@ class DailyCollectManager:
         back_to_main()
 
         # 符文
-        find_text_and_click("符文", regions=[9])
+        find_text_and_click_safe("符文", regions=[9])
         # 这里可能会没有这个按钮, 不应该抛出exception
         find_text_and_click_safe("抽取十次", regions=[8, 9], use_cache=False)
         back_to_main()
+        return True
 
-    def _collect_free_dungeons(self):
-        """
-        领取每日免费地下城（试炼塔）
+    def _collect_free_dungeons(self) -> bool:
+        """领取每日免费地下城（试炼塔）。
+
+        Returns:
+            bool: 是否成功找到并进入「试炼塔」。
         """
         self.logger.info("🏰 开始领取每日免费地下城")
         back_to_main()
         open_map()
 
-        if find_text_and_click_safe("试炼塔", regions=[9]):
-            self.logger.info("✅ 进入试炼塔")
+        if not find_text_and_click_safe("试炼塔", regions=[9]):
+            self.logger.warning("⚠️ 未找到「试炼塔」入口，本次不记录完成")
+            back_to_main()
+            return False
 
-            # 领取消量奖励
-            self._sweep_tower_floor("刻印", regions=[7, 8])
-            self._sweep_tower_floor("宝石", regions=[8, 8])
-            self._sweep_tower_floor("雕文", regions=[9, 8])
+        self.logger.info("✅ 进入试炼塔")
 
-            self.logger.info("✅ 每日免费地下城领取完成")
-        else:
-            self.logger.warning("⚠️ 未找到试炼塔，跳过免费地下城领取")
+        # 领取消量奖励
+        self._sweep_tower_floor("刻印", regions=[7, 8])
+        self._sweep_tower_floor("宝石", regions=[8, 8])
+        self._sweep_tower_floor("雕文", regions=[9, 8])
 
+        self.logger.info("✅ 每日免费地下城领取完成")
         back_to_main()
+        return True
 
     def _sweep_tower_floor(self, floor_name: str, regions):
         """
@@ -944,55 +1090,92 @@ class DailyCollectManager:
         else:
             self.logger.warning(f"⚠️ 未找到{floor_name}楼层")
 
-    def _kill_world_boss(self):
-        """
-        杀死世界boss
+    def _kill_world_boss(self) -> bool:
+        """参与并完成一次世界BOSS（协作模式）。
+
+        Returns:
+            bool: 是否成功走完“进入东部大陆 → 开战 → 退出”全流程。
         """
         self.logger.info("💀 开始杀死世界boss")
         back_to_main()
         open_map()
         try:
-            find_text_and_click("切换区域", regions=[8])
-            find_text_and_click("东部大陆", regions=[5])
+            if not (
+                find_text_and_click_safe("切换区域", regions=[8])
+                and find_text_and_click_safe("东部大陆", regions=[5])
+            ):
+                self.logger.warning("⚠️ 世界BOSS：未能进入「东部大陆」")
+                back_to_main()
+                return False
+
             touch((126, 922))
             sleep(1.5)
-            find_text_and_click("协助模式", regions=[8])
-            find_text_and_click("创建队伍", regions=[4, 5])
-            find_text_and_click("开始", regions=[5])
-            find_text_and_click("离开", regions=[5], timeout=20)
+            find_text_and_click_safe("协助模式", regions=[8])
+            find_text_and_click_safe("创建队伍", regions=[4, 5])
+            find_text_and_click_safe("开始", regions=[5])
+
+            # 「离开」按钮出现代表战斗已结束，是这条链路上的强完成信号
+            if not find_text_and_click_safe("离开", regions=[5], timeout=20):
+                self.logger.warning("⚠️ 世界BOSS：未出现「离开」按钮，判定未完成")
+                back_to_main()
+                return False
+
             self.logger.info("✅ 杀死世界boss成功")
+            return True
         except Exception as e:
             self.logger.warning(f"⚠️ 未找到世界boss: {e}")
             back_to_main()
+            return False
 
-    def _buy_market_items(self):
-        """
-        购买市场商品
+    def _buy_market_items(self) -> bool:
+        """购买市场商品（商店每日）。
+
+        Returns:
+            bool: 是否成功进入「商店」界面并完成购买。
         """
         self.logger.info("🛒 开始购买市场商品")
         back_to_main()
         try:
-            find_text_and_click("主城", regions=[9])
-            find_text_and_click("商店", regions=[4])
+            if not (
+                find_text_and_click_safe("主城", regions=[9])
+                and find_text_and_click_safe("商店", regions=[4])
+            ):
+                self.logger.warning("⚠️ 未能进入「商店」，本次不记录完成")
+                back_to_main()
+                return False
+
             touch((570, 258))
             sleep(1)
-            find_text_and_click("购买", regions=[8])
+            find_text_and_click_safe("购买", regions=[8])
             back_to_main()
             self.logger.info("✅ 购买市场商品成功")
+            return True
         except Exception as e:
             self.logger.warning(f"⚠️ 未找到商店: {e}")
             back_to_main()
+            return False
 
-    def _open_chests(self, chest_name: str):
-        """
-        开启宝箱
+    def _open_chests(self, chest_name: str) -> bool:
+        """开启指定宝箱。
+
+        Args:
+            chest_name: 宝箱名称。
+
+        Returns:
+            bool: 是否成功进入「宝库」并找到目标宝箱。
         """
         self.logger.info(f"🎁 开始开启{chest_name}")
         back_to_main()
         try:
-            find_text_and_click("主城", regions=[9])
-            find_text_and_click("宝库", regions=[9])
-            find_text_and_click(chest_name, regions=[4, 5, 6, 7, 8])
+            if not (
+                find_text_and_click_safe("主城", regions=[9])
+                and find_text_and_click_safe("宝库", regions=[9])
+                and find_text_and_click_safe(chest_name, regions=[4, 5, 6, 7, 8])
+            ):
+                self.logger.warning(f"⚠️ 未能进入宝库或未找到「{chest_name}」，本次不记录完成")
+                back_to_main()
+                return False
+
             res = find_text("开启10次", regions=[8, 9], use_cache=False, timeout=5)
             if res:
                 for _ in range(6):
@@ -1003,44 +1186,81 @@ class DailyCollectManager:
                 touch((359, 879))  # 不满 10 个点击一次最后的打开
             back_to_main()
 
-            find_text_and_click("宝库", regions=[9])
-            find_text_and_click(chest_name, regions=[4, 5, 6, 7, 8])
+            find_text_and_click_safe("宝库", regions=[9])
+            find_text_and_click_safe(chest_name, regions=[4, 5, 6, 7, 8])
             touch((359, 879))  # 不满 10 个点击一次最后的打开
             back_to_main()
 
             self.logger.info("✅ 打开宝箱成功")
+            return True
         except Exception as e:
             self.logger.warning(f"⚠️ 未找到宝箱: {e}")
             back_to_main()
+            return False
+            back_to_main()
 
-    def _receive_mails(self):
+    def _locate_mail_claim_button(self) -> tuple[int, int]:
+        """定位邮箱面板的「一键领取」按钮，带等待重试与固定坐标兜底。
+
+        查找一律传 ``use_cache=False``：邮箱面板是点开「邮箱」之后新出现的界面，
+        而 OCR 感知哈希缓存会把历史某一帧的结果（连同其中的单次识别误差）当作
+        当前界面返回，导致屏幕上明明有「一键领取」却查不到。
+
+        Returns:
+            tuple[int, int]: 用于点击的按钮中心坐标。查找失败时返回固定坐标
+            ``MAIL_CLAIM_ALL_BUTTON``。
         """
-        领取邮件
+        res = find_text("一键领取", regions=[8, 9], use_cache=False, timeout=5)
+        if res:
+            center = res["center"]
+            self.logger.info(f"🔎 找到「一键领取」按钮: {center}")
+            return center
 
-        注意：这里的查找一律传 ``use_cache=False``。邮箱面板是点开「邮箱」之后
-        新出现的界面，而 OCR 感知哈希缓存会把历史某一帧的结果（连同其中的单次
-        识别误差）当作当前界面返回，导致屏幕上明明有「一键领取」却查不到。
+        # 邮箱面板有入场渲染延迟，首次没找到时再等一轮
+        self.logger.warning(f"⚠️ 首次未找到「一键领取」，等待 {MAIL_PANEL_WAIT_SECONDS} 秒后重试")
+        sleep(MAIL_PANEL_WAIT_SECONDS, "等待邮箱面板渲染完成")
+
+        res = find_text("一键领取", regions=[8, 9], use_cache=False, timeout=5)
+        if res:
+            center = res["center"]
+            self.logger.info(f"🔎 重试后找到「一键领取」按钮: {center}")
+            return center
+
+        # 按钮位置固定，OCR 不可靠时退化为固定坐标点击
+        self.logger.warning(
+            f"⚠️ 重试后仍未找到「一键领取」，改用固定坐标 " f"{MAIL_CLAIM_ALL_BUTTON} 点击"
+        )
+        return MAIL_CLAIM_ALL_BUTTON
+
+    def _receive_mails(self) -> bool:
+        """领取邮件。
+
+        流程：回主界面 → 进入主城 → 打开邮箱 → 点击「一键领取」。
+
+        按钮定位采用三级兜底：正常查找 → 等待重试 → 固定坐标点击，
+        详见 :meth:`_locate_mail_claim_button`。
+
+        Returns:
+            bool: 是否成功执行了领取点击。
         """
         self.logger.info("✉️ 信件 开始领取邮件")
         back_to_main()
         try:
             find_text_and_click("主城", regions=[9], use_cache=False)
             find_text_and_click("邮箱", regions=[5], use_cache=False)
-            res = find_text("一键领取", regions=[8, 9], use_cache=False, timeout=5)
-            self.logger.info(f"🔎 找到一键领取按钮: {res}")
-            if res:
-                for _ in range(3):
-                    touch(res["center"])
-                    sleep(1, "点击邮箱一键领取")
-                self.logger.info("✅ 领取邮件成功")
-            else:
-                # find_text 在找不到时返回 NullGameElement（falsy）而非抛异常，
-                # 所以必须显式判定，否则失败会被静默当成成功。
-                self.logger.warning("⚠️ 未找到「一键领取」按钮，本次未领取到邮件")
+
+            claim_center = self._locate_mail_claim_button()
+            for _ in range(3):
+                touch(claim_center)
+                sleep(1, "点击邮箱一键领取")
+
             back_to_main()
+            self.logger.info("✅ 领取邮件成功")
+            return True
         except Exception as e:
             self.logger.warning(f"⚠️ 领取邮件异常: {e}")
             back_to_main()
+            return False
 
     # 向后兼容的函数名
     def daily_collect(self):
