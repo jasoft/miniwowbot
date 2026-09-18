@@ -1016,21 +1016,30 @@ class DailyCollectManager:
     def _receive_mails(self):
         """
         领取邮件
+
+        注意：这里的查找一律传 ``use_cache=False``。邮箱面板是点开「邮箱」之后
+        新出现的界面，而 OCR 感知哈希缓存会把历史某一帧的结果（连同其中的单次
+        识别误差）当作当前界面返回，导致屏幕上明明有「一键领取」却查不到。
         """
         self.logger.info("✉️ 信件 开始领取邮件")
         back_to_main()
         try:
-            find_text_and_click("主城", regions=[9])
-            find_text_and_click("邮箱", regions=[5])
-            res = find_text("一键领取", regions=[8, 9], timeout=5)
+            find_text_and_click("主城", regions=[9], use_cache=False)
+            find_text_and_click("邮箱", regions=[5], use_cache=False)
+            res = find_text("一键领取", regions=[8, 9], use_cache=False, timeout=5)
+            self.logger.info(f"🔎 找到一键领取按钮: {res}")
             if res:
                 for _ in range(3):
                     touch(res["center"])
-                    sleep(1)
+                    sleep(1, "点击邮箱一键领取")
+                self.logger.info("✅ 领取邮件成功")
+            else:
+                # find_text 在找不到时返回 NullGameElement（falsy）而非抛异常，
+                # 所以必须显式判定，否则失败会被静默当成成功。
+                self.logger.warning("⚠️ 未找到「一键领取」按钮，本次未领取到邮件")
             back_to_main()
-            self.logger.info("✅ 领取邮件成功")
         except Exception as e:
-            self.logger.warning(f"⚠️ 未找到一键领取: {e}")
+            self.logger.warning(f"⚠️ 领取邮件异常: {e}")
             back_to_main()
 
     # 向后兼容的函数名
