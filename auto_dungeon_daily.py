@@ -76,6 +76,30 @@ MAIL_PANEL_WAIT_SECONDS = 2.0
 # 活动面板存在入场渲染延迟，首次找不到「兑换」标签时的等待秒数
 EXCHANGE_TAB_WAIT_SECONDS = 2.0
 
+# 活动主页「每上缴(N/5)次领取一次宝箱」里的上缴进度。
+# 这是页面上唯一能反映「某一次点击是否真的缴上了」的反馈信号
+# （真机 OCR 实测置信度 0.998，括号与 `/5` 都能稳定读出），
+# 因此每次点击后复读它，发现「点了没缴上」就补点。
+DONATE_PROGRESS_PATTERN = re.compile(r"每上缴\s*[（(]\s*(\d+)\s*/\s*(\d+)\s*[)）]")
+
+# 点击上缴后等待页面刷新、再复读进度的秒数
+DONATE_VERIFY_DELAY = 2.0
+
+# 读不到进度文本时的退化上缴次数（与「每日可获得物资x5」对应）
+DONATE_TARGET_TIMES = 5
+
+# 同一次上缴允许的连续无进展补点次数。连续补点仍无进展说明界面
+# 已不是预期的活动主页（弹窗遮挡、页面切换等），继续乱点会点到别处，
+# 因此到此为止并告警，留待下次运行 —— 与兑换流程的保守原则一致。
+DONATE_MAX_STALLS = 3
+
+# 上缴次数上限的合理范围，用于剔除 OCR 把 `/5` 读成离谱数字的情况
+DONATE_REQUIRED_MIN = 1
+DONATE_REQUIRED_MAX = 20
+
+# 找不到「上缴」按钮时的兜底点击坐标（位于上缴按钮中心附近）
+DONATE_FALLBACK_CENTER = (360, 640)
+
 
 @dataclass(frozen=True)
 class EventExchangeItemState:
@@ -347,8 +371,11 @@ class DailyCollectManager:
             return None
         return [[int(point[0]), int(point[1])] for point in bbox]
 
-    def _capture_exchange_screen(self) -> tuple[list[dict[str, Any]], Optional[str]]:
-        """截取当前兑换页并返回 OCR 结果。
+    def _capture_full_ocr(self, prefix: str) -> tuple[list[dict[str, Any]], Optional[str]]:
+        """截取当前屏幕并返回全量 OCR 结果。
+
+        Args:
+            prefix: 临时截图文件名前缀，便于排查时区分来源。
 
         Returns:
             tuple[list[dict[str, Any]], Optional[str]]: OCR 结果及截图路径。
@@ -356,18 +383,26 @@ class DailyCollectManager:
         container = get_container()
         ocr_helper = container.ocr_helper
         if ocr_helper is None:
-            self.logger.warning("⚠️ OCRHelper 未初始化，无法读取兑换页状态")
+            self.logger.warning(f"⚠️ OCRHelper 未初始化，无法读取页面（{prefix}）")
             return [], None
 
         screenshot_path = os.path.join(
             ocr_helper.temp_dir,
-            f"exchange_{uuid.uuid4().hex[:8]}.png",
+            f"{prefix}_{uuid.uuid4().hex[:8]}.png",
         )
         snapshot_func = ocr_helper.snapshot_func or snapshot
         snapshot_func(filename=screenshot_path)
         return ocr_helper.find_all_matching_texts(
             screenshot_path, "", confidence_threshold=0.0
         ), screenshot_path
+
+    def _capture_exchange_screen(self) -> tuple[list[dict[str, Any]], Optional[str]]:
+        """截取当前兑换页并返回 OCR 结果。
+
+        Returns:
+            tuple[list[dict[str, Any]], Optional[str]]: OCR 结果及截图路径。
+        """
+        return self._capture_full_ocr("exchange")
 
     def _cleanup_temp_screenshot(self, screenshot_path: Optional[str]) -> None:
         """清理临时截图文件。
@@ -1061,6 +1096,145 @@ class DailyCollectManager:
             )
         return []
 
+    def _read_donate_progress(self) -> Optional[tuple[int, int]]:
+        """读取活动主页上的上缴进度。
+
+        进度来自「每上缴(N/5)次领取一次宝箱」这行说明文字。用完全匹配的
+        正则提取，不会把「上缴」按钮本身或其它含数字的文案误当成进度。
+
+        Returns:
+            Optional[tuple[int, int]]: `(已上缴次数, 需要上缴次数)`；
+            读不到、或读到的上限不在合理范围内时返回 `None`。
+        """
+        ocr_results, screenshot_path = self._capture_full_ocr("donate")
+        try:
+            for item in ocr_results:
+                text = (item.get("text") or "").strip()
+                match = DONATE_PROGRESS_PATTERN.search(text)
+                if match is None:
+                    continue
+                done_count = int(match.group(1))
+                required_count = int(match.group(2))
+                if not DONATE_REQUIRED_MIN <= required_count <= DONATE_REQUIRED_MAX:
+                    self.logger.warning(
+                        "⚠️ 主题奖励: 上缴次数上限读到 %d，超出合理范围，视为读错",
+                        required_count,
+                    )
+                    return None
+                if done_count > required_count:
+                    self.logger.warning(
+                        "⚠️ 主题奖励: 上缴进度读到 %d/%d，已完成数超过上限，视为读错",
+                        done_count,
+                        required_count,
+                    )
+                    return None
+                return done_count, required_count
+            return None
+        finally:
+            self._cleanup_temp_screenshot(screenshot_path)
+
+    def _donate_event_materials(self, donate_center: tuple[int, int]) -> bool:
+        """连续上缴活动物资，直到进度满额。
+
+        每次点击后复读「每上缴(N/5)次」进度确认这一下是否真的生效：
+        没生效就补点。这样即使某次点击被卡掉（网络抖动、界面还在动画），
+        也能靠补点把次数补齐，不会再出现「点 5 次实际只缴上 3 次」。
+
+        目标次数取页面读到的 `/N`，因此游戏调整每日次数时会自动适配。
+
+        Args:
+            donate_center: 「上缴」按钮中心坐标。
+
+        Returns:
+            bool: 是否确认达到目标上缴次数。
+        """
+        progress = self._read_donate_progress()
+        if progress is None:
+            # 页面上读不到进度就无法确认是否缴上。此时退化为原来的盲点行为
+            # （不比改动前更差），但要告警，避免静默漏缴。
+            self.logger.warning(
+                "⚠️ 主题奖励: 读不到上缴进度，退化为盲点 %d 次，可能漏缴",
+                DONATE_TARGET_TIMES,
+            )
+            for _ in range(DONATE_TARGET_TIMES):
+                touch(donate_center)
+                sleep(CLICK_INTERVAL)
+            return False
+
+        done_count, required_count = progress
+        if done_count >= required_count:
+            self.logger.info(
+                "ℹ️ 主题奖励: 今日上缴已完成 %d/%d，无需再缴",
+                done_count,
+                required_count,
+            )
+            return True
+
+        stalls = 0
+        # 每次成功推进前最多允许 DONATE_MAX_STALLS-1 次失败（再失败就 break），
+        # 因此推进一次最多消耗 DONATE_MAX_STALLS 次点击，乘上剩余次数即为上界。
+        max_attempts = (required_count - done_count) * DONATE_MAX_STALLS
+        attempts = 0
+        while done_count < required_count and attempts < max_attempts:
+            touch(donate_center)
+            attempts += 1
+            sleep(DONATE_VERIFY_DELAY, "等待上缴结果刷新")
+
+            new_progress = self._read_donate_progress()
+            if new_progress is None:
+                # 偶尔是页面还在过渡（飘字动画、刷新未完成），再等一拍复读一次，
+                # 仍读不到才判定界面已不是预期的主页（弹窗遮挡、页面切换等）——
+                # 那种情况下继续点可能点到别处，停止补救留待下次。
+                sleep(DONATE_VERIFY_DELAY, "上缴后未读到进度，再复读一次")
+                new_progress = self._read_donate_progress()
+            if new_progress is None:
+                self.logger.warning(
+                    "⚠️ 主题奖励: 上缴后读不到进度，停止补救（当前 %d/%d）",
+                    done_count,
+                    required_count,
+                )
+                return False
+
+            if new_progress[0] > done_count:
+                done_count = new_progress[0]
+                stalls = 0
+                self.logger.info(
+                    "✅ 主题奖励: 上缴进度 %d/%d",
+                    done_count,
+                    required_count,
+                )
+                continue
+
+            stalls += 1
+            self.logger.warning(
+                "⚠️ 主题奖励: 上缴未生效（仍 %d/%d），补点第 %d 次",
+                done_count,
+                required_count,
+                stalls,
+            )
+            if stalls >= DONATE_MAX_STALLS:
+                self.logger.warning(
+                    "⚠️ 主题奖励: 连续 %d 次补点均未生效，放弃本次上缴",
+                    stalls,
+                )
+                break
+
+        if done_count >= required_count:
+            self.logger.info(
+                "✅ 主题奖励: 上缴完成 %d/%d",
+                done_count,
+                required_count,
+            )
+            return True
+
+        self.logger.warning(
+            "⚠️ 主题奖励: 上缴未完成 %d/%d，共点击 %d 次",
+            done_count,
+            required_count,
+            attempts,
+        )
+        return False
+
     def _claim_event_rewards(self) -> bool:
         """领取各种主题奖励。
 
@@ -1128,16 +1302,13 @@ class DailyCollectManager:
             "🔎 主题奖励: 上缴按钮搜索结果=%s",
             self._summarize_match_result(donate_button),
         )
+        donate_success = False
         if donate_button:
-            self.logger.info("👆 主题奖励: 准备连续点击上缴按钮 5 次")
-            for _ in range(5):
-                touch(donate_button["center"])
-                sleep(CLICK_INTERVAL)
+            self.logger.info("👆 主题奖励: 开始上缴物资（按页面进度补点）")
+            donate_success = self._donate_event_materials(donate_button["center"])
         else:
             self.logger.warning("⚠️ 未找到上缴按钮, fallback to position click")
-            for _ in range(5):
-                touch((360, 640))
-                sleep(CLICK_INTERVAL)
+            donate_success = self._donate_event_materials(DONATE_FALLBACK_CENTER)
 
         bottom_claim_clicked = find_text_and_click_safe(
             "领取",
@@ -1162,11 +1333,12 @@ class DailyCollectManager:
         back_to_main()
         self.logger.info(
             "🧾 主题奖励流程结果: activity_clicked=%s, card_found=%s, "
-            "top_claim_clicked=%s, bottom_claim_clicked=%s, "
+            "top_claim_clicked=%s, donate_ok=%s, bottom_claim_clicked=%s, "
             "exchange_rows=%d, exchange_success=%s",
             activity_clicked,
             bool(res),
             top_claim_clicked,
+            donate_success,
             bottom_claim_clicked,
             len(exchange_tab_states),
             exchange_success,
