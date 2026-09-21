@@ -53,10 +53,16 @@ FIRE_TOWER_BLUE_ITEM_KEY = "blue_second"
 FIRE_TOWER_PURPLE_ROW_INDEX = 0
 FIRE_TOWER_BLUE_ROW_INDEX = 1
 
-# 两行的券价（真机观测值）。仅作为界面一致性告警的参照，
-# 兑换判定一律以页面读到的券数为准。
+# 两行的券价（真机观测值）。除了给界面一致性告警做参照，
+# 它还是**行序的校验位**：行序是定位目标的唯一依据，而 OCR 偶发漏检
+# 会让剩余行重新编号、把靠后的行当成「第 1 行」，此时按券价就能识破。
 FIRE_TOWER_PURPLE_REQUIRED = 40
 FIRE_TOWER_BLUE_REQUIRED = 30
+
+# 兑换页应有的行数（2026-09-18 / 09-21 两次真机实测均为 5 行）。
+# 读到的行数少于它说明 OCR 漏检了行，行序已经不可信 ——
+# 宁可整轮跳过，也不能赌「漏的不是前几行」而换错物品。
+FIRE_TOWER_EXCHANGE_EXPECTED_ROWS = 5
 
 EXCHANGE_PROGRESS_PATTERN = re.compile(r"(\d+)\s*/\s*(\d+)")
 # 严格版：整段文本就是一个 `x/y`，用于排除「剩余次数：13/13」这类干扰项
@@ -69,6 +75,11 @@ EXCHANGE_BUTTON_PROGRESS_MAX_DY = 40
 
 # 点击兑换后等待页面刷新、再复读状态确认券数变化的秒数
 EXCHANGE_VERIFY_DELAY = 1.5
+
+# 兑换/领奖成功后的奖励结算弹窗。它盖在兑换页上，
+# 会让紧接着的复读读到 0 行（明明成功却被判成失败），需要先关掉。
+EXCHANGE_REWARD_POPUP_TITLE = "恭喜获得"
+EXCHANGE_REWARD_POPUP_MAX_CLOSE = 2
 
 # 邮箱面板存在入场渲染延迟，首次找不到「一键领取」时的等待秒数
 MAIL_PANEL_WAIT_SECONDS = 2.0
@@ -99,6 +110,16 @@ DONATE_REQUIRED_MAX = 20
 
 # 找不到「上缴」按钮时的兜底点击坐标（位于上缴按钮中心附近）
 DONATE_FALLBACK_CENTER = (360, 640)
+
+# 「物资宝箱」领取按钮所在的 3x3 区域编号（右下）
+DONATE_CLAIM_REGION = 9
+# 上缴刚满额时宝箱按钮还在刷新，需等待后重试；单次查找超时与最多尝试次数
+DONATE_CLAIM_WAIT_SECONDS = 2.0
+DONATE_CLAIM_TIMEOUT = 3
+DONATE_CLAIM_MAX_ATTEMPTS = 3
+# 标记按钮已不可领取的文字。子串匹配「领取」会命中「已领取」，
+# 必须在点击前排除，否则每天白点一次。
+DONATE_CLAIM_DONE_MARK = "已领取"
 
 
 @dataclass(frozen=True)
@@ -752,10 +773,17 @@ class DailyCollectManager:
         touch(item_state.button_center)
         sleep(CLICK_INTERVAL)
 
-        # 兑换不一定弹确认框，「确定」只做尽力点击，不作为成败依据
-        if find_text_and_click_safe("确定", regions=[5], timeout=3, use_cache=False):
+        # 兑换不一定弹确认框，「确定」只做尽力点击，不作为成败依据。
+        # 必须用 exact：确认框里的提示语是「确定要兑换这件商品吗？」，
+        # 它的前两个字就是「确定」，子串匹配会点中提示语（实测点在 (359,462)）
+        # 而不是下方真正的按钮（(359,830)）—— 结果是确认框一直没关，
+        # 复读页面被它挡住读到 0 行，明明点对了却判定成「兑换未生效」。
+        if find_text_and_click_safe("确定", regions=[5], timeout=3, use_cache=False, exact=True):
             self.logger.info("✅ 兑换项 %s 已点击确认弹窗", item_state.item_key)
             sleep(CLICK_INTERVAL)
+
+        # 兑换成功会弹「恭喜获得」，它同样压住兑换页，先关掉再复读
+        self._dismiss_reward_popup()
 
         verified = self._verify_fire_tower_exchange(item_state)
         if verified is None:
@@ -770,6 +798,40 @@ class DailyCollectManager:
 
         self.logger.info("✅ 兑换项 %s 券数已减少，确认兑换成功", item_state.item_key)
         return True
+
+    def _dismiss_reward_popup(self) -> None:
+        """关掉「恭喜获得」奖励结算弹窗。
+
+        兑换或领宝箱成功后游戏会弹出奖励结算，它整块盖在兑换页上面，
+        导致紧接着的复读读不到任何行 —— 明明兑换成功却被判成
+        「无法确认券数变化，按未成功处理」（2026-09-21 真机实测）。
+
+        仅在确实探测到弹窗标题时才点击，没弹窗时不做任何动作。
+
+        Returns:
+            None.
+        """
+        for _ in range(EXCHANGE_REWARD_POPUP_MAX_CLOSE):
+            popup = find_text(
+                EXCHANGE_REWARD_POPUP_TITLE,
+                regions=[5],
+                use_cache=False,
+                timeout=2,
+                raise_exception=False,
+            )
+            if not popup:
+                return
+            self.logger.info("🎁 检测到奖励弹窗，点击「确定」关闭")
+            # 同样用 exact：弹窗内可能还有「确定要兑换…」之类的长句，
+            # 子串匹配会点错。
+            find_text_and_click_safe(
+                "确定",
+                regions=[5],
+                timeout=2,
+                use_cache=False,
+                exact=True,
+            )
+            sleep(CLICK_INTERVAL)
 
     def _notify_exchange_failure(
         self,
@@ -864,6 +926,23 @@ class DailyCollectManager:
             self._notify_step_failure("exchange_page", "兑换页未读到任何行")
             return False
 
+        if len(states) < FIRE_TOWER_EXCHANGE_EXPECTED_ROWS:
+            # 行序来自「按钮枚举」的序号：漏检任意一行，后面的行都会整体前移，
+            # 「第 1 行」就变成了列表里靠后的行 —— 点下去会换错物品、白耗奖券
+            # （2026-09-21 真机实测：漏检前 3 行后只读到 2 行，「第 1 行」实为
+            # 列表第 4 行）。行数不足就整轮跳过，留到下次。
+            self.logger.warning(
+                "⚠️ 兑换页只读到 %d 行（应有 %d 行），疑似 OCR 漏检导致行序错位，本次跳过兑换",
+                len(states),
+                FIRE_TOWER_EXCHANGE_EXPECTED_ROWS,
+            )
+            self._notify_step_failure(
+                "exchange_incomplete_rows",
+                f"兑换页只读到 {len(states)} 行（应有 {FIRE_TOWER_EXCHANGE_EXPECTED_ROWS} 行），"
+                "疑似 OCR 漏检导致行序错位，已跳过兑换避免换错",
+            )
+            return False
+
         purple_completed = bool(
             self.db
             and self.db.is_event_item_completed(
@@ -882,6 +961,24 @@ class DailyCollectManager:
                 self.logger.warning(
                     "⚠️ 兑换页未读到第 %d 行（紫色目标），本次跳过兑换",
                     FIRE_TOWER_PURPLE_ROW_INDEX + 1,
+                )
+                return False
+            if purple_state.required_tickets != FIRE_TOWER_PURPLE_REQUIRED:
+                # 行序是定位目标的唯一依据，而 OCR 偶发漏检几行时，剩下的行会
+                # 重新编号 —— 「第 1 行」就变成了列表里靠后的那一行，此时点击
+                # 会换错物品、白耗奖券（2026-09-21 真机出现过只读到 2 行、
+                # 「第 1 行」实为列表第 4 行的情况）。券价就是行序的校验位，
+                # 对不上说明看到的不是真正的第 1 行，宁可留到下次。
+                self.logger.warning(
+                    "⚠️ 兑换页第 %d 行券价读到 %d（期望 %d），疑似行序错位，本次跳过兑换",
+                    FIRE_TOWER_PURPLE_ROW_INDEX + 1,
+                    purple_state.required_tickets,
+                    FIRE_TOWER_PURPLE_REQUIRED,
+                )
+                self._notify_step_failure(
+                    "exchange_row_order",
+                    f"兑换页疑似行序错位：第 1 行券价读到 {purple_state.required_tickets}"
+                    f"（期望 {FIRE_TOWER_PURPLE_REQUIRED}），已跳过兑换避免换错",
                 )
                 return False
             if not self._can_redeem_fire_tower_item(purple_state):
@@ -919,6 +1016,20 @@ class DailyCollectManager:
             self.logger.info(
                 "ℹ️ 兑换页未读到第 %d 行（蓝色目标），本次跳过",
                 FIRE_TOWER_BLUE_ROW_INDEX + 1,
+            )
+            return redeemed_any
+        if blue_state.required_tickets != FIRE_TOWER_BLUE_REQUIRED:
+            # 同紫色目标：券价对不上说明行序错位，跳过而不是冒险点。
+            self.logger.warning(
+                "⚠️ 兑换页第 %d 行券价读到 %d（期望 %d），疑似行序错位，跳过蓝色兑换",
+                FIRE_TOWER_BLUE_ROW_INDEX + 1,
+                blue_state.required_tickets,
+                FIRE_TOWER_BLUE_REQUIRED,
+            )
+            self._notify_step_failure(
+                "exchange_row_order_blue",
+                f"兑换页疑似行序错位：第 2 行券价读到 {blue_state.required_tickets}"
+                f"（期望 {FIRE_TOWER_BLUE_REQUIRED}），已跳过兑换避免换错",
             )
             return redeemed_any
         if not self._can_redeem_fire_tower_item(blue_state):
@@ -1251,6 +1362,64 @@ class DailyCollectManager:
         )
         return False
 
+    def _claim_event_chest_reward(self) -> Any:
+        """领取上缴满额后的「物资宝箱」奖励。
+
+        按钮文字会带上待领数量（实测「领取(1)」），因此**不能**用
+        ``exact=True`` 精确匹配「领取」——那会漏掉带计数的形态，表现为
+        上缴满 5 次后宝箱一直没被领走（2026-09-21 实测因此漏领 10 张券）。
+
+        改用子串匹配后必须排除「已领取」，否则会命中海盗物资那行的
+        已领取状态，每天白点一次。
+
+        另外上缴进度刚满额时按钮还在渲染，只查一次会稳定失败，
+        因此等待后重试若干次。
+
+        Returns:
+            Any: 命中并点击的元素；若为「已领取」则直接返回该元素
+            （表示无需再点）；始终未出现时返回 ``False``。
+        """
+        for attempt in range(1, DONATE_CLAIM_MAX_ATTEMPTS + 1):
+            element = find_text(
+                "领取",
+                regions=[DONATE_CLAIM_REGION],
+                exact=False,
+                use_cache=False,
+                timeout=DONATE_CLAIM_TIMEOUT,
+                raise_exception=False,
+            )
+            if element:
+                text = element.text or ""
+                if DONATE_CLAIM_DONE_MARK in text:
+                    self.logger.info(
+                        "ℹ️ 主题奖励: 物资宝箱已领取（按钮文字=%s），无需再点",
+                        text,
+                    )
+                    return element
+                self.logger.info(
+                    "✅ 主题奖励: 点击物资宝箱「%s」（第 %d 次尝试）",
+                    text,
+                    attempt,
+                )
+                touch(element["center"])
+                sleep(CLICK_INTERVAL)
+                # 领取成功会弹「恭喜获得」，它压住活动面板、后面的
+                # 兑换页读取会读到 0 行，这里顺手关掉。
+                self._dismiss_reward_popup()
+                return element
+
+            if attempt < DONATE_CLAIM_MAX_ATTEMPTS:
+                self.logger.info(
+                    "⏳ 主题奖励: 未读到物资宝箱「领取」按钮，等待 %.1f 秒后重试（%d/%d）",
+                    DONATE_CLAIM_WAIT_SECONDS,
+                    attempt,
+                    DONATE_CLAIM_MAX_ATTEMPTS,
+                )
+                sleep(DONATE_CLAIM_WAIT_SECONDS, "等待物资宝箱按钮渲染")
+
+        self.logger.warning("⚠️ 主题奖励: 未读到物资宝箱「领取」按钮，本次未领取")
+        return False
+
     def _claim_event_rewards(self) -> bool:
         """领取各种主题奖励。
 
@@ -1326,13 +1495,7 @@ class DailyCollectManager:
             self.logger.warning("⚠️ 未找到上缴按钮, fallback to position click")
             donate_success = self._donate_event_materials(DONATE_FALLBACK_CENTER)
 
-        bottom_claim_clicked = find_text_and_click_safe(
-            "领取",
-            regions=[9],
-            timeout=3,
-            use_cache=False,
-            exact=True,
-        )
+        bottom_claim_clicked = self._claim_event_chest_reward()
         self.logger.info("🔎 主题奖励: 底部领取按钮点击结果=%s", bottom_claim_clicked)
 
         exchange_tab_states = self._open_exchange_tab()

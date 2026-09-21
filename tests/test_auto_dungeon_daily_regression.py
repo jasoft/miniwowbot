@@ -144,7 +144,9 @@ def test_execute_daily_collect_incomplete_run_does_not_mark_finished(monkeypatch
     fake_manager.collect_daily_rewards.return_value = False
 
     monkeypatch.setattr("database.DungeonProgressDB", lambda config_name: fake_db)
-    monkeypatch.setattr(auto_dungeon_daily, "DailyCollectManager", lambda *args, **kwargs: fake_manager)
+    monkeypatch.setattr(
+        auto_dungeon_daily, "DailyCollectManager", lambda *args, **kwargs: fake_manager
+    )
 
     assert auto_dungeon_daily.execute_daily_collect() is False
     fake_db.mark_daily_collect_completed.assert_not_called()
@@ -250,6 +252,37 @@ def _make_exchange_state(
     )
 
 
+# 真机实测的券价布局：行0=40(紫)、行1=30(蓝)、行2=30、行3=20、行4=50
+_EXCHANGE_LAYOUT_TAIL: tuple[int, ...] = (30, 20, 50)
+
+
+def _pad_exchange_states(states):
+    """把行状态补足到真机布局的 5 行。
+
+    兑换流程会校验「读到的行数 == 页面实际行数」，行数不足会被判成
+    OCR 漏检导致行序错位、整轮跳过。所以夹具不能只给前两行。
+    补齐的行券价取真机观测值，且不会被当作兑换目标。
+
+    Args:
+        states: 至少要包含行序 0 与 1 的行状态。
+
+    Returns:
+        list[EventExchangeItemState]: 补齐到 5 行的行状态。
+    """
+    padded = list(states)
+    for index in range(len(padded), 5):
+        padded.append(
+            _make_exchange_state(
+                item_key=f"row_{index}",
+                row_index=index,
+                required_tickets=_EXCHANGE_LAYOUT_TAIL[index - 2],
+                current_tickets=0,
+                button_center=(300, 400 + 120 * index),
+            )
+        )
+    return padded
+
+
 def test_redeem_fire_tower_ticket_items_buys_purple_item_first(monkeypatch) -> None:
     """第一件可买时，应优先兑换紫色物品。"""
     fake_db = MagicMock()
@@ -262,22 +295,24 @@ def test_redeem_fire_tower_ticket_items_buys_purple_item_first(monkeypatch) -> N
     monkeypatch.setattr(
         manager,
         "_load_fire_tower_exchange_states",
-        lambda: [
-            _make_exchange_state(
-                item_key="purple_first",
-                row_index=0,
-                required_tickets=40,
-                current_tickets=40,
-                button_center=(300, 400),
-            ),
-            _make_exchange_state(
-                item_key="blue_second",
-                row_index=1,
-                required_tickets=30,
-                current_tickets=20,
-                button_center=(300, 520),
-            ),
-        ],
+        lambda: _pad_exchange_states(
+            [
+                _make_exchange_state(
+                    item_key="purple_first",
+                    row_index=0,
+                    required_tickets=40,
+                    current_tickets=40,
+                    button_center=(300, 400),
+                ),
+                _make_exchange_state(
+                    item_key="blue_second",
+                    row_index=1,
+                    required_tickets=30,
+                    current_tickets=20,
+                    button_center=(300, 520),
+                ),
+            ]
+        ),
     )
 
     bought_items = []
@@ -307,22 +342,24 @@ def test_redeem_fire_tower_ticket_items_buys_blue_after_purple_completed(
     monkeypatch.setattr(
         manager,
         "_load_fire_tower_exchange_states",
-        lambda: [
-            _make_exchange_state(
-                item_key="purple_first",
-                row_index=0,
-                required_tickets=40,
-                current_tickets=0,
-                button_center=(300, 400),
-            ),
-            _make_exchange_state(
-                item_key="blue_second",
-                row_index=1,
-                required_tickets=30,
-                current_tickets=30,
-                button_center=(300, 520),
-            ),
-        ],
+        lambda: _pad_exchange_states(
+            [
+                _make_exchange_state(
+                    item_key="purple_first",
+                    row_index=0,
+                    required_tickets=40,
+                    current_tickets=0,
+                    button_center=(300, 400),
+                ),
+                _make_exchange_state(
+                    item_key="blue_second",
+                    row_index=1,
+                    required_tickets=30,
+                    current_tickets=30,
+                    button_center=(300, 520),
+                ),
+            ]
+        ),
     )
 
     bought_items = []

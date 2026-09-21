@@ -37,7 +37,8 @@ class FakeExchangePage:
     Attributes:
         balance: 当前奖券余额（页面上每一行显示的都是这个余额）。
         visible: 页面上各行的券价，顺序即行序；兑换不会改变它。
-        hidden_rows: 模拟 OCR 没读到某些行（行序保留，只是本次不可见）。
+        hidden_rows: 模拟 OCR 没读到某些行。注意剩下的行会**重新编号**
+            （与真实实现一致），因此漏检前几行会让「第 1 行」指向靠后的商品。
         redeemed_rows: 本次流程里成功兑换的行，元素为 (行序, 券价)。
     """
 
@@ -53,18 +54,33 @@ class FakeExchangePage:
         self.redeemed_rows: list[tuple[int, int]] = []
 
     def snapshot(self) -> list[auto_dungeon_daily.EventExchangeItemState]:
-        """按当前页面状态生成行状态列表（行序即列表下标，读数失败的行略过）。"""
-        return [
-            auto_dungeon_daily.EventExchangeItemState(
-                row_index=index,
-                item_key=auto_dungeon_daily.DailyCollectManager._resolve_fire_tower_item_key(index),
-                required_tickets=required,
-                current_tickets=self.balance,
-                button_center=(530, 386 + 123 * index),
-                is_affordable_by_color=None,
-            )
+        """按当前页面状态生成行状态列表。
+
+        行序取自**按钮枚举**：真实实现是对读到的按钮逐个 `enumerate` 编号，
+        所以漏检前几行会让剩下的行整体前移（`row_index` 被重新编号），
+        而按钮坐标仍是该行在页面上的真实位置。这一点必须如实模拟，
+        否则「漏检导致行序错位」这类最危险的情形永远测不出来。
+
+        Returns:
+            list[EventExchangeItemState]: 页面上从上到下的行状态。
+        """
+        visible = [
+            (index, required)
             for index, required in enumerate(self.visible)
             if index not in self.hidden_rows
+        ]
+        return [
+            auto_dungeon_daily.EventExchangeItemState(
+                row_index=new_index,
+                item_key=auto_dungeon_daily.DailyCollectManager._resolve_fire_tower_item_key(
+                    new_index
+                ),
+                required_tickets=required,
+                current_tickets=self.balance,
+                button_center=(530, 386 + 123 * original_index),
+                is_affordable_by_color=None,
+            )
+            for new_index, (original_index, required) in enumerate(visible)
         ]
 
     def redeem_at(self, row_index: int) -> bool:
@@ -123,6 +139,13 @@ def _attach_page(monkeypatch, manager, page: FakeExchangePage) -> None:
     )
     # 跳过等待，测试不必真的睡
     monkeypatch.setattr(auto_dungeon_daily, "sleep", lambda *args, **kwargs: None)
+    # 告警默认丢弃：它会走 Pushover 真链路，测试里不允许真的发出去。
+    # 需要断言告警的用例在这个打桩之后再覆盖一次即可。
+    monkeypatch.setattr(
+        manager,
+        "_notify_step_failure",
+        lambda *args, **kwargs: None,
+    )
 
 
 def _build_manager(monkeypatch, page: FakeExchangePage, completed: set[str]):
@@ -265,22 +288,18 @@ def test_row_layout_unchanged_after_purple_redeemed(monkeypatch) -> None:
     assert page.redeemed_rows == [(0, 40), (1, 30)]
 
 
-def test_redeem_blue_when_purple_row_unreadable(monkeypatch) -> None:
-    """紫色已换过、第 1 行恰好没读到 OCR 时，第 2 行仍要能换到。"""
-    page = FakeExchangePage(balance=30, hidden_rows={0})
-    completed = {PURPLE}
-    manager = _build_manager(monkeypatch, page, completed)
-
-    assert manager._redeem_fire_tower_ticket_items() is True
-
-    # 行序由按钮枚举决定，第 1 行读不到不影响第 2 行仍是行序 1
-    assert page.redeemed_rows == [(1, 30)]
-    assert page.balance == 0
+# --------------------------------------------------------------------------
+# 行序完整性：OCR 漏检行时必须整轮放弃（宁可留到下次，也不能换错）
+# --------------------------------------------------------------------------
+# 行序是定位目标的唯一依据，而它来自「按钮枚举」的序号。漏检任意一行，
+# 后面的行都会整体前移、被当成更靠前的目标行。2026-09-21 真机实测过一次：
+# 漏检前 3 行后只读到 2 行，「第 1 行」实际是列表第 4 行（券价 20）。
 
 
-def test_skip_when_purple_row_unreadable_and_not_redeemed(monkeypatch) -> None:
-    """紫色未换过却读不到第 1 行时保守放弃：行序映射可能不完整，乱点会换错行。"""
-    page = FakeExchangePage(balance=70, hidden_rows={0})
+@pytest.mark.parametrize("hidden", [{0}, {1}, {0, 1, 2}, {3}, {4}])
+def test_skip_all_when_rows_are_incomplete(monkeypatch, hidden) -> None:
+    """读到的行数少于页面应有行数时整轮跳过，绝不冒险点击。"""
+    page = FakeExchangePage(balance=70, hidden_rows=hidden)
     completed: set[str] = set()
     manager = _build_manager(monkeypatch, page, completed)
 
@@ -288,19 +307,57 @@ def test_skip_when_purple_row_unreadable_and_not_redeemed(monkeypatch) -> None:
 
     assert page.redeemed_rows == []
     assert page.balance == 70
+    assert completed == set()
 
 
-def test_hidden_second_row_does_not_shift_purple(monkeypatch) -> None:
-    """第 2 行读不到时只跳过蓝色，紫色照常按行序 0 兑换。"""
-    page = FakeExchangePage(balance=70, hidden_rows={1})
-    completed: set[str] = set()
+def test_incomplete_rows_triggers_alert(monkeypatch) -> None:
+    """行数不足属于必须人工确认的异常，要告警。"""
+    page = FakeExchangePage(balance=70, hidden_rows={0, 1, 2})
+    manager = _build_manager(monkeypatch, page, set())
+    alerts: list[str] = []
+    monkeypatch.setattr(
+        manager,
+        "_notify_step_failure",
+        lambda step, raw: alerts.append(step),
+    )
+
+    assert manager._redeem_fire_tower_ticket_items() is False
+
+    assert alerts == ["exchange_incomplete_rows"]
+
+
+def test_skip_blue_when_order_shifted_even_if_purple_done(monkeypatch) -> None:
+    """紫色已换过时也不能省掉行序校验：漏检同样会让蓝色指向别的行。"""
+    page = FakeExchangePage(balance=30, hidden_rows={0, 1, 2})
+    completed = {PURPLE}
     manager = _build_manager(monkeypatch, page, completed)
 
-    assert manager._redeem_fire_tower_ticket_items() is True
+    assert manager._redeem_fire_tower_ticket_items() is False
 
-    assert page.redeemed_rows == [(0, 40)]
+    assert page.redeemed_rows == []
     assert page.balance == 30
-    assert completed == {PURPLE}
+
+
+def test_skip_when_purple_row_price_is_not_40(monkeypatch) -> None:
+    """行数够但第 1 行券价不是 40 时，说明行序已变，跳过而不是冒险点。"""
+    page = FakeExchangePage(balance=70, visible=(30, 40, 30, 20, 50))
+    manager = _build_manager(monkeypatch, page, set())
+
+    assert manager._redeem_fire_tower_ticket_items() is False
+
+    assert page.redeemed_rows == []
+    assert page.balance == 70
+
+
+def test_skip_blue_when_blue_row_price_is_not_30(monkeypatch) -> None:
+    """第 2 行券价不是 30 时跳过蓝色兑换，券一分不动。"""
+    page = FakeExchangePage(balance=70, visible=(40, 20, 30, 20, 50))
+    manager = _build_manager(monkeypatch, page, {PURPLE})
+
+    assert manager._redeem_fire_tower_ticket_items() is False
+
+    assert page.redeemed_rows == []
+    assert page.balance == 70
 
 
 # --------------------------------------------------------------------------

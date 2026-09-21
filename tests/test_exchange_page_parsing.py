@@ -84,6 +84,36 @@ def _make_state(
     )
 
 
+# 真机实测的券价布局：行0=40(紫)、行1=30(蓝)、行2=30、行3=20、行4=50
+_LAYOUT_TAIL: tuple[int, ...] = (30, 20, 50)
+
+
+def _pad_states(states):
+    """把行状态补足到真机布局的 5 行。
+
+    兑换流程会校验「读到的行数 == 页面实际行数」，行数不足会被判成
+    OCR 漏检导致行序错位、整轮跳过，所以夹具不能只给前两行。
+    补齐的行券价取真机观测值，余额给 0 因而不会成为兑换目标。
+
+    Args:
+        states: 至少要包含行序 0 与 1 的行状态。
+
+    Returns:
+        list[EventExchangeItemState]: 补齐到 5 行的行状态。
+    """
+    padded = list(states)
+    for index in range(len(padded), 5):
+        padded.append(
+            _make_state(
+                row_index=index,
+                required_tickets=_LAYOUT_TAIL[index - 2],
+                current_tickets=0,
+                button_center=(300, 400 + 120 * index),
+            )
+        )
+    return padded
+
+
 def test_load_states_parses_every_row_with_button(monkeypatch) -> None:
     """真机布局下每一行都要解析出券价与按钮坐标。"""
     manager = _build_manager(monkeypatch, REAL_EXCHANGE_OCR)
@@ -364,10 +394,12 @@ def test_redeem_uses_passed_states_without_reloading(monkeypatch) -> None:
         "_attempt_fire_tower_item_exchange",
         lambda state: attempted.append(state.row_index) or True,
     )
-    states = [
-        _make_state(row_index=0, required_tickets=40, current_tickets=0),
-        _make_state(row_index=1, required_tickets=30, current_tickets=30),
-    ]
+    states = _pad_states(
+        [
+            _make_state(row_index=0, required_tickets=40, current_tickets=0),
+            _make_state(row_index=1, required_tickets=30, current_tickets=30),
+        ]
+    )
 
     assert manager._redeem_fire_tower_ticket_items(states) is True
 
@@ -546,16 +578,20 @@ def test_redeem_buys_purple_then_blue_in_row_order(monkeypatch) -> None:
         db=fake_db,
     )
 
-    before = [
-        _make_state(row_index=0, required_tickets=40, current_tickets=40),
-        _make_state(row_index=1, required_tickets=30, current_tickets=30),
-        _make_state(row_index=2, required_tickets=30, current_tickets=30),
-    ]
-    after = [
-        _make_state(row_index=0, required_tickets=40, current_tickets=0),
-        _make_state(row_index=1, required_tickets=30, current_tickets=30),
-        _make_state(row_index=2, required_tickets=30, current_tickets=30),
-    ]
+    before = _pad_states(
+        [
+            _make_state(row_index=0, required_tickets=40, current_tickets=40),
+            _make_state(row_index=1, required_tickets=30, current_tickets=30),
+            _make_state(row_index=2, required_tickets=30, current_tickets=30),
+        ]
+    )
+    after = _pad_states(
+        [
+            _make_state(row_index=0, required_tickets=40, current_tickets=0),
+            _make_state(row_index=1, required_tickets=30, current_tickets=30),
+            _make_state(row_index=2, required_tickets=30, current_tickets=30),
+        ]
+    )
     responses = iter([before, after])
     monkeypatch.setattr(
         manager,
@@ -593,12 +629,17 @@ def test_redeem_skips_already_bought_purple(monkeypatch) -> None:
     monkeypatch.setattr(
         manager,
         "_load_fire_tower_exchange_states",
-        lambda: [
-            _make_state(row_index=0, required_tickets=40, current_tickets=0),
-            _make_state(
-                row_index=1, required_tickets=30, current_tickets=30, item_key="blue_second"
-            ),
-        ],
+        lambda: _pad_states(
+            [
+                _make_state(row_index=0, required_tickets=40, current_tickets=0),
+                _make_state(
+                    row_index=1,
+                    required_tickets=30,
+                    current_tickets=30,
+                    item_key="blue_second",
+                ),
+            ]
+        ),
     )
     attempted: list[int] = []
     monkeypatch.setattr(
