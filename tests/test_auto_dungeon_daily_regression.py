@@ -112,6 +112,13 @@ def test_execute_task_event_rewards_missing_entry_does_not_mark_step(monkeypatch
         config_loader=MagicMock(),
         db=fake_db,
     )
+    # 步骤失败会走告警分支，必须打桩 —— 漏打桩会把假告警真的推给大王。
+    alerts: list[str] = []
+    monkeypatch.setattr(
+        manager,
+        "_notify_step_failure",
+        lambda step_name, raw_result: alerts.append(step_name),
+    )
 
     monkeypatch.setattr(auto_dungeon_daily, "back_to_main", lambda: None)
     monkeypatch.setattr(auto_dungeon_daily, "find_text_and_click", lambda *args, **kwargs: True)
@@ -119,6 +126,7 @@ def test_execute_task_event_rewards_missing_entry_does_not_mark_step(monkeypatch
 
     assert manager.execute_task("领取主题奖励") is False
     fake_db.mark_daily_step_completed.assert_not_called()
+    assert alerts == ["small_cookie"]
 
 
 def test_execute_daily_collect_incomplete_run_does_not_mark_finished(monkeypatch) -> None:

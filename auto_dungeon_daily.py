@@ -287,6 +287,22 @@ class DailyCollectManager:
         """
         return os.path.join(os.getcwd(), "log", "notify_state", f"{today}_{step_name}.flag")
 
+    def _resolve_notice_date(self) -> str:
+        """返回告警去重用的逻辑日期（``YYYY-MM-DD``）。
+
+        这里必须自己校验一遍再用：``db`` 在测试里常被换成替身对象，
+        ``get_today_date()`` 会返回一个非字符串，拼进文件名后带 ``<>`` 等
+        非法字符，在 Windows 上写标记直接失败。而去重标记写不进去，
+        告警就会在每轮重试时反复推送。
+
+        Returns:
+            str: ``YYYY-MM-DD`` 格式的日期；读取异常时退回系统当天。
+        """
+        candidate = self.db.get_today_date() if self.db else None
+        if isinstance(candidate, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", candidate):
+            return candidate
+        return datetime.now().strftime("%Y-%m-%d")
+
     def _notify_step_failure(self, step_name: str, raw_result: Any) -> None:
         """每日任务未完成时发送告警（Pushover），并附带现场截图。
 
@@ -298,7 +314,7 @@ class DailyCollectManager:
             step_name: 步骤标识。
             raw_result: 步骤函数的原始返回值，用于区分“显式失败”与“未声明成功”。
         """
-        today = self.db.get_today_date() if self.db else datetime.now().strftime("%Y-%m-%d")
+        today = self._resolve_notice_date()
         marker = self._failure_notice_marker(step_name, today)
         if os.path.exists(marker):
             self.logger.info(f"🔕 步骤 {step_name} 今日已告警过，跳过重复通知")

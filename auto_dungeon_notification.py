@@ -6,6 +6,7 @@ auto_dungeon 通知模块
 """
 
 import logging
+import os
 import urllib.parse
 from typing import Any, Dict, Optional
 
@@ -146,6 +147,14 @@ def send_pushover_notification(
         是否发送成功
     """
     from pushover_complete import PushoverAPI
+
+    # 兜底防线：pytest 运行期绝不允许把通知推到大王手机上。
+    # 2026-09-21 有测试漏打桩，把一条「券已够（40/40）但兑换未生效」的假告警
+    # 真的推了出去，害得大王去查一个根本不存在的兑换故障。
+    # 正常业务代码不会带 PYTEST_CURRENT_TEST，所以这条对线上零影响。
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        logger.warning(f"🧪 pytest 运行期，跳过真实 Pushover 通知: {title}")
+        return False
 
     config = _get_pushover_config()
     if config is None:

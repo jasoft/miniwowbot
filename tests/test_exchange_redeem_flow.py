@@ -313,6 +313,14 @@ def test_not_marked_completed_when_balance_unchanged(monkeypatch) -> None:
     page = FakeExchangePage(balance=40)
     completed: set[str] = set()
     manager = _build_manager(monkeypatch, page, completed)
+    # 券已够却没换成 → 会走告警分支，必须打桩：
+    # 曾经因为漏打桩，测试环境真的把「券已够（40/40）但兑换未生效」推给了大王。
+    alerts: list[str] = []
+    monkeypatch.setattr(
+        manager,
+        "_notify_step_failure",
+        lambda step_name, raw_result: alerts.append(step_name),
+    )
     # 点击落在按钮之外，模拟点击无效
     monkeypatch.setattr(
         auto_dungeon_daily,
@@ -323,6 +331,7 @@ def test_not_marked_completed_when_balance_unchanged(monkeypatch) -> None:
     assert manager._redeem_fire_tower_ticket_items() is False
 
     assert completed == set()
+    assert alerts == [f"exchange_{PURPLE}"]
 
 
 def test_not_marked_completed_when_page_unreadable(monkeypatch) -> None:
@@ -330,6 +339,12 @@ def test_not_marked_completed_when_page_unreadable(monkeypatch) -> None:
     page = FakeExchangePage(balance=40)
     completed: set[str] = set()
     manager = _build_manager(monkeypatch, page, completed)
+    alerts: list[str] = []
+    monkeypatch.setattr(
+        manager,
+        "_notify_step_failure",
+        lambda step_name, raw_result: alerts.append(step_name),
+    )
     monkeypatch.setattr(
         auto_dungeon_daily,
         "touch",
@@ -354,6 +369,7 @@ def test_not_marked_completed_when_page_unreadable(monkeypatch) -> None:
     assert manager._redeem_fire_tower_ticket_items() is False
 
     assert completed == set()
+    assert alerts == [f"exchange_{PURPLE}"]
 
 
 # --------------------------------------------------------------------------
