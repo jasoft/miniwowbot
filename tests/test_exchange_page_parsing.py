@@ -493,7 +493,12 @@ def test_attempt_exchange_returns_true_when_verified(monkeypatch) -> None:
 
 
 def test_redeem_returns_false_when_purple_row_unreadable(monkeypatch) -> None:
-    """第 1 行读不到时无法确认行序映射完整，保守跳过、不写库。"""
+    """第 1 行读不到时不写库、不兑换。
+
+    注：自从加入「行数必须等于 5」的完整性闸门后，这一场景会先被闸门拦下
+    （券价是行序的校验位，行数不足就无法确认映射），因此这里断言的是
+    闸门告警 —— 但「返回 False 且不动数据库」的结论不变。
+    """
     fake_db = MagicMock()
     fake_db.is_event_item_completed.return_value = False
     fake_db.get_event_cycle_id.return_value = "cycle-1"
@@ -506,13 +511,24 @@ def test_redeem_returns_false_when_purple_row_unreadable(monkeypatch) -> None:
         "_load_fire_tower_exchange_states",
         lambda: [_make_state(row_index=1, required_tickets=30, current_tickets=30)],
     )
+    alerts: list[str] = []
+    monkeypatch.setattr(
+        manager,
+        "_notify_step_failure",
+        lambda step_name, raw_result: alerts.append(step_name),
+    )
 
     assert manager._redeem_fire_tower_ticket_items() is False
     fake_db.mark_event_item_completed.assert_not_called()
+    assert alerts == ["exchange_incomplete_rows"]
 
 
-def test_redeem_skips_blue_when_second_row_unreadable(monkeypatch) -> None:
-    """紫色已换、第 2 行读不到时只跳过蓝色，不影响已完成的紫色。"""
+def test_redeem_skips_whole_round_when_blue_row_unreadable(monkeypatch) -> None:
+    """紫色已完成、但行集不完整时，整轮跳过（蓝色也不会被兑换）。
+
+    原用例名是「第 2 行读不到时只跳过蓝色」—— 那是加完整性闸门**之前**的语义。
+    现在行数不足会先被闸门拦下，整轮都不动，所以断言改为「一个都没换 + 有告警」。
+    """
     fake_db = MagicMock()
     fake_db.is_event_item_completed.side_effect = (
         lambda event_name, item_key, cycle_id=None: item_key
@@ -534,9 +550,16 @@ def test_redeem_skips_blue_when_second_row_unreadable(monkeypatch) -> None:
         "_attempt_fire_tower_item_exchange",
         lambda state: attempted.append(state.row_index) or True,
     )
+    alerts: list[str] = []
+    monkeypatch.setattr(
+        manager,
+        "_notify_step_failure",
+        lambda step_name, raw_result: alerts.append(step_name),
+    )
 
     assert manager._redeem_fire_tower_ticket_items() is False
     assert attempted == []
+    assert alerts == ["exchange_incomplete_rows"]
 
 
 def test_redeem_stops_when_purple_unaffordable(monkeypatch) -> None:
@@ -551,10 +574,12 @@ def test_redeem_stops_when_purple_unaffordable(monkeypatch) -> None:
     monkeypatch.setattr(
         manager,
         "_load_fire_tower_exchange_states",
-        lambda: [
-            _make_state(row_index=0, required_tickets=40, current_tickets=10),
-            _make_state(row_index=1, required_tickets=30, current_tickets=10),
-        ],
+        lambda: _pad_states(
+            [
+                _make_state(row_index=0, required_tickets=40, current_tickets=10),
+                _make_state(row_index=1, required_tickets=30, current_tickets=10),
+            ]
+        ),
     )
     attempted: list[int] = []
     monkeypatch.setattr(

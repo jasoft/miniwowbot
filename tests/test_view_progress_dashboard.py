@@ -102,6 +102,19 @@ def test_fetch_today_records_and_zone_stats(temp_db_path):
 
 
 def test_build_config_progress_matches_completion_flags(temp_db_path, temp_config_dir):
+    """面板统计：只计选中副本，且把「额外完成」也并入 planned。
+
+    注：期望值是 **3/3** 而不是 2/2 —— ``b9eafc8``（2026-02-22
+    "Unify stats logic"）起，``build_config_progress`` 会把配置里没有、
+    但当天确实完成的记录（例如每日任务、临时打的副本）作为
+    "extra completions" **并入 planned/completed**，让面板口径与 API Server
+    统一。那次改动没同步本测试，导致用例长期失败。
+
+    所以这里：
+    - 计划内 2 项（风暴群岛「真理之地」+ 军团领域「梦魇丛林」）全部完成；
+    - 额外 1 项（未知区域「隐藏副本」）也计入 → 3/3；
+    - ``extra_completions`` 仍如实列出那 1 项额外的。
+    """
     _mark_completed(temp_db_path, "alpha", "风暴群岛", "真理之地")
     _mark_completed(temp_db_path, "alpha", "军团领域", "梦魇丛林")
     _mark_completed(temp_db_path, "alpha", "未知区域", "隐藏副本")
@@ -112,14 +125,17 @@ def test_build_config_progress_matches_completion_flags(temp_db_path, temp_confi
 
     progress = build_config_progress(configs, records)
     alpha_data = next(item for item in progress if item["config_name"] == "alpha")
-    assert alpha_data["total_planned"] == 2  # 只统计选中的副本
-    assert alpha_data["completed_planned"] == 2
+    expected_planned = 3  # 2 个选中副本 + 1 个额外完成（并入统计）
+    assert alpha_data["total_planned"] == expected_planned
+    assert alpha_data["completed_planned"] == expected_planned
     assert len(alpha_data["extra_completions"]) == 1
 
     zones = {zone["zone_name"]: zone for zone in alpha_data["zones"]}
     assert "风暴群岛" in zones
     assert len(zones["风暴群岛"]["dungeons"]) == 1  # 未勾选的副本不会展示
     assert zones["风暴群岛"]["dungeons"][0]["name"] == "真理之地"
+    # 额外完成也会作为独立区域出现在面板上
+    assert "未知区域" in zones
 
 
 def test_compute_recent_totals_counts_each_day(temp_db_path):

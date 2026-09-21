@@ -242,8 +242,11 @@ def find_all_matching_prices(price_threshold: int) -> list:
         # 清理临时截图
         try:
             os.remove(screenshot_path)
-        except Exception:
-            pass
+        except Exception as exc:
+            # 删不掉会留下垃圾文件，说清原因便于人工清理
+            logger.warning(
+                f"   ⚠️ 清理临时截图失败: {type(exc).__name__}: {exc} ({screenshot_path})"
+            )
 
         logger.info("\n" + "=" * 80)
         logger.info(f"📊 找到 {len(matching_results)} 个符合条件的商品")

@@ -247,13 +247,21 @@ class EmulatorConnectionManager:
             return False
 
     def _normalize_emulator(self, name: str) -> str:
-        """规范化模拟器地址"""
+        """规范化模拟器地址。
+
+        注：原先这里包了一层 ``try/except: pass``，但 ``str.split("/")[-1]``
+        不可能抛异常 —— 那是「为想象中的场景写防御」的典型写法，还会顺手
+        吞掉真实错误。按项目约定（见技能 ``pitfalls.md`` E2）直接去掉。
+
+        Args:
+            name: 原始模拟器地址，如 ``android:///192.168.1.150:5555``。
+
+        Returns:
+            str: 去掉 ``android://`` 前缀后的地址。
+        """
         name = str(name).strip()
         if name.lower().startswith("android://"):
-            try:
-                return name.split("/")[-1].strip()
-            except Exception:
-                pass
+            return name.split("/")[-1].strip()
         return name
 
     def get_emulator_connection_string(

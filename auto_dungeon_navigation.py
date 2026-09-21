@@ -34,20 +34,87 @@ from coordinates import (
 
 logger = logging.getLogger(__name__)
 
+#: 最近一次截图失败的原因，供通知正文引用（``None`` 表示最近一次成功）
+_last_screenshot_error: str | None = None
+
+
+def get_last_screenshot_error() -> str | None:
+    """返回最近一次 ``save_error_screenshot`` 失败的原因。
+
+    推送里出现「截图失败」时，光知道失败没用，必须知道**为什么**。
+    早期实现把异常记在 ``logger.debug`` 级，默认日志级别下直接看不见，
+    于是「截图失败」变成一条无法排查的死信息。
+
+    Returns:
+        str | None: 失败原因；最近一次保存成功则为 ``None``。
+    """
+    return _last_screenshot_error
+
+
+def _has_connected_device() -> bool:
+    """判断 airtest 当前是否真的连着设备。
+
+    Returns:
+        bool: 有可用设备返回 ``True``。
+    """
+    try:
+        from airtest.core.api import G
+
+        return getattr(G, "DEVICE", None) is not None
+    except Exception:  # pragma: no cover - 取不到就按「没设备」处理
+        return False
+
 
 def save_error_screenshot(operation_name: str) -> str:
-    """保存错误截图到log目录，返回文件路径"""
+    """保存错误截图到 log 目录，返回文件路径。
+
+    失败时**不抛异常**（截图失败不该阻断主流程），但会：
+
+    1. 在 WARNING 级记录真实原因（不再静默吞掉）；
+    2. 把原因存进 :func:`get_last_screenshot_error`，让通知正文能带上它；
+    3. 路径基于**项目根**而非当前工作目录 —— cron 的工作目录未必是项目根。
+
+    Args:
+        operation_name: 操作名，会拼进文件名。
+
+    Returns:
+        str: 截图绝对路径；失败时返回空字符串。
+    """
+    global _last_screenshot_error
+
+    directory = ""
     try:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        log_dir = os.path.join(os.getcwd(), "log")
+        from project_paths import resolve_project_path
+
+        log_dir = str(resolve_project_path("log"))
+        directory = log_dir
         os.makedirs(log_dir, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         filename = os.path.join(log_dir, f"error_{operation_name}_{timestamp}.png")
+
+        if not _has_connected_device():
+            _last_screenshot_error = "没有已连接的设备（airtest 未初始化或模拟器掉线）"
+            logger.warning(f"⚠️ 保存错误截图失败: {_last_screenshot_error}")
+            return ""
+
         snapshot(filename=filename)
+
+        if not os.path.isfile(filename) or os.path.getsize(filename) == 0:
+            _last_screenshot_error = "截图文件未生成或为空（设备可能已掉线）"
+            logger.warning(f"⚠️ 保存错误截图失败: {_last_screenshot_error}，目标路径 {filename}")
+            return ""
+
+        _last_screenshot_error = None
         logger.debug(f"📸 错误截图已保存: {filename}")
         return filename
     except Exception as e:
-        logger.debug(f"📸 保存错误截图失败: {e}")
+        _last_screenshot_error = f"{type(e).__name__}: {e}"
+        logger.warning(
+            f"⚠️ 保存错误截图失败: {_last_screenshot_error}"
+            + (f"，目标目录 {directory}" if directory else "")
+        )
         return ""
+
 
 def open_map() -> None:
     """打开地图"""
@@ -105,9 +172,7 @@ def is_on_character_selection(timeout: int = 30) -> bool:
             break
         except Exception as e:
             transient_errors.append(f"{type(e).__name__}: {e}")
-            logger.warning(
-                f"⚠️ 检测角色选择界面时出现临时异常，继续重试: {type(e).__name__}: {e}"
-            )
+            logger.warning(f"⚠️ 检测角色选择界面时出现临时异常，继续重试: {type(e).__name__}: {e}")
             time.sleep(1)
 
     if transient_errors:

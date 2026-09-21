@@ -26,8 +26,11 @@ if sys.platform == "win32":
 try:
     from vibe_logger import GlobalLogContext
     GlobalLogContext.update({"config": "check_progress", "emulator": "local"})
-except Exception:
-    pass
+except Exception as exc:  # 失败会让日志格式化整体出问题，必须喊出来
+    logging.warning(
+        "⚠️ 设置全局日志上下文失败，日志可能出现 %(config)s 格式化错误: "
+        f"{type(exc).__name__}: {exc}"
+    )
 
 from datetime import datetime
 import argparse
@@ -162,8 +165,13 @@ class ProgressChecker:
                     config = json.load(f)
                     class_name = config.get("class", "未知")
                     config_classes[config_name] = class_name
-            except Exception:
-                pass
+            except Exception as exc:
+                # 读不到职业名只影响显示颜色，但静默跳过会让面板「莫名少一个职业」，
+                # 排查时无从下手，所以留下原因。
+                logging.getLogger(__name__).warning(
+                    f"⚠️ 读取配置职业失败，跳过 {config_path}: "
+                    f"{type(exc).__name__}: {exc}"
+                )
 
         return config_classes
 

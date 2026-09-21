@@ -17,7 +17,12 @@ from airtest.core.api import snapshot, touch
 
 from auto_dungeon_config import CLICK_INTERVAL
 from auto_dungeon_container import get_container
-from auto_dungeon_navigation import back_to_main, open_map, save_error_screenshot
+from auto_dungeon_navigation import (
+    back_to_main,
+    get_last_screenshot_error,
+    open_map,
+    save_error_screenshot,
+)
 from auto_dungeon_notification import send_notification
 from auto_dungeon_ui import (
     click_back,
@@ -306,7 +311,11 @@ class DailyCollectManager:
         Returns:
             str: 标记文件的绝对路径。
         """
-        return os.path.join(os.getcwd(), "log", "notify_state", f"{today}_{step_name}.flag")
+        # 基于项目根而不是 cwd：cron、测试、临时脚本的工作目录各不相同，
+        # 用 cwd 会让「今天已告警过」的标记写散，去重失效 → 反复推送。
+        from project_paths import resolve_project_path
+
+        return str(resolve_project_path("log", "notify_state", f"{today}_{step_name}.flag"))
 
     def _resolve_notice_date(self) -> str:
         """返回告警去重用的逻辑日期（``YYYY-MM-DD``）。
@@ -342,6 +351,12 @@ class DailyCollectManager:
             return
 
         screenshot = save_error_screenshot(f"daily_step_{step_name}")
+        if screenshot:
+            screenshot_desc = os.path.basename(screenshot)
+        else:
+            # 「截图失败」本身不是可排查的信息，必须带上原因
+            reason = get_last_screenshot_error() or "原因未知"
+            screenshot_desc = f"（截图失败：{reason}）"
         if raw_result is False:
             result_desc = "返回 False（显式判定失败）"
         elif isinstance(raw_result, str):
@@ -350,9 +365,7 @@ class DailyCollectManager:
             result_desc = f"返回 {raw_result!r}（未声明成功）"
 
         message = (
-            f"每日任务未完成：{step_name}\n"
-            f"结果：{result_desc}\n"
-            f"截图：{os.path.basename(screenshot) if screenshot else '（截图失败）'}"
+            f"每日任务未完成：{step_name}\n" f"结果：{result_desc}\n" f"截图：{screenshot_desc}"
         )
         payload: dict[str, Any] = {"image": screenshot} if screenshot else {}
 

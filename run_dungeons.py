@@ -5,6 +5,7 @@
 使用 Typer 提供命令行入口，支持显式会话名驱动统一日志命名。
 """
 
+import logging
 import os
 import sys
 import time
@@ -25,6 +26,36 @@ os.environ["PATH"] = f"/opt/homebrew/bin:{os.environ.get('PATH', '')}"
 
 ES_CONTINUOUS = 0x80000000
 ES_SYSTEM_REQUIRED = 0x00000001
+
+
+def _notify_and_log(logger: logging.Logger, title: str, message: str, **kwargs: object) -> bool:
+    """发送通知，并把「发没发、成没成」写进主流程日志。
+
+    早期这三处通知都写成 ``try: send_notification(...) except Exception: pass``：
+    通知一旦失败，磁盘上连一行记录都没有，收不到推送时完全无从排查。
+    通知本身的完整审计由 ``auto_dungeon_notification`` 落到
+    ``log/notifications.log``，这里保证**业务日志里也有迹可循**。
+
+    Args:
+        logger: 日志对象。
+        title: 通知标题。
+        message: 通知内容。
+        **kwargs: 透传给 ``send_notification`` 的参数（如 ``provider``、``priority``）。
+
+    Returns:
+        bool: 是否成功送达。
+    """
+    try:
+        ok = send_notification(title, message, **kwargs)
+    except Exception as exc:
+        logger.error(f"❌ 发送通知「{title}」异常: {type(exc).__name__}: {exc}")
+        return False
+
+    if ok:
+        logger.info(f"📱 已发送通知「{title}」")
+    else:
+        logger.warning(f"⚠️ 通知「{title}」未送达，详见 log/notifications.log")
+    return ok
 
 
 def _is_windows() -> bool:
@@ -279,18 +310,18 @@ def run_configs(
         attach_emulator_file_handler(
             emulator_name=emulator, config_name=None, log_dir=str(logfile.parent)
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        # 挂不上文件日志 = 本次运行没有任何磁盘痕迹，必须喊出来
+        logging.getLogger(__name__).warning(
+            f"⚠️ 挂载模拟器文件日志失败（本次运行将只有控制台输出）: {exc}"
+        )
     logger = setup_logger(name="run_dungeons", level="INFO", use_color=False)
 
     cfgs: List[str] = [c for c in configs if str(c).strip()]
     if not cfgs:
         logger = setup_logger(name="run_dungeons", level="INFO", use_color=False)
         logger.error("❌ 未提供任何配置，必须显式传入 --config")
-        try:
-            send_notification("副本运行汇总", "未提供任何配置，任务未执行")
-        except Exception:
-            pass
+        _notify_and_log(logger, "副本运行汇总", "未提供任何配置，任务未执行")
         return 2
 
     pending_cfgs = filter_pending_configs(cfgs, logger)
@@ -303,10 +334,7 @@ def run_configs(
         # 确保模拟器已启动
         if not _ensure_emulator_ready(emulator, logger):
             logger.error("❌ 无法启动或连接模拟器，任务终止")
-            try:
-                send_notification("副本运行错误", f"无法启动模拟器 {emulator}")
-            except Exception:
-                pass
+            _notify_and_log(logger, "副本运行错误", f"无法启动模拟器 {emulator}")
             return 1
 
         total = len(pending_cfgs)
@@ -365,10 +393,7 @@ def run_configs(
         for name, dur in per_durations:
             summary_lines.append(f"• {name}: {format_duration_zh(dur)}")
         summary_lines.append(f"总耗时: {format_duration_zh(duration)}")
-        try:
-            send_notification("副本运行汇总", "\n".join(summary_lines))
-        except Exception:
-            pass
+        _notify_and_log(logger, "副本运行汇总", "\n".join(summary_lines))
 
         return 0 if failed == 0 else 1
 

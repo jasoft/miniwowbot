@@ -64,13 +64,16 @@ class TestCoreLogicRefactor(unittest.TestCase):
         self.mock_db.is_daily_collect_completed.return_value = False
         
         # Mock other calls in main
+        # 注意 `is_on_character_selection` 必须返回 True：`main()` 里加了
+        # 「确认进入选人界面才继续」的守卫，返回 False 会直接 raise TimeoutError，
+        # 用例根本走不到后面的断言。
         with patch('auto_dungeon_core.parse_arguments') as mock_args, \
              patch('auto_dungeon_core.initialize_configs'), \
              patch('auto_dungeon_core.attach_file_logger'), \
              patch('auto_dungeon_core.stop_app'), \
              patch('auto_dungeon_core.start_app'), \
              patch('auto_dungeon_core.sleep'), \
-             patch('auto_dungeon_core.is_on_character_selection', return_value=False), \
+             patch('auto_dungeon_core.is_on_character_selection', return_value=True), \
              patch('auto_dungeon_core.DungeonStateMachine') as _, \
              patch('auto_dungeon_core.run_dungeon_traversal'), \
              patch('auto_dungeon_core.count_remaining_selected_dungeons', return_value=0):

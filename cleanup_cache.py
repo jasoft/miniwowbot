@@ -169,6 +169,7 @@ def cleanup_output_directory(full_clean=False):
     # 清理 temp 目录
     print("🧹 清理 temp 目录...")
     temp_removed = 0
+    temp_failed = 0
     for filename in os.listdir(temp_dir):
         filepath = os.path.join(temp_dir, filename)
         try:
@@ -178,9 +179,14 @@ def cleanup_output_directory(full_clean=False):
             elif os.path.isdir(filepath):
                 shutil.rmtree(filepath)
                 temp_removed += 1
-        except Exception:
-            pass
+        except Exception as exc:
+            # 删不掉的临时文件会一直占空间（常见原因：被占用），
+            # 静默 pass 会让人以为「已经清干净了」。
+            temp_failed += 1
+            print(f"   ⚠️ 删除失败 {filepath}: {type(exc).__name__}: {exc}")
     print(f"✅ 清理了 {temp_removed} 个临时文件")
+    if temp_failed:
+        print(f"⚠️ {temp_failed} 个临时文件删除失败（可能被占用），已跳过")
 
     # 4. 显示目录结构
     print("\n📊 新的目录结构:")

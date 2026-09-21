@@ -20,16 +20,29 @@
 
 被拦下不等于静默——测试若触发了通知，会被判为失败并提示补打桩，
 免得「忘了 mock」再演变成线上假告警。
+
+第二条：**测试也绝不能污染"今天已告警过"的去重状态**。
+
+同日排查还发现，测试会把告警去重标记写进真实的 ``log/notify_state/``：
+
+- ``2026-09-21_exchange_purple_first.flag``（09:01）
+- ``2026-09-21_exchange_incomplete_rows.flag``（09:08）
+
+而这两个时间点当天并没有真实运行（``autodungeon_main.log`` 停在 06:34）。
+危害比假告警更大：标记一旦存在，**当天真实故障会被静默跳过告警**。
+所以运行时目录统一重定向到临时目录，见 :func:`isolate_runtime_dirs`。
 """
 
 from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 from typing import Any
 
 import pytest
 
+import auto_dungeon_daily as _daily
 import auto_dungeon_notification as _notification
 
 #: 通知模块里所有可能真正发出网络请求的入口
@@ -44,6 +57,57 @@ _TRANSPORT_NAMES = (
 _ATTEMPT_LOG = os.path.join("log", "_blocked_test_notifications.txt")
 
 _LOCAL_REFS: list[tuple[Any, str]] | None = None
+
+
+@pytest.fixture(autouse=True)
+def isolate_runtime_dirs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """把会写盘的运行时目录重定向到临时目录。
+
+    覆盖三处会被业务代码写、且**会影响生产行为或污染真实日志**的位置：
+
+    1. 告警去重标记 ``log/notify_state/<日期>_<步骤>.flag`` ——
+       测试写进去会让当天真实故障被静默跳过告警；
+    2. 通知审计 ``log/notifications*`` —— 测试的假通知不该混进真实审计记录；
+    3. ``log/`` 下的一切（如错误截图 ``error_*.png``）—— 实测有测试把
+       24 字节的假截图写进了真实的 ``log/`` 目录。
+
+    第 3 条只能打 ``project_paths.resolve_project_path``：业务代码是
+    **函数内局部导入**它的，打模块自己的属性没有用（这个坑踩过一次）。
+
+    用**函数级** ``tmp_path`` 而非会话级目录：去重标记本身是有状态的，
+    会话级共享会让「后一个测试因为前一个测试写过标记而跳过告警」，
+    测试之间就不再独立（实测会掩盖漏打桩的通知）。
+
+    Args:
+        tmp_path: 当前测试专属的临时目录。
+        monkeypatch: pytest 打桩工具。
+    """
+    import project_paths
+
+    marker_dir = tmp_path / "notify_state"
+    real_resolve = project_paths.resolve_project_path
+
+    def _resolved(*parts: object) -> Path:
+        """把 log 相关路径重定向到临时目录，其余原样放行。"""
+        if parts and str(parts[0]) == "log":
+            return tmp_path.joinpath(*parts)
+        return real_resolve(*parts)
+
+    monkeypatch.setattr(project_paths, "resolve_project_path", _resolved)
+
+    monkeypatch.setattr(
+        _daily.DailyCollectManager,
+        "_failure_notice_marker",
+        staticmethod(lambda step_name, today: str(marker_dir / f"{today}_{step_name}.flag")),
+        raising=False,
+    )
+
+    monkeypatch.setattr(
+        _notification,
+        "_project_log_path",
+        lambda *parts: tmp_path.joinpath(*parts),
+        raising=False,
+    )
 
 
 def _blocked_ids() -> set[int]:

@@ -387,22 +387,24 @@ def test_redeem_fire_tower_ticket_items_does_not_skip_unbought_purple_item(
     monkeypatch.setattr(
         manager,
         "_load_fire_tower_exchange_states",
-        lambda: [
-            _make_exchange_state(
-                item_key="purple_first",
-                row_index=0,
-                required_tickets=40,
-                current_tickets=20,
-                button_center=(300, 400),
-            ),
-            _make_exchange_state(
-                item_key="blue_second",
-                row_index=1,
-                required_tickets=30,
-                current_tickets=30,
-                button_center=(300, 520),
-            ),
-        ],
+        lambda: _pad_exchange_states(
+            [
+                _make_exchange_state(
+                    item_key="purple_first",
+                    row_index=0,
+                    required_tickets=40,
+                    current_tickets=20,
+                    button_center=(300, 400),
+                ),
+                _make_exchange_state(
+                    item_key="blue_second",
+                    row_index=1,
+                    required_tickets=30,
+                    current_tickets=30,
+                    button_center=(300, 520),
+                ),
+            ]
+        ),
     )
 
     bought_items = []

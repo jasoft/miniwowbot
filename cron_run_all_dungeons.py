@@ -114,6 +114,88 @@ def ensure_log_dir() -> None:
     log_dir.mkdir(parents=True, exist_ok=True)
 
 
+#: 计划任务把控制台输出重定向到这个固定文件（见 archive_console_log）
+CONSOLE_LOG_NAME = "cron_console.log"
+
+
+def archive_console_log() -> Optional[Path]:
+    """把上一次运行留下的控制台日志按日期归档。
+
+    计划任务的动作是 ``cmd /c uv run cron_run_all_dungeons.py >> log\\cron_console.log 2>&1``。
+    重定向是为了兜住**日志系统初始化之前**的崩溃（``uv`` 缺失、import 期报错），
+    这类故障本来会彻底静默。cmd 无法按天生成文件名，所以在脚本启动时归档：
+
+    - ``log/cron_console.log`` 的修改日期不是今天 → 重命名为
+      ``log/cron_console_<那天>.log``，保留历史；
+    - 当天已经跑过一次（mtime 是今天）→ 不动，继续追加。
+
+    Returns:
+        Optional[Path]: 归档后的文件路径；无需归档或失败时返回 ``None``。
+    """
+    console_log = SCRIPT_DIR / "log" / CONSOLE_LOG_NAME
+    if not console_log.exists():
+        return None
+
+    try:
+        mtime_day = datetime.fromtimestamp(console_log.stat().st_mtime).date()
+        today = datetime.now().date()
+        if mtime_day >= today:
+            return None
+
+        archived = SCRIPT_DIR / "log" / f"cron_console_{mtime_day:%Y-%m-%d}.log"
+        if archived.exists():
+            # 同一天归档过（例如当天手动跑过一次又崩了）→ 追加而不是覆盖
+            with open(archived, "ab") as dst, open(console_log, "rb") as src:
+                dst.write(src.read())
+            console_log.unlink()
+        else:
+            console_log.rename(archived)
+        return archived
+    except Exception as exc:  # 归档失败不能影响本次运行
+        logging.getLogger(__name__).warning(f"⚠️ 归档控制台日志失败（已忽略）: {exc}")
+        return None
+
+
+def attach_cron_file_logger(level: str = "INFO") -> Optional[Path]:
+    """给编排器挂一个**日期化**的文件日志，保证编排过程可回溯。
+
+    背景（2026-09-21）：计划任务 ``RunDungeons`` 实际执行的是
+    ``cmd /c uv run E:\\Projects\\miniwowbot\\cron_run_all_dungeons.py``，
+    **没有任何输出重定向**。于是编排器自己的日志（整轮重试、每轮耗时、
+    汇总通知的发送）只进控制台，进程一结束就没了 ——
+    大王收到重复推送时，磁盘上找不到任何能解释「为什么重试了 5 轮」的记录。
+
+    这里让脚本**自己**落盘，不依赖谁来启动它：
+
+    - 文件：``log/cron_YYYY-MM-DD.log``（按天切分，便于归档）；
+    - 挂到 **root logger**，这样编排器 import 到的其它模块日志也会一并落盘；
+    - 已有的同名 handler 不会重复添加。
+
+    Args:
+        level: 文件日志级别。
+
+    Returns:
+        Optional[Path]: 日志文件路径；挂载失败返回 ``None``。
+    """
+    ensure_log_dir()
+    try:
+        from logger_config import attach_file_handler
+
+        filename = f"cron_{datetime.now():%Y-%m-%d}.log"
+        path = attach_file_handler(
+            logger_name=None,
+            log_dir=str(SCRIPT_DIR / "log"),
+            filename=filename,
+            level=level,
+        )
+        # 控制台之外也保证能看到这条「日志已落盘」的线索
+        logging.getLogger(__name__).info(f"🗂️ 编排器日志落盘: {path}")
+        return Path(path)
+    except Exception as exc:  # 日志挂载失败不能阻断主流程
+        logging.getLogger(__name__).warning(f"⚠️ 挂载编排器文件日志失败（已忽略）: {exc}")
+        return None
+
+
 def build_cmd_for_configs(
     session: str, emulator: str, logfile: Path, configs: Sequence[str]
 ) -> str:
@@ -240,9 +322,7 @@ def filter_pending_session_tasks(
             continue
 
         if pending_configs != task.configs:
-            logger.info(
-                f"📋 会话 {task.name} 过滤后剩余配置: {', '.join(pending_configs)}"
-            )
+            logger.info(f"📋 会话 {task.name} 过滤后剩余配置: {', '.join(pending_configs)}")
 
         pending_tasks.append(
             SessionTask(
@@ -485,8 +565,7 @@ def stop_emulator(task: SessionTask, logger: logging.Logger) -> None:
                 return
             else:
                 logger.warning(
-                    f"⚠️ 自定义关闭命令失败 (exit={result.returncode}): "
-                    f"{stderr or stdout}"
+                    f"⚠️ 自定义关闭命令失败 (exit={result.returncode}): " f"{stderr or stdout}"
                 )
         except Exception as exc:
             logger.warning(f"⚠️ 执行自定义关闭命令异常: {exc}")
@@ -525,9 +604,7 @@ def stop_emulator(task: SessionTask, logger: logging.Logger) -> None:
             logger.warning(f"⚠️ 模拟器 {emulator} {action_name} 异常: {exc}")
 
 
-def recover_failed_runtime(
-    runtime: SessionRuntime, reason: str, logger: logging.Logger
-) -> None:
+def recover_failed_runtime(runtime: SessionRuntime, reason: str, logger: logging.Logger) -> None:
     """处理单个会话故障并执行恢复清理。
 
     Args:
@@ -539,8 +616,7 @@ def recover_failed_runtime(
         None
     """
     logger.error(
-        f"❌ 会话 {runtime.task.name} 发生故障（{reason}），"
-        "将关闭子 shell 与对应模拟器"
+        f"❌ 会话 {runtime.task.name} 发生故障（{reason}），" "将关闭子 shell 与对应模拟器"
     )
     stop_session(runtime, logger)
     stop_emulator(runtime.task, logger)
@@ -664,10 +740,7 @@ def restart_session(runtime: SessionRuntime, logger: logging.Logger) -> bool:
         logger,
     )
     if not emulator_restart_ok:
-        logger.warning(
-            f"⚠️ 会话 {runtime.task.name} 模拟器重启未完全成功，"
-            "继续尝试重启脚本进程"
-        )
+        logger.warning(f"⚠️ 会话 {runtime.task.name} 模拟器重启未完全成功，" "继续尝试重启脚本进程")
 
     return start_session(runtime, logger)
 
@@ -798,7 +871,8 @@ def check_ocr_health(logger: logging.Logger) -> bool:
     """检查 OCR 服务健康状态。
 
     Args:
-        logger: 日志对象（保留参数便于后续扩展日志输出）。
+        logger: 日志对象；失败原因会记在这里（早期实现直接 ``pass``，
+        导致 OCR 不可用时磁盘上没有任何线索）。
 
     Returns:
         OCR 服务是否健康。
@@ -808,8 +882,9 @@ def check_ocr_health(logger: logging.Logger) -> bool:
         with urllib.request.urlopen(url, timeout=30) as response:
             if response.status == 200:
                 return True
-    except Exception:
-        pass
+            logger.warning(f"⚠️ OCR 健康检查返回 HTTP {response.status}: {url}")
+    except Exception as exc:
+        logger.warning(f"⚠️ OCR 健康检查异常: {type(exc).__name__}: {exc} (url={url})")
     return False
 
 
@@ -821,8 +896,13 @@ def is_docker_daemon_ready() -> bool:
     """
     try:
         result = subprocess.run(["docker", "info"], capture_output=True, timeout=20)
+        if result.returncode != 0:
+            logging.getLogger(__name__).warning(
+                f"⚠️ docker info 返回码 {result.returncode}，守护进程未就绪"
+            )
         return result.returncode == 0
-    except Exception:
+    except Exception as exc:
+        logging.getLogger(__name__).warning(f"⚠️ docker info 执行异常: {type(exc).__name__}: {exc}")
         return False
 
 
@@ -865,9 +945,7 @@ def ensure_docker_daemon(logger: logging.Logger) -> bool:
     start_time = time.time()
     while time.time() - start_time < DOCKER_DESKTOP_WAIT_SECONDS:
         if is_docker_daemon_ready():
-            logger.info(
-                f"✅ Docker 守护进程已就绪 (耗时 {time.time() - start_time:.1f}s)"
-            )
+            logger.info(f"✅ Docker 守护进程已就绪 (耗时 {time.time() - start_time:.1f}s)")
             return True
         time.sleep(DOCKER_POLL_INTERVAL_SECONDS)
 
@@ -1050,6 +1128,16 @@ def main() -> int:
     """
     logger = setup_logger(name="cron_run_all_dungeons", level="INFO", use_color=True)
     ensure_log_dir()
+
+    # 先归档上一次的控制台日志（含日志系统初始化前崩溃的痕迹）
+    archived = archive_console_log()
+    if archived:
+        logging.getLogger(__name__).info(f"🗂️ 已归档上次控制台日志: {archived}")
+
+    # 先落盘再干活：计划任务没有输出重定向，不主动挂文件日志就什么都不剩
+    cron_log_path = attach_cron_file_logger()
+    if cron_log_path:
+        logger.info(f"🗂️ 本次编排日志: {cron_log_path}")
 
     # 兜底清理上次被中断（崩溃/强杀）时残留的 OCR 临时截图，
     # 只删滞留超过 24 小时的文件，不会影响本次即将产生的截图。

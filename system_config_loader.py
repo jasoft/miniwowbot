@@ -71,11 +71,20 @@ class SystemConfigLoader:
         }
 
     def _load_env(self) -> None:
+        """加载 ``.env``；优先用 python-dotenv，不可用时退化为手工解析。
+
+        两条路径失败都要留下原因：环境变量里放着通知密钥、OCR 地址等关键配置，
+        静默失败会让后续行为「看着正常、实际配置是空的」—— 例如通知发不出去
+        却查不出为什么。
+        """
         try:
             from dotenv import load_dotenv  # type: ignore
             load_dotenv()
             logger.info("✅ 已加载 .env 环境变量")
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                f"⚠️ python-dotenv 不可用（{type(exc).__name__}: {exc}），改为手工解析 .env"
+            )
             env_path = ensure_project_path(".env")
             if os.path.exists(env_path):
                 try:
@@ -88,8 +97,13 @@ class SystemConfigLoader:
                                 k, v = line.split("=", 1)
                                 os.environ.setdefault(k.strip(), v.strip())
                     logger.info("✅ 已解析 .env（无依赖模式）")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning(
+                        f"⚠️ 手工解析 .env 失败，环境变量可能不完整: "
+                        f"{type(exc).__name__}: {exc}（文件: {env_path}）"
+                    )
+            else:
+                logger.warning(f"⚠️ 未找到 .env（{env_path}），通知密钥等配置将不可用")
 
     def _apply_env_overrides(self) -> None:
         def as_bool(val: str) -> bool:
