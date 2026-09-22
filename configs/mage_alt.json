@@ -15,7 +15,7 @@
         { "name": "领取主题奖励", "selected": true },
         { "name": "领取礼包", "selected": true },
         { "name": "领取广告奖励", "selected": false },
-        { "name": "猎魔试炼", "selected": true }
+        { "name": "猎魔试炼", "selected": false }
     ],
     "ocr_correction_map": {
         "梦魔丛林": "梦魇丛林"

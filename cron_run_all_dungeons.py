@@ -31,7 +31,7 @@ from emulator_control import (
     restart_emulator,
 )
 from cleanup_cache import cleanup_temp_dir
-from logger_config import setup_logger
+from logger_config import attach_file_handler_to_loggers, setup_logger
 from run_dungeons import filter_pending_configs
 
 SCRIPT_DIR = Path(__file__).parent
@@ -39,6 +39,9 @@ IS_WINDOWS = platform.system() == "Windows"
 LOG_IDLE_TIMEOUT_SECONDS = 180
 MONITOR_POLL_INTERVAL_SECONDS = 5
 FLOW_MAX_RETRIES = 5
+# 编排器自己的 logger 名。既用于 setup_logger，也用于把文件 handler 挂到它身上 ——
+# 具名 logger 的 propagate 被 vibe_logger 关掉了，只挂 root 的话编排日志进不了文件。
+ORCHESTRATOR_LOGGER_NAME = "cron_run_all_dungeons"
 SESSION_START_GAP_SECONDS = 1
 SESSION_MAX_IDLE_RESTARTS = 3
 ADB_COMMAND_TIMEOUT_SECONDS = 15
@@ -169,6 +172,9 @@ def attach_cron_file_logger(level: str = "INFO") -> Optional[Path]:
 
     - 文件：``log/cron_YYYY-MM-DD.log``（按天切分，便于归档）；
     - 挂到 **root logger**，这样编排器 import 到的其它模块日志也会一并落盘；
+    - 同时挂到编排器自己那个**具名 logger**（``ORCHESTRATOR_LOGGER_NAME``）——
+      ``setup_logger`` 会把具名 logger 的 ``propagate`` 关掉，只挂 root 的话
+      编排器自身的日志（整轮重试、每轮耗时、汇总推送）依旧进不了文件；
     - 已有的同名 handler 不会重复添加。
 
     Args:
@@ -179,14 +185,16 @@ def attach_cron_file_logger(level: str = "INFO") -> Optional[Path]:
     """
     ensure_log_dir()
     try:
-        from logger_config import attach_file_handler
-
         filename = f"cron_{datetime.now():%Y-%m-%d}.log"
-        path = attach_file_handler(
-            logger_name=None,
-            log_dir=str(SCRIPT_DIR / "log"),
+        # root 收子模块日志（config_loader / dungeon_db …）；
+        # 具名 logger 收编排器自己的日志（整轮重试、每轮耗时、汇总推送）。
+        # 两者 propagate 链互不相通（setup_logger 会关掉具名 logger 的 propagate），
+        # 必须分别挂载，否则编排日志又一次只进控制台。
+        path = attach_file_handler_to_loggers(
             filename=filename,
+            log_dir=str(SCRIPT_DIR / "log"),
             level=level,
+            logger_names=(None, ORCHESTRATOR_LOGGER_NAME),
         )
         # 控制台之外也保证能看到这条「日志已落盘」的线索
         logging.getLogger(__name__).info(f"🗂️ 编排器日志落盘: {path}")
@@ -1126,7 +1134,7 @@ def main() -> int:
     Returns:
         进程退出码。``0`` 表示全部完成，非 ``0`` 表示失败。
     """
-    logger = setup_logger(name="cron_run_all_dungeons", level="INFO", use_color=True)
+    logger = setup_logger(name=ORCHESTRATOR_LOGGER_NAME, level="INFO", use_color=True)
     ensure_log_dir()
 
     # 先归档上一次的控制台日志（含日志系统初始化前崩溃的痕迹）

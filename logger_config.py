@@ -9,7 +9,7 @@ import io
 import logging
 import os
 import sys
-from typing import Dict, Optional
+from typing import Dict, Optional, Sequence
 
 from vibe_logger import (
     DEFAULT_DATE_FORMAT,
@@ -66,6 +66,7 @@ __all__ = [
     "setup_logger_from_config",
     "update_log_context",
     "attach_emulator_file_handler",
+    "attach_file_handler_to_loggers",
     "get_log_file_path",
     "DEFAULT_COLOR_FORMAT",
     "DEFAULT_COLOR_DATE_FORMAT",
@@ -215,6 +216,44 @@ def attach_emulator_file_handler(
         target_logger.addHandler(file_handler)
 
     return file_path
+
+def attach_file_handler_to_loggers(
+    filename: str,
+    log_dir: str = "log",
+    level: str = "INFO",
+    logger_names: Sequence[Optional[str]] = (None,),
+) -> str:
+    """把同一个日志文件挂到多个 logger 上（``None`` 表示 root logger）。
+
+    背景（2026-09-22 实测）：vibe_logger 的 ``configure_logger`` 会把**具名**
+    logger 的 ``propagate`` 置为 ``False``（防止控制台重复输出），而本项目的
+    文件 handler 习惯挂在 root 上。两者叠加的结果是——**具名 logger 的日志
+    永远进不了文件**，只有其它模块（走 root）的日志能落盘。
+
+    ``cron_run_all_dungeons``（编排器）与 ``run_dungeons``（单会话入口）都踩了
+    这个坑：整轮重试、每轮耗时、汇总推送、模拟器准备失败这些**最关键的线索**
+    只进控制台，进程一结束就没了。因此这里显式地把 handler 分别挂到 root 与
+    具名 logger 上：两棵 logger 树各写各的，同一条记录不会被写两遍。
+
+    Args:
+        filename: 日志文件名（如 ``cron_2026-09-22.log``）。
+        log_dir: 日志目录。
+        level: 文件 handler 级别。
+        logger_names: 需要挂载 handler 的 logger 名；``None`` 表示 root。
+
+    Returns:
+        str: 日志文件路径。
+    """
+    path = ""
+    for logger_name in logger_names:
+        path = attach_file_handler(
+            logger_name=logger_name,
+            log_dir=log_dir,
+            filename=filename,
+            level=level,
+        )
+    return path
+
 
 def apply_logging_slice(targets, level: str = "DEBUG") -> None:
     dec = log_calls(level=level)

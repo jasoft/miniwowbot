@@ -15,7 +15,12 @@ from typing import Iterable, List, Optional
 
 import typer
 
-from logger_config import setup_logger, update_log_context, attach_emulator_file_handler
+from logger_config import (
+    attach_emulator_file_handler,
+    attach_file_handler_to_loggers,
+    setup_logger,
+    update_log_context,
+)
 from auto_dungeon_notification import send_notification
 from auto_dungeon_device import DeviceManager
 from config_loader import load_config
@@ -307,7 +312,7 @@ def run_configs(
     if logfile is None:
         logfile = SCRIPT_DIR / "log" / f"autodungeon_{session}.log"
     try:
-        attach_emulator_file_handler(
+        emulator_log_path = attach_emulator_file_handler(
             emulator_name=emulator, config_name=None, log_dir=str(logfile.parent)
         )
     except Exception as exc:
@@ -315,6 +320,22 @@ def run_configs(
         logging.getLogger(__name__).warning(
             f"⚠️ 挂载模拟器文件日志失败（本次运行将只有控制台输出）: {exc}"
         )
+    else:
+        # 上面的 handler 挂在 root 上，只收得到子模块日志；本模块的 `run_dungeons`
+        # 是具名 logger（propagate=False），不额外挂一份的话，
+        # 「模拟器准备失败」「所有配置当日任务已完成」这类结论只进控制台。
+        try:
+            resolved = Path(emulator_log_path)
+            attach_file_handler_to_loggers(
+                filename=resolved.name,
+                log_dir=str(resolved.parent),
+                level="DEBUG",
+                logger_names=("run_dungeons",),
+            )
+        except Exception as exc:
+            logging.getLogger(__name__).warning(
+                f"⚠️ 挂载 run_dungeons 自身文件日志失败（仅影响本入口日志）: {exc}"
+            )
     logger = setup_logger(name="run_dungeons", level="INFO", use_color=False)
 
     cfgs: List[str] = [c for c in configs if str(c).strip()]
