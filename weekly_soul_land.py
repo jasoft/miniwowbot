@@ -26,7 +26,7 @@
 ``emulator_start_cmd``（``pwsh -File c:\\tools\\scripts\\start_bluestacks.ps1 -Id 1``，
 幂等，已在跑就跳过）启动，仍不上线再退化为 ``emulator_control.restart_emulator``
 完整重启 —— 与每天 06:05 的日常流水线走同一条已验证链路。
-注意：启动动作由本进程承载，**模拟器只在本脚本运行期间存活**。
+**结束时只关本次自己拉起的实例**（跑之前就在线的不动），``--keep-emulator`` 可保留。
 
 用法::
 
@@ -35,6 +35,7 @@
     python weekly_soul_land.py --dry-run           # 只探测界面，不进战斗
     python weekly_soul_land.py --skip-start        # 游戏已在主世界时不重启
     python weekly_soul_land.py --keep-game         # 结束后不关游戏
+    python weekly_soul_land.py --keep-emulator     # 结束后不关模拟器
     python weekly_soul_land.py --no-start-emulator # 模拟器离线时不要自动拉起
 """
 
@@ -44,6 +45,7 @@ import argparse
 import base64
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -489,6 +491,8 @@ class SoulLandRunner:
         self.skip_start = args.skip_start
         self.keep_game = args.keep_game
         self.start_emulator = args.start_emulator
+        self.keep_emulator = args.keep_emulator
+        self.emulator_launched = False  # 本次运行是否由本脚本拉起了模拟器
         self.image_dir = (
             Path(args.image_dir)
             if args.image_dir
@@ -610,7 +614,37 @@ class SoulLandRunner:
         if not self.keep_game:
             logger.info("关闭游戏…")
             adb("shell", "am", "force-stop", PACKAGE)
+        if self.emulator_launched and not self.keep_emulator:
+            self._shutdown_emulator()
         return code
+
+    def _shutdown_emulator(self) -> None:
+        """关闭本次由脚本自己拉起的模拟器。
+
+        计划任务环境下不像 Agent 沙箱会回收派生进程，不主动关就会留下一个常驻
+        BlueStacks。**只关自己拉起的**：跑之前就在线的实例不动。
+
+        Returns:
+            None
+        """
+        cmds = load_emulator_session_cmds(self.device)
+        shutdown_cmd = cmds["shutdown_cmd"]
+        if not shutdown_cmd:
+            logger.warning("⚠️ emulators.json 里没有该会话的 emulator_shutdown_cmd，模拟器保持运行")
+            return
+
+        # 会话命令里写的是裸 `python`，计划任务环境的 PATH 未必有 —— 换成当前解释器
+        if not shutil.which("python"):
+            shutdown_cmd = re.sub(r"^\s*python\b", f'"{sys.executable}"', shutdown_cmd)
+        logger.info(f"🧹 关闭本次拉起的模拟器: {shutdown_cmd}")
+        try:
+            subprocess.run(shutdown_cmd, shell=True, capture_output=True, timeout=180)
+        except Exception as exc:  # noqa: BLE001 - 关不掉不该影响退出码
+            logger.error(f"❌ 关闭模拟器异常: {type(exc).__name__}: {exc}")
+        if self._device_online():
+            logger.warning("⚠️ 关闭命令已执行，但设备仍在 online 状态")
+        else:
+            logger.info("✅ 模拟器已关闭")
 
     # ---------------------------- 步骤 ---------------------------- #
     def ensure_emulator_online(self, timeout: int = 120) -> bool:
@@ -623,8 +657,8 @@ class SoulLandRunner:
            （``start_bluestacks.ps1`` 是幂等的，不会打扰已在跑的实例）；
         3. 还离线 → 用 ``emulator_control.restart_emulator`` 完整重启。
 
-        启动动作由本进程承载，因此模拟器只在本脚本运行期间存活。
-        ``--no-start-emulator`` 可只保留第 1 级。
+        启动动作由本进程承载，拉起的实例会在 ``finish()`` 里关掉（见
+        ``_shutdown_emulator``）。``--no-start-emulator`` 可只保留第 1 级。
 
         Args:
             timeout: ``adb connect`` 重试总时长（秒）。
@@ -641,11 +675,13 @@ class SoulLandRunner:
         logger.warning(f"⚠️ {self.device} 离线，尝试按会话命令启动模拟器…")
         self._run_emulator_start_cmd()
         if self._wait_online(EMULATOR_BOOT_TIMEOUT):
+            self.emulator_launched = True
             return True
 
         logger.warning("⚠️ 幂等启动后仍离线，退化为完整重启…")
         self._restart_emulator()
         if self._wait_online(EMULATOR_BOOT_TIMEOUT):
+            self.emulator_launched = True
             return True
 
         logger.error(f"❌ 自动拉起后 {self.device} 仍离线")
@@ -1102,6 +1138,11 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         dest="start_emulator",
         action="store_false",
         help="模拟器离线时不自动拉起（默认会按 emulators.json 的会话命令启动）",
+    )
+    parser.add_argument(
+        "--keep-emulator",
+        action="store_true",
+        help="结束后不关闭模拟器（默认会关掉本次由脚本自己拉起的实例）",
     )
     parser.add_argument(
         "--image-dir", default=None, help="截图目录（默认 log/weekly_soul_land/<日期>）"
