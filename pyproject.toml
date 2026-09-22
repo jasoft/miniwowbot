@@ -64,6 +64,5 @@ tui = "uv run auto_dungeon_tui.py"
 api = "uv run uvicorn api_server:app --host 0.0.0.0 --port 8000"
 panic-stop = "uv run python -m scripts.kill_all_emulators"
 doctor = "uv run python scripts/bluestack-tool.py doctor"
-m14-1 = "uv run airtest run m14.air --device Android://127.0.0.1:5037/127.0.0.1:5555"
-m14-2 = "uv run airtest run m14.air --device Android://127.0.0.1:5037/127.0.0.1:5565"
-soul-land = "uv run weekly_soul_land.py"
+# 每周挑战「聚魂之地」：自动接任务 → 反复挑战直到打不过，1 小时硬超时（原 m14.air 的接任者）
+m14 = "uv run weekly_soul_land.py"
