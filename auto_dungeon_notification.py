@@ -53,6 +53,10 @@ AUDIT_TEXT_NAME = "notifications.log"
 #: 上下文缺失（config/emulator 取不到）只提示一次，避免刷屏
 _context_missing_warned = False
 
+#: Bark 把标题/正文塞进 URL 路径，服务端对 URL 长度有限制；留余量后的安全上限。
+#: 中文经 ``quote`` 后一字占 9 个字符，长了很容易整条推送失败 —— 宁可截断也不能丢。
+BARK_MAX_URL_LENGTH = 2500
+
 
 def _project_log_path(*parts: str) -> Path:
     """拼出项目根下的 log 路径，**不依赖当前工作目录**。
@@ -250,14 +254,57 @@ def _enrich_message(title: str, message: str) -> tuple[str, str]:
     return enriched_title, enriched_message
 
 
-def send_bark_notification(title: str, message: str, level: str = "active", **kwargs) -> bool:
+def _truncate_for_url(message: str, budget: int) -> tuple[str, bool]:
+    """把正文压到 URL 编码后不超过 ``budget`` 个字符。
+
+    Args:
+        message: 原始正文。
+        budget: 编码后允许占用的字符数（不含标题与端点）。
+
+    Returns:
+        tuple[str, bool]: ``(处理后的正文, 是否发生截断)``。
+    """
+    if budget <= 0:
+        return "", bool(message)
+    if len(urllib.parse.quote(message, safe="")) <= budget:
+        return message, False
+
+    suffix = "\n…（正文过长，已截断）"
+    keep_budget = max(budget - len(urllib.parse.quote(suffix, safe="")), 0)
+
+    truncated = message
+    while truncated:
+        cost = len(urllib.parse.quote(truncated, safe=""))
+        if cost <= keep_budget:
+            break
+        # 按超出比例收缩，比逐字符裁剪快得多，一般 1~2 轮收敛
+        step = max(int(len(truncated) * (1 - keep_budget / max(cost, 1))), 1)
+        truncated = truncated[: max(len(truncated) - step, 0)]
+    return truncated + suffix, True
+
+
+def send_bark_notification(
+    title: str,
+    message: str,
+    level: str = "active",
+    *,
+    server: Optional[str] = None,
+    enrich_context: bool = True,
+    max_url_length: int = BARK_MAX_URL_LENGTH,
+    **kwargs: Any,
+) -> bool:
     """发送 Bark 通知
 
     Args:
         title: 通知标题
         message: 通知内容
         level: 通知级别 (active, timeSensitive, passive)
-        **kwargs: 其他 Bark 参数
+        server: 显式指定推送端点（形如 ``https://api.day.app/<key>/``）；
+            为 None 时使用 ``BARK_SERVER`` 配置。用于把某类通知推到独立通道。
+        enrich_context: 是否在标题/正文里叠加 ``[config | emulator]`` 上下文。
+            全局性通知（例如每日体检报告）应传 False —— 挂上某个配置名会被误读。
+        max_url_length: URL 长度上限，超出时截断正文（见 ``_truncate_for_url``）。
+        **kwargs: 其他 Bark 参数（并入 query string）
 
     Returns:
         是否发送成功
@@ -275,38 +322,53 @@ def send_bark_notification(title: str, message: str, level: str = "active", **kw
         return False
 
     bark_config = sc.get_bark_config()
-    server = bark_config.get("server")
+    target = server or bark_config.get("server")
 
-    if not server:
+    if not target:
         logger.warning("⚠️ Bark 服务器地址未配置")
         _audit_notification("failed", "bark", title, message, False, "Bark 服务器地址未配置")
         return False
 
     try:
-        enriched_title, enriched_message = _enrich_message(title, message)
-
-        encoded_title = urllib.parse.quote(enriched_title, safe="")
-        encoded_message = urllib.parse.quote(enriched_message, safe="")
-
-        if "?" in server or server.endswith("/"):
-            url = f"{server.rstrip('/')}/{encoded_title}/{encoded_message}"
+        if enrich_context:
+            send_title, send_message = _enrich_message(title, message)
         else:
-            url = f"{server}/{encoded_title}/{encoded_message}"
+            send_title, send_message = title, message
 
-        params = {}
+        # 端点里可能自带 query（历史配置如此），拆出来合并进 params，
+        # 否则拼出来的路径会被写成 ``...?x=1/title/body`` 这种废 URL。
+        endpoint = target.partition("?")[0].rstrip("/")
+        encoded_title = urllib.parse.quote(send_title, safe="")
+
+        budget = max_url_length - len(endpoint) - len(encoded_title) - 2
+        original_len = len(send_message)
+        send_message, truncated = _truncate_for_url(send_message, budget)
+        if truncated:
+            logger.warning(
+                f"✂️ Bark 正文超长（{original_len} 字 → {len(send_message)} 字）"
+                f"，已截断至 {max_url_length} 字符的 URL 上限内"
+            )
+        encoded_message = urllib.parse.quote(send_message, safe="")
+
+        url = f"{endpoint}/{encoded_title}/{encoded_message}"
+
+        params: Dict[str, Any] = {}
         if bark_config.get("group"):
             params["group"] = bark_config["group"]
         if level:
             params["level"] = level
-        # 合并额外参数
+        # 合并 server 自带参数与额外参数
+        params.update(dict(urllib.parse.parse_qsl(target.partition("?")[2])))
         params.update(kwargs)
 
-        logger.info(f"📱 发送 Bark 通知: {enriched_title}")
+        logger.info(f"📱 发送 Bark 通知: {send_title}")
         response = requests.get(url, params=params, timeout=10)
 
         if response.status_code == 200:
             logger.info("✅ Bark 通知发送成功")
-            _audit_notification("sent", "bark", title, message, True, None, level=level)
+            _audit_notification(
+                "sent", "bark", title, message, True, None, level=level, truncated=truncated
+            )
             return True
         else:
             logger.warning(f"⚠️ Bark 通知发送失败，状态码: {response.status_code}")
@@ -331,6 +393,30 @@ def send_bark_notification(title: str, message: str, level: str = "active", **kw
             "failed", "bark", title, message, False, f"{type(e).__name__}: {e}", level=level
         )
         return False
+
+
+def send_health_report(title: str, message: str, level: str = "active") -> bool:
+    """发送「体检报告」这类全局通知。
+
+    与 :func:`send_bark_notification` 的差别有两点：
+
+    - 走 ``BARK_HEALTH_SERVER`` 独立通道（未配置时回落 ``BARK_SERVER``），
+      便于把体检报告单独推到指定设备/分组；
+    - 不叠加 ``[config | emulator]`` 上下文 —— 体检结论是全局的。
+
+    Args:
+        title: 通知标题。
+        message: 通知正文（过长会自动截断）。
+        level: 通知级别 (active, timeSensitive, passive)。
+
+    Returns:
+        是否发送成功。
+    """
+    sc = _get_notification_config()
+    server = sc.get_bark_config().get("health_server") if sc is not None else None
+    return send_bark_notification(
+        title, message, level=level, server=server or None, enrich_context=False
+    )
 
 
 def send_pushover_notification(
@@ -548,6 +634,7 @@ def send_notification(
 # 向后兼容：保持原有的 send_bark_notification 导出
 __all__ = [
     "send_bark_notification",
+    "send_health_report",
     "send_pushover_notification",
     "send_pushover_html_notification",
     "send_notification",

@@ -55,6 +55,8 @@ class SystemConfigLoader:
         self.bark_config = {
             "enabled": False,
             "server": "",
+            # 可选：体检报告等「全局通知」专用通道；未配置时回落到 server
+            "health_server": "",
             "title": "副本助手通知",
             "group": "dungeon_helper",
         }
@@ -120,6 +122,8 @@ class SystemConfigLoader:
             self.bark_config["enabled"] = as_bool(os.environ.get("BARK_ENABLED", "false"))
         if os.environ.get("BARK_SERVER"):
             self.bark_config["server"] = os.environ["BARK_SERVER"]
+        if os.environ.get("BARK_HEALTH_SERVER"):
+            self.bark_config["health_server"] = os.environ["BARK_HEALTH_SERVER"]
         if os.environ.get("BARK_TITLE"):
             self.bark_config["title"] = os.environ["BARK_TITLE"]
         if os.environ.get("BARK_GROUP"):

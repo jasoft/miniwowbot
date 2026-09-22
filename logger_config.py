@@ -116,6 +116,14 @@ class LoggerConfig(BaseLoggerConfig):
             handlers=[logging.StreamHandler(sys.stdout)],
         )
 
+        # 格式串里含 `%(config)s %(emulator)s`（值由 GlobalLogContext 提供），
+        # 而 basicConfig 不会自动挂注入用的 filter —— 不挂的话每打一条日志都抛
+        # `ValueError: Formatting field not found in record: 'config'`，
+        # 控制台上只留一堆 traceback、看不到真正想打的内容。
+        for handler in logging.getLogger().handlers:
+            if not any(isinstance(f, _ContextFilter) for f in handler.filters):
+                handler.addFilter(_ContextFilter())
+
         return logger
 
 def setup_simple_logger(
