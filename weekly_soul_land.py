@@ -22,6 +22,12 @@
 
 硬超时默认 3600 秒（``--max-seconds``），到点无条件收工。
 
+模拟器不在线时会自动拉起：按 ``emulators.json`` 里该会话的
+``emulator_start_cmd``（``pwsh -File c:\\tools\\scripts\\start_bluestacks.ps1 -Id 1``，
+幂等，已在跑就跳过）启动，仍不上线再退化为 ``emulator_control.restart_emulator``
+完整重启 —— 与每天 06:05 的日常流水线走同一条已验证链路。
+注意：启动动作由本进程承载，**模拟器只在本脚本运行期间存活**。
+
 用法::
 
     python weekly_soul_land.py                     # 完整跑一轮
@@ -29,12 +35,14 @@
     python weekly_soul_land.py --dry-run           # 只探测界面，不进战斗
     python weekly_soul_land.py --skip-start        # 游戏已在主世界时不重启
     python weekly_soul_land.py --keep-game         # 结束后不关游戏
+    python weekly_soul_land.py --no-start-emulator # 模拟器离线时不要自动拉起
 """
 
 from __future__ import annotations
 
 import argparse
 import base64
+import json
 import os
 import shutil
 import subprocess
@@ -66,6 +74,10 @@ DEVICE_DEFAULT = "192.168.1.150:5555"
 PACKAGE = "com.ms.ysjyzr"
 OCR_URL = os.getenv("OCR_SERVER_URL", "http://192.168.1.150:8311/ocr")
 QUEST_KEYWORD = "聚魂之地"
+
+# —— 模拟器自动拉起（复用 emulators.json 的会话命令）——
+EMULATORS_CONFIG = PROJECT_ROOT / "emulators.json"
+EMULATOR_BOOT_TIMEOUT = 180  # 启动命令执行后等设备上线的秒数
 
 # —— 坐标（基准 720x1280 / 320dpi）——
 ENTRY_QUEST_LIST = (50, 99)  # 主界面「领取任务>>」
@@ -107,6 +119,44 @@ def resolve_adb_path() -> str:
 
 
 ADB_BIN = resolve_adb_path()
+
+
+def load_emulator_session_cmds(device: str) -> Dict[str, Optional[str]]:
+    """从 ``emulators.json`` 读取指定设备所属会话的启停命令。
+
+    Args:
+        device: 模拟器地址，如 ``192.168.1.150:5555``。
+
+    Returns:
+        Dict[str, Optional[str]]: ``{"start_cmd": ..., "shutdown_cmd": ...}``，
+        缺项或读取失败时对应值为 ``None``。
+    """
+    empty: Dict[str, Optional[str]] = {"start_cmd": None, "shutdown_cmd": None}
+    try:
+        with open(EMULATORS_CONFIG, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except FileNotFoundError:
+        logger.warning(f"⚠️ 未找到 {EMULATORS_CONFIG.name}，无法自动启动模拟器")
+        return empty
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning(f"⚠️ 读取 {EMULATORS_CONFIG.name} 失败: {type(exc).__name__}: {exc}")
+        return empty
+
+    sessions = data.get("sessions") if isinstance(data, dict) else data
+    if not isinstance(sessions, list):
+        logger.warning(f"⚠️ {EMULATORS_CONFIG.name} 里没有 sessions 列表")
+        return empty
+
+    for sess in sessions:
+        if not isinstance(sess, dict) or sess.get("emulator") != device:
+            continue
+        return {
+            "start_cmd": str(sess.get("emulator_start_cmd", "")).strip() or None,
+            "shutdown_cmd": str(sess.get("emulator_shutdown_cmd", "")).strip() or None,
+        }
+
+    logger.warning(f"⚠️ {EMULATORS_CONFIG.name} 里没有设备 {device} 对应的会话")
+    return empty
 
 
 # --------------------------------------------------------------------------- #
@@ -438,6 +488,7 @@ class SoulLandRunner:
         self.dry_run = args.dry_run
         self.skip_start = args.skip_start
         self.keep_game = args.keep_game
+        self.start_emulator = args.start_emulator
         self.image_dir = (
             Path(args.image_dir)
             if args.image_dir
@@ -565,12 +616,46 @@ class SoulLandRunner:
     def ensure_emulator_online(self, timeout: int = 120) -> bool:
         """确保模拟器在线（``adb devices`` 里是 ``device`` 状态）。
 
-        模拟器窗口本身必须在跑，这属于环境前提：脚本只在设备掉线时反复
-        ``adb connect``；连不上就报错并通知。**不**在这里强行拉起 BlueStacks
-        窗口 —— GUI 进程在沙箱里会被回收，硬拉只会让问题更难查。
+        三级升级，与日常流水线同一套机制：
+
+        1. 反复 ``adb connect``，最长 ``timeout`` 秒；
+        2. 仍离线 → 执行 ``emulators.json`` 里该会话的 ``emulator_start_cmd``
+           （``start_bluestacks.ps1`` 是幂等的，不会打扰已在跑的实例）；
+        3. 还离线 → 用 ``emulator_control.restart_emulator`` 完整重启。
+
+        启动动作由本进程承载，因此模拟器只在本脚本运行期间存活。
+        ``--no-start-emulator`` 可只保留第 1 级。
 
         Args:
-            timeout: 重试总时长（秒）。
+            timeout: ``adb connect`` 重试总时长（秒）。
+
+        Returns:
+            bool: 是否在线。
+        """
+        if self._wait_online(timeout):
+            return True
+        if not self.start_emulator:
+            logger.error("❌ 模拟器离线，且已禁用自动启动（--no-start-emulator）")
+            return False
+
+        logger.warning(f"⚠️ {self.device} 离线，尝试按会话命令启动模拟器…")
+        self._run_emulator_start_cmd()
+        if self._wait_online(EMULATOR_BOOT_TIMEOUT):
+            return True
+
+        logger.warning("⚠️ 幂等启动后仍离线，退化为完整重启…")
+        self._restart_emulator()
+        if self._wait_online(EMULATOR_BOOT_TIMEOUT):
+            return True
+
+        logger.error(f"❌ 自动拉起后 {self.device} 仍离线")
+        return False
+
+    def _wait_online(self, timeout: int) -> bool:
+        """等待设备上线，期间反复 ``adb connect``。
+
+        Args:
+            timeout: 等待总时长（秒）。
 
         Returns:
             bool: 是否在线。
@@ -581,11 +666,60 @@ class SoulLandRunner:
                 logger.info(f"✅ 模拟器在线: {self.device}")
                 return True
             if time.monotonic() - started > timeout:
-                logger.error(f"❌ 模拟器 {self.device} 离线超过 {timeout}s")
                 return False
             logger.warning(f"⚠️ 模拟器 {self.device} 未就绪，尝试 adb connect…")
             adb("connect", self.device)
             time.sleep(8)
+
+    def _run_emulator_start_cmd(self) -> None:
+        """执行 ``emulators.json`` 里该会话的模拟器启动命令。
+
+        与 ``emulator_manager._run_start_cmd`` 同构（shell 执行），额外收集
+        输出用于排错；失败不抛异常 —— 后面还有完整重启兜底。
+
+        Returns:
+            None
+        """
+        start_cmd = load_emulator_session_cmds(self.device)["start_cmd"]
+        if not start_cmd:
+            logger.warning("⚠️ emulators.json 里没有该会话的 emulator_start_cmd")
+            return
+        logger.info(f"🚀 执行启动命令: {start_cmd}")
+        try:
+            subprocess.run(
+                start_cmd,
+                shell=True,
+                capture_output=True,
+                timeout=120,
+            )
+        except subprocess.TimeoutExpired:
+            logger.warning("⚠️ 启动命令 120 秒未返回，继续等设备上线")
+        except Exception as exc:  # noqa: BLE001 - 启动失败后面有重启兜底
+            logger.error(f"❌ 执行启动命令失败: {type(exc).__name__}: {exc}")
+
+    def _restart_emulator(self) -> None:
+        """用 ``emulator_control.restart_emulator`` 完整重启模拟器。
+
+        Returns:
+            None
+        """
+        cmds = load_emulator_session_cmds(self.device)
+        try:
+            from emulator_control import EmulatorRestartConfig, restart_emulator
+        except Exception as exc:  # noqa: BLE001 - 导入失败不该中断主流程
+            logger.error(f"❌ 导入 emulator_control 失败: {type(exc).__name__}: {exc}")
+            return
+        try:
+            restart_emulator(
+                EmulatorRestartConfig(
+                    emulator=self.device,
+                    shutdown_cmd=cmds["shutdown_cmd"],
+                    start_cmd=cmds["start_cmd"],
+                ),
+                logger,
+            )
+        except Exception as exc:  # noqa: BLE001 - 同上
+            logger.error(f"❌ 重启模拟器异常: {type(exc).__name__}: {exc}")
 
     def _device_online(self) -> bool:
         """判断目标设备在 ``adb devices`` 里是否为可用状态。
@@ -963,6 +1097,12 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--dry-run", action="store_true", help="只探测界面，不进战斗")
     parser.add_argument("--skip-start", action="store_true", help="不重启游戏，直接在当前界面开始")
     parser.add_argument("--keep-game", action="store_true", help="结束后不关闭游戏")
+    parser.add_argument(
+        "--no-start-emulator",
+        dest="start_emulator",
+        action="store_false",
+        help="模拟器离线时不自动拉起（默认会按 emulators.json 的会话命令启动）",
+    )
     parser.add_argument(
         "--image-dir", default=None, help="截图目录（默认 log/weekly_soul_land/<日期>）"
     )
