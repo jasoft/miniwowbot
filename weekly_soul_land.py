@@ -12,7 +12,7 @@
 **打不过的判据**（大王定义）：战斗结束回到野外后，任务追踪条目右侧的感叹号
 **仍然是灰的**。金黄 = 可交付 = 这一层过了；灰 = 没打完 = 打不过，本轮结束。
 识别复用 ``quest_claimer.py`` 的颜色掩膜（R>200 & G>170 & B<110、
-面积 1600~3200 px），不看 OCR 文本。
+面积 1600~4200 px —— 该按钮是**动画元素**，上限刻意留了余量），不看 OCR 文本。
 
 主循环::
 
@@ -22,10 +22,11 @@
 
 硬超时默认 3600 秒（``--max-seconds``），到点无条件收工。
 
-模拟器不在线时会自动拉起：按 ``emulators.json`` 里该会话的
-``emulator_start_cmd``（``pwsh -File c:\\tools\\scripts\\start_bluestacks.ps1 -Id 1``，
-幂等，已在跑就跳过）启动，仍不上线再退化为 ``emulator_control.restart_emulator``
-完整重启 —— 与每天 06:05 的日常流水线走同一条已验证链路。
+模拟器不在线时自动拉起：先用现成的 ``scripts/bluestack-tool.py status`` 判主进程
+死活 —— 没起就**立即拉起**（那种情况下 ``adb connect`` 必然徒劳，不空转）；在跑但
+设备没就绪才重试 ``adb connect``。拉起走 ``emulators.json`` 的 ``emulator_start_cmd``
+（``pwsh -File c:\\tools\\scripts\\start_bluestacks.ps1 -Id 1``，幂等，已在跑就跳过），
+仍不上线再退化为 ``emulator_control.restart_emulator`` 完整重启。
 **结束时只关本次自己拉起的实例**（跑之前就在线的不动），``--keep-emulator`` 可保留。
 
 用法::
@@ -77,9 +78,15 @@ PACKAGE = "com.ms.ysjyzr"
 OCR_URL = os.getenv("OCR_SERVER_URL", "http://192.168.1.150:8311/ocr")
 QUEST_KEYWORD = "聚魂之地"
 
-# —— 模拟器自动拉起（复用 emulators.json 的会话命令）——
+# —— 模拟器自动拉起（复用 emulators.json 的会话命令 + 现成的 bluestack-tool）——
 EMULATORS_CONFIG = PROJECT_ROOT / "emulators.json"
 EMULATOR_BOOT_TIMEOUT = 180  # 启动命令执行后等设备上线的秒数
+
+# 判断「模拟器主进程是否存活」不自己撸进程列表，直接用项目现成的实例控制工具：
+# 它用「命令行 --instance / 窗口标题 / 端口反查」三重识别，比 tasklist 匹配进程名准，
+# 还能顺带给出 player_running / adb_connected / status 等字段。
+BLUESTACK_TOOL = PROJECT_ROOT / "scripts" / "bluestack-tool.py"
+EMULATOR_PROBE_TIMEOUT = 60  # 调 bluestack-tool status 探测实例状态的超时（秒）
 
 # —— 坐标（基准 720x1280 / 320dpi）——
 ENTRY_QUEST_LIST = (50, 99)  # 主界面「领取任务>>」
@@ -168,6 +175,83 @@ def load_emulator_session_cmds(device: str) -> Dict[str, Optional[str]]:
 
     logger.warning(f"⚠️ {EMULATORS_CONFIG.name} 里没有设备 {device} 对应的会话")
     return empty
+
+
+def emulator_instance_id(device: str) -> Optional[str]:
+    """从会话命令里解析出 BlueStacks 实例 id。
+
+    ``emulators.json`` 的 ``emulator_shutdown_cmd`` 形如
+    ``python scripts/bluestack-tool.py stop --id 1``，优先用它（``--id N``
+    语义明确）；回落到 ``emulator_start_cmd`` 的 ``-Id N``。
+
+    Args:
+        device: 模拟器地址，如 ``192.168.1.150:5555``。
+
+    Returns:
+        Optional[str]: 实例 id 字符串；两处都解析不到时返回 ``None``。
+    """
+    cmds = load_emulator_session_cmds(device)
+    for cmd in (cmds.get("shutdown_cmd"), cmds.get("start_cmd")):
+        match = re.search(r"(?:--id|-Id)\s+(\d+)", cmd or "")
+        if match:
+            return match.group(1)
+    return None
+
+
+def emulator_player_running(device: str) -> Optional[bool]:
+    """查询模拟器实例的主进程是否存活。
+
+    走项目现成的 ``scripts/bluestack-tool.py status --format json``（只读，无副作用），
+    它的三重识别比裸查进程名可靠。
+
+    用途是区分两种「离线」，避免无谓等待：
+
+    - 主进程根本没起 → ``adb connect`` 必然徒劳，应立即拉起模拟器；
+    - 主进程在跑但系统没就绪 → 值得重试 ``adb connect`` 等它 boot 完。
+
+    Args:
+        device: 模拟器地址。
+
+    Returns:
+        Optional[bool]: ``True``/``False`` 为探测结果；``None`` 表示探测不了
+        （实例 id 解析失败 / 子进程异常 / 输出非 JSON），调用方应退回保守路径。
+    """
+    instance_id = emulator_instance_id(device)
+    if not instance_id:
+        logger.warning("⚠️ 无法从会话命令解析实例 id，跳过进程存活探测")
+        return None
+
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(BLUESTACK_TOOL),
+                "status",
+                "--id",
+                instance_id,
+                "--format",
+                "json",
+            ],
+            capture_output=True,
+            timeout=EMULATOR_PROBE_TIMEOUT,
+        )
+    except Exception as exc:  # noqa: BLE001 - 探测失败只影响快慢，不该中断主流程
+        logger.warning(f"⚠️ 实例状态探测失败: {type(exc).__name__}: {exc}")
+        return None
+
+    raw = result.stdout.decode("utf-8", errors="replace")
+    try:
+        info = json.loads(raw).get("instance") or {}
+    except json.JSONDecodeError:
+        logger.warning(f"⚠️ 实例状态输出不是 JSON: {raw[:200]!r}")
+        return None
+
+    running = bool(info.get("player_running"))
+    logger.info(
+        f"🔎 实例 {instance_id} 进程存活={running}，状态={info.get('status')}，"
+        f"PID 数={info.get('pid_count')}"
+    )
+    return running
 
 
 # --------------------------------------------------------------------------- #
@@ -659,29 +743,51 @@ class SoulLandRunner:
     def ensure_emulator_online(self, timeout: int = 120) -> bool:
         """确保模拟器在线（``adb devices`` 里是 ``device`` 状态）。
 
-        三级升级，与日常流水线同一套机制：
+        先判主进程死活，再决定要不要等 —— **不无条件空转**：
 
-        1. 反复 ``adb connect``，最长 ``timeout`` 秒；
-        2. 仍离线 → 执行 ``emulators.json`` 里该会话的 ``emulator_start_cmd``
-           （``start_bluestacks.ps1`` 是幂等的，不会打扰已在跑的实例）；
-        3. 还离线 → 用 ``emulator_control.restart_emulator`` 完整重启。
+        1. 设备已在线 → 直接返回；
+        2. 主进程根本没起（``bluestack-tool status`` 的 ``player_running=False``）
+           → ``adb connect`` 必然徒劳，**立即拉起**；
+           主进程在跑但系统没就绪 → 值得重试 ``adb connect`` 直到 ``timeout``；
+        3. 拉起走两级兜底：先 ``emulators.json`` 的 ``emulator_start_cmd``
+           （``start_bluestacks.ps1`` 是幂等的，不打扰已在跑的实例），
+           仍不上线再用 ``emulator_control.restart_emulator`` 完整重启。
+
+        ⚠️ 早先版本无条件先重试 ``timeout``（120）秒才拉起：模拟器压根没开时
+        要白等 2 分钟，用户会误以为「不会自动启动」。改成先探进程后，
+        冷启动路径省掉整段空转。
 
         启动动作由本进程承载，拉起的实例会在 ``finish()`` 里关掉（见
         ``_shutdown_emulator``）。``--no-start-emulator`` 可只保留第 1 级。
 
         Args:
-            timeout: ``adb connect`` 重试总时长（秒）。
+            timeout: 主进程在跑时 ``adb connect`` 重试总时长（秒）。
 
         Returns:
             bool: 是否在线。
         """
-        if self._wait_online(timeout):
+        if self._device_online():
+            logger.info(f"✅ 模拟器在线: {self.device}")
             return True
         if not self.start_emulator:
             logger.error("❌ 模拟器离线，且已禁用自动启动（--no-start-emulator）")
             return False
 
-        logger.warning(f"⚠️ {self.device} 离线，尝试按会话命令启动模拟器…")
+        running = emulator_player_running(self.device)
+        if running is False:
+            logger.warning("⚠️ 未发现该实例的模拟器进程，直接启动（省去无谓的 adb 重试）…")
+        else:
+            if running:
+                logger.warning(
+                    f"⚠️ 模拟器进程在跑但 {self.device} 未就绪，"
+                    f"重试 adb connect（最长 {timeout}s）…"
+                )
+            else:
+                logger.warning(f"⚠️ 进程存活未知，先重试 adb connect（最长 {timeout}s）…")
+            if self._wait_online(timeout):
+                return True
+            logger.warning("⚠️ adb 重试耗尽，仍走启动命令兜底…")
+
         self._run_emulator_start_cmd()
         if self._wait_online(EMULATOR_BOOT_TIMEOUT):
             self.emulator_launched = True
