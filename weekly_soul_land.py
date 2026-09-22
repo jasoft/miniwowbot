@@ -97,8 +97,17 @@ GIFT_BOX = (600, 290, 720, 380)  # 主世界专属：「礼包」按钮
 TOP_BOX = (0, 0, 720, 84)  # 顶部标题区（副本名 / 波次计数）
 
 # —— 金黄感叹号的判据（与 quest_claimer.py 保持一致）——
+# ⚠️ 该按钮是**动画元素**：实测同一位置 26 帧真实截图，金黄连通域面积在
+# 2226~2846 px 之间跳动（极差 620px，约 ±12%），而同一批截图里的普通静态
+# UI 元素（技能图标等）面积极差为 0。因此上限留出余量吸收光晕峰值，
+# 避免动画峰值帧越界漏判。下限维持 1600：实测真感叹号最小 2226，余量充足。
 YELLOW_R, YELLOW_G, YELLOW_B = 200, 170, 110
-BADGE_MIN_AREA, BADGE_MAX_AREA = 1600, 3200
+BADGE_MIN_AREA, BADGE_MAX_AREA = 1600, 4200
+
+# 感叹号是动画 → 单帧截图可能恰好落在「暗相位」而漏判（实测面积极差 620px）。
+# 故取多帧判定，任一帧命中即算命中。间隔取 1.2s（非整数）以尽量错开动画相位。
+CLAIM_BADGE_ATTEMPTS = 3
+CLAIM_BADGE_INTERVAL = 1.2
 
 # 关面板 / 结算弹窗的候选按钮文字
 DISMISS_KEYS = ("确定", "继续", "挑战完成", "领取奖励", "确定领取")
@@ -833,17 +842,42 @@ class SoulLandRunner:
         frame = frame or self.frame.refresh("track")
         return frame.has(QUEST_KEYWORD, TRACK_BOX)
 
+    def locate_claim_badge(self) -> Optional[Tuple[int, int]]:
+        """多帧定位金黄感叹号，返回其中心坐标。
+
+        感叹号按钮是**动画元素**：实测同一位置 26 帧真实截图，金黄连通域
+        面积在 2226~2846 px 之间跳动（极差 620px）。单帧截图可能恰好落在
+        暗相位而漏判，导致「明明通关却判成打不过」的假阴性 —— 这里连取
+        多帧，任一帧命中即返回。
+
+        只做截图 + 颜色分析，不调 OCR，所以每帧约 0.5 秒。
+
+        Returns:
+            Optional[Tuple[int, int]]: 感叹号中心坐标；多帧均未命中时返回 ``None``。
+        """
+        for i in range(CLAIM_BADGE_ATTEMPTS):
+            path = screenshot(f"badge_{i}", self.image_dir)
+            badges = find_yellow_badges(path)
+            if badges:
+                if i:
+                    logger.info(f"🔔 金黄感叹号在第 {i + 1} 帧命中（前 {i} 帧撞上动画暗相位）")
+                else:
+                    logger.info(f"🔔 任务追踪栏发现金黄感叹号: {badges}")
+                return badges[0]
+            if i < CLAIM_BADGE_ATTEMPTS - 1:
+                time.sleep(CLAIM_BADGE_INTERVAL)
+        logger.info(f"⚪ 连续 {CLAIM_BADGE_ATTEMPTS} 帧未发现金黄感叹号")
+        return None
+
     def quest_is_claimable(self) -> bool:
         """任务追踪条目的感叹号是否已变金黄（= 这一层过了）。
+
+        走多帧判定：感叹号是动画元素，单帧可能撞上暗相位而漏判。
 
         Returns:
             bool: 是否可交付。
         """
-        frame = self.frame.refresh("claim_check")
-        badges = find_yellow_badges(frame.path) if frame.path else []
-        if badges:
-            logger.info(f"🔔 任务追踪栏发现金黄感叹号: {badges}")
-        return bool(badges)
+        return self.locate_claim_badge() is not None
 
     def track_entry_point(self, frame: Frame) -> Tuple[int, int]:
         """算出任务追踪条目的点击点。
@@ -967,13 +1001,12 @@ class SoulLandRunner:
         Returns:
             bool: 是否成功交付。
         """
-        frame = self.frame.refresh("claim")
-        badges = find_yellow_badges(frame.path) if frame.path else []
-        if not badges:
-            logger.warning("⚠️ 没有找到金黄感叹号，无法交付")
+        point = self.locate_claim_badge()
+        if point is None:
+            logger.warning("⚠️ 多帧均未找到金黄感叹号，无法交付")
             return False
 
-        x, y = badges[0]
+        x, y = point
         logger.info(f"👆 点击金黄感叹号 ({x}, {y})")
         tap(x, y, wait=3)
 
