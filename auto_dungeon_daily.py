@@ -126,6 +126,33 @@ DONATE_CLAIM_MAX_ATTEMPTS = 3
 # 必须在点击前排除，否则每天白点一次。
 DONATE_CLAIM_DONE_MARK = "已领取"
 
+# ====== 灵魂之塔签到 ======
+
+# 主界面右侧的活动入口文字（实际为「灵魂之塔II」，OCR 偶发读成
+# 「灵魂之塔!」，子串匹配「灵魂之塔」两种读法都能命中）。
+# 该入口随活动下架而消失，找不到时按「活动已结束」显式告警，
+# 与「猎魔试炼」的处理口径一致。
+SOUL_TOWER_ENTRY_TEXT = "灵魂之塔"
+# 入口的固定坐标兜底（主界面右侧第二列图标，2026-09-23 真机实测）。
+SOUL_TOWER_ENTRY_FALLBACK = (577, 205)
+# 面板打开的校验文字：底部标签行有「兑换」，主界面没有。
+SOUL_TOWER_PANEL_MARK = "兑换"
+# 面板底部「签到」标签（左一）的固定坐标兜底。页面标题也是「签到」，
+# OCR 查找必须用区域限定到底部标签行（region 7）。
+SOUL_TOWER_SIGNIN_TAB_FALLBACK = (118, 1030)
+# 签到页已打开的校验文字：日历里的状态与底部累计进度文案。
+SOUL_TOWER_CLAIMABLE_MARK = "可签到"
+SOUL_TOWER_CLAIMED_MARK = "解锁"
+SOUL_TOWER_PROGRESS_MARK = "累计签到"
+# 签到页「一键签到」按钮（底部居中）的固定坐标兜底。
+SOUL_TOWER_ONE_KEY_FALLBACK = (368, 1015)
+# 签到日历第一个格子（第 1 天）图标的固定坐标兜底：
+# 状态文字（解锁/可签到）偶尔不渲染，此时先点它刷新显示再复读。
+SOUL_TOWER_FIRST_SLOT_FALLBACK = (76, 250)
+# 签到成功后的奖励结算弹窗，与兑换流程共用关闭逻辑。
+SOUL_TOWER_REWARD_POPUP_TITLE = "恭喜获得"
+SOUL_TOWER_REWARD_POPUP_MAX_CLOSE = 2
+
 
 @dataclass(frozen=True)
 class EventExchangeItemState:
@@ -182,6 +209,7 @@ class DailyCollectManager:
             "领取礼包": (self._collect_gifts, "collect_gifts"),
             # "领取广告奖励": (self._buy_ads_items, "buy_ads_items"),
             "猎魔试炼": (self._demonhunter_exam, "demonhunter_exam"),
+            "灵魂之塔签到": (self._soul_tower_signin, "soul_tower_signin"),
         }
 
     def execute_task(self, task_name: str) -> bool:
@@ -1136,6 +1164,12 @@ class DailyCollectManager:
                 self._demonhunter_exam,
             )
 
+            # 12. 灵魂之塔签到（限时活动，入口消失时显式告警）
+            all_steps_completed &= self._run_step(
+                "soul_tower_signin",
+                self._soul_tower_signin,
+            )
+
             self.logger.info("=" * 60)
             if all_steps_completed:
                 self.logger.info("✅ 每日收集操作全部完成")
@@ -1191,6 +1225,179 @@ class DailyCollectManager:
             self.logger.error(f"❌ 猎魔试炼失败: {e}, 活动可能已结束")
             back_to_main()
             return False
+
+    def _soul_tower_signin(self) -> bool:
+        """灵魂之塔每日签到。
+
+        流程：主界面点「灵魂之塔」入口 → 面板底部「签到」标签 →
+        读到「可签到」格子时点「一键签到」→ 关掉奖励弹窗 →
+        复读确认「可签到」已消失。页面上没有「可签到」但有「解锁」
+        视为当天已签过；两种状态文字都没渲染时，先点第一个格子图标
+        刷新显示再复读一次（大王 2026-09-23 给出的口径）。
+
+        Returns:
+            bool: 当天已签到或本次签到成功返回 True；入口消失（活动结束）、
+            签到页打不开或签到未生效返回 False。
+        """
+        self.logger.info("🗼 灵魂之塔签到")
+        back_to_main()
+
+        try:
+            if not self._enter_soul_tower_panel():
+                back_to_main()
+                return False
+
+            if not self._open_soul_tower_signin_tab():
+                back_to_main()
+                return False
+
+            if not self._claim_soul_tower_signin():
+                back_to_main()
+                return False
+
+            back_to_main()
+            self.logger.info("✅ 灵魂之塔签到完成")
+            return True
+        except Exception as e:
+            self.logger.warning(f"⚠️ 灵魂之塔签到异常: {e}")
+            back_to_main()
+            return False
+
+    def _enter_soul_tower_panel(self) -> bool:
+        """从主界面进入灵魂之塔面板，点击后校验面板确实打开。
+
+        入口是限时活动图标，活动结束后从主界面消失 —— 此时按「活动已结束」
+        告警并返回 False，而不是静默记成成功。OCR 点击失败时退化为
+        固定坐标兜底，兜底后同样要复读校验。
+
+        Returns:
+            bool: 面板是否成功打开。
+        """
+        if find_text_and_click_safe(SOUL_TOWER_ENTRY_TEXT, timeout=5, use_cache=False):
+            sleep(2, "等待灵魂之塔面板打开")
+            if find_text(SOUL_TOWER_PANEL_MARK, use_cache=False, timeout=3):
+                return True
+
+        touch(SOUL_TOWER_ENTRY_FALLBACK)
+        sleep(2, "固定坐标兜底后等待面板打开")
+        if find_text(SOUL_TOWER_PANEL_MARK, use_cache=False, timeout=3):
+            self.logger.info("ℹ️ 灵魂之塔: OCR 入口未命中，固定坐标兜底成功")
+            return True
+
+        self.logger.warning("⚠️ 灵魂之塔: 未找到活动入口，活动可能已结束，本次不记录完成")
+        return False
+
+    def _open_soul_tower_signin_tab(self) -> bool:
+        """切到灵魂之塔面板底部的「签到」标签并确认签到页已打开。
+
+        页面标题同样是「签到」，直接全屏查找会命中标题，
+        因此 OCR 查找限定在底部标签行（region 7）。
+
+        Returns:
+            bool: 签到页是否已打开。
+        """
+        if find_text_and_click_safe("签到", regions=[7], use_cache=False, timeout=3):
+            sleep(1.5, "等待签到页渲染")
+            if self._soul_tower_signin_page_loaded():
+                return True
+
+        touch(SOUL_TOWER_SIGNIN_TAB_FALLBACK)
+        sleep(1.5, "固定坐标兜底后等待签到页渲染")
+        if self._soul_tower_signin_page_loaded():
+            self.logger.info("ℹ️ 灵魂之塔: 「签到」标签固定坐标兜底成功")
+            return True
+
+        self.logger.warning("⚠️ 灵魂之塔: 未能切到「签到」标签页")
+        return False
+
+    def _soul_tower_signin_page_loaded(self) -> bool:
+        """判断灵魂之塔的签到页是否已经打开。
+
+        以日历状态文字（解锁/可签到）与底部累计进度文案为信号，
+        三者任一可见即认为页面已打开。
+
+        Returns:
+            bool: 签到页是否已打开。
+        """
+        return bool(
+            find_text(SOUL_TOWER_PROGRESS_MARK, use_cache=False, timeout=3)
+            or find_text(SOUL_TOWER_CLAIMED_MARK, use_cache=False, timeout=2)
+            or find_text(SOUL_TOWER_CLAIMABLE_MARK, use_cache=False, timeout=2)
+        )
+
+    def _find_soul_tower_claimable_slot(self):
+        """查找签到日历上「可签到」的格子。
+
+        Returns:
+            GameElement: 「可签到」格子元素；没有则返回空元素（falsy）。
+        """
+        return find_text(SOUL_TOWER_CLAIMABLE_MARK, use_cache=False, timeout=3)
+
+    def _claim_soul_tower_signin(self) -> bool:
+        """执行签到并复读确认「可签到」格子已消失。
+
+        首选「一键签到」：OCR 偶发把「一键签到」读成「键签到」，
+        而子串「键签到」同时兼容两种读法，且不会误命中
+        「购买高级签到」（不含「键签到」）。一键按钮点不到时退化为
+        固定坐标。签到后仍有「可签到」格子则补点该格子一次，
+        仍在则判失败并告警，绝不无限补点。
+
+        Returns:
+            bool: 签到是否确认生效。
+        """
+        claimable = self._find_soul_tower_claimable_slot()
+        if not claimable:
+            if find_text(SOUL_TOWER_CLAIMED_MARK, use_cache=False, timeout=3):
+                self.logger.info("ℹ️ 灵魂之塔: 无「可签到」格子，今日已签到")
+                return True
+            # 状态文字没渲染：点第一个格子图标刷新显示后再读一次
+            self.logger.info("ℹ️ 灵魂之塔: 签到页状态文字未渲染，点击第一个格子图标刷新")
+            touch(SOUL_TOWER_FIRST_SLOT_FALLBACK)
+            sleep(1.5, "等待签到页状态刷新")
+            claimable = self._find_soul_tower_claimable_slot()
+            if not claimable:
+                if find_text(SOUL_TOWER_CLAIMED_MARK, use_cache=False, timeout=3):
+                    self.logger.info("ℹ️ 灵魂之塔: 刷新后确认今日已签到")
+                    return True
+                self.logger.warning("⚠️ 灵魂之塔: 既无「可签到」也无「解锁」，无法确认签到状态")
+                return False
+
+        if not find_text_and_click_safe("键签到", regions=[8], use_cache=False, timeout=3):
+            self.logger.info("ℹ️ 灵魂之塔: 未读到「一键签到」，固定坐标兜底")
+            touch(SOUL_TOWER_ONE_KEY_FALLBACK)
+        sleep(2, "等待签到请求完成")
+        self._close_soul_tower_reward_popup()
+
+        # 成功判据 = 复读页面，「可签到」格子确实消失
+        remain = self._find_soul_tower_claimable_slot()
+        if remain:
+            self.logger.warning("⚠️ 灵魂之塔: 一键签到后仍有「可签到」格子，补点该格子（仅一次）")
+            remain.click()
+            sleep(2, "等待补点签到完成")
+            self._close_soul_tower_reward_popup()
+            if self._find_soul_tower_claimable_slot():
+                self.logger.warning("⚠️ 灵魂之塔: 补点后「可签到」格子仍在，签到未生效")
+                return False
+
+        return True
+
+    def _close_soul_tower_reward_popup(self) -> None:
+        """关闭灵魂之塔签到成功后的「恭喜获得」奖励弹窗。
+
+        弹窗会盖住签到页，不关掉会让复读读到旧界面、把成功误判成失败。
+        确认按钮用 ``exact=True`` 匹配「确定」，避免命中「确定要兑换…」
+        一类的提示语（项目既定口径）。
+
+        """
+        for _ in range(SOUL_TOWER_REWARD_POPUP_MAX_CLOSE):
+            if not find_text(SOUL_TOWER_REWARD_POPUP_TITLE, use_cache=False, timeout=2):
+                return
+            if not find_text_and_click_safe(
+                "确定", exact=True, regions=[4, 5, 6], use_cache=False, timeout=3
+            ):
+                self.logger.warning("⚠️ 灵魂之塔: 奖励弹窗「确定」未命中，固定坐标兜底")
+                touch((351, 758))
+            sleep(1, "等待弹窗关闭")
 
     def _open_exchange_tab(self) -> list[EventExchangeItemState]:
         """切到活动面板的兑换页并返回行状态。

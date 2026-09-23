@@ -3,7 +3,7 @@
     "class": "战士",
     "enable_daily_collect": true,
     "enable_quick_afk": true,
-    "chestname": "风暴宝箱",
+    "chestname": "亡灵宝箱",
     "daily_tasks": [
         { "name": "领取挂机奖励", "selected": true },
         { "name": "购买商店每日", "selected": true },
@@ -15,7 +15,8 @@
         { "name": "领取主题奖励", "selected": true },
         { "name": "领取礼包", "selected": true },
         { "name": "领取广告奖励", "selected": false },
-        { "name": "猎魔试炼", "selected": false }
+        { "name": "猎魔试炼", "selected": false },
+        { "name": "灵魂之塔签到", "selected": true }
     ],
     "ocr_correction_map": {
         "梦魔丛林": "梦魇丛林"

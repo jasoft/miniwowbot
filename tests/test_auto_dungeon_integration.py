@@ -715,7 +715,7 @@ class TestDailyCollectIntegration:
         assert container.config_loader.get_char_class() == "战士", "角色职业应该是战士"
         assert container.config_loader.is_daily_collect_enabled() is True, "每日领取应该启用"
         assert container.config_loader.is_quick_afk_enabled() is True, "快速挂机应该启用"
-        assert container.config_loader.get_chest_name() == "风暴宝箱", "宝箱名称应该是风暴宝箱"
+        assert container.config_loader.get_chest_name() == "亡灵宝箱", "宝箱名称应该是亡灵宝箱"
 
         # 验证副本配置
         zone_dungeons = container.config_loader.get_zone_dungeons()
