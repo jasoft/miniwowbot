@@ -37,6 +37,7 @@ class FakeDonatePage:
         click_effects: Optional[list[bool]] = None,
         progress_visible: bool = True,
         hide_after_clicks: Optional[int] = None,
+        dirty_texts: Optional[list[str]] = None,
     ):
         """初始化假页面。"""
         self.done = done
@@ -44,6 +45,8 @@ class FakeDonatePage:
         self.click_effects = list(click_effects or [])
         self.progress_visible = progress_visible
         self.hide_after_clicks = hide_after_clicks
+        # 排在真实进度框之前的「脏」文本框，用于模拟 OCR 多认/认错一位数字
+        self.dirty_texts = list(dirty_texts or [])
         self.click_count = 0
 
     def click(self) -> None:
@@ -58,6 +61,7 @@ class FakeDonatePage:
     def ocr_results(self) -> list[dict[str, Any]]:
         """返回当前页面上的 OCR 结果。"""
         items: list[dict[str, Any]] = [{"text": "上缴", "center": (362, 639)}]
+        items.extend({"text": text, "center": (308, 946)} for text in self.dirty_texts)
         if self.progress_visible:
             items.append(
                 {
@@ -82,6 +86,8 @@ def _build_manager(monkeypatch, page: FakeDonatePage):
         config_loader=MagicMock(),
         db=MagicMock(),
     )
+    # 测试期不往真实日志里写，同时便于断言「有没有把原始文本留痕」
+    manager.logger = MagicMock()
     monkeypatch.setattr(
         manager,
         "_capture_full_ocr",
@@ -191,6 +197,43 @@ def test_rejects_done_greater_than_required(monkeypatch) -> None:
 
     assert manager._donate_event_materials((362, 639)) is False
     assert page.click_count == auto_dungeon_daily.DONATE_TARGET_TIMES
+
+
+def test_skips_misread_candidate_and_uses_later_valid_one(monkeypatch) -> None:
+    """回归 2026-09-23：首条候选被 OCR 多认一位（15/5）时不能整页放弃。
+
+    2026-09-21 ~ 09-23 小号连续三天把上缴进度读成 `10/5` / `15/5`，旧实现
+    遇到第一条越界候选就 `return None`，整页退化为盲点 5 次。正确行为是继续
+    扫描后面的候选，用合法的那条把次数补满。
+    """
+    page = FakeDonatePage(
+        done=2,
+        required=5,
+        dirty_texts=["每上缴(15/5)次领取一次宝箱"],
+    )
+    manager = _build_manager(monkeypatch, page)
+
+    assert manager._donate_event_materials((362, 639)) is True
+    assert page.done == 5
+    assert page.click_count == 3
+
+
+def test_logs_raw_text_when_every_candidate_is_invalid(monkeypatch) -> None:
+    """全部候选都不合法时，必须把原始文本写进日志。
+
+    否则事后只看到「读到 15/5」，无法判断到底哪几个字被认错，
+    第二天照样只能盲点。
+    """
+    page = FakeDonatePage(
+        progress_visible=False,
+        dirty_texts=["每上缴(15/5)次领取一次宝箱"],
+    )
+    manager = _build_manager(monkeypatch, page)
+
+    assert manager._donate_event_materials((362, 639)) is False
+    assert page.click_count == auto_dungeon_daily.DONATE_TARGET_TIMES
+    logged = " ".join(str(call) for call in manager.logger.warning.call_args_list)
+    assert "每上缴(15/5)次领取一次宝箱" in logged
 
 
 @pytest.mark.parametrize(

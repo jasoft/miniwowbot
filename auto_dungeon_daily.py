@@ -1242,33 +1242,56 @@ class DailyCollectManager:
         进度来自「每上缴(N/5)次领取一次宝箱」这行说明文字。用完全匹配的
         正则提取，不会把「上缴」按钮本身或其它含数字的文案误当成进度。
 
+        一条候选越界（OCR 多认/认错一位数字）时**不再立刻放弃整页**：继续
+        扫描后面的候选，只要有一条通过校验就采用它。全部候选都不合法时才
+        判定为读不到，并且把原始文本一并写进日志 —— 否则事后只能看到
+        「读到 15/5」，无从判断到底哪几个字被认错。
+
         Returns:
             Optional[tuple[int, int]]: `(已上缴次数, 需要上缴次数)`；
-            读不到、或读到的上限不在合理范围内时返回 `None`。
+            读不到、或所有候选都不在合理范围内时返回 `None`。
         """
         ocr_results, screenshot_path = self._capture_full_ocr("donate")
         try:
+            raw_candidates: list[str] = []
             for item in ocr_results:
                 text = (item.get("text") or "").strip()
                 match = DONATE_PROGRESS_PATTERN.search(text)
                 if match is None:
                     continue
+                raw_candidates.append(text)
                 done_count = int(match.group(1))
                 required_count = int(match.group(2))
                 if not DONATE_REQUIRED_MIN <= required_count <= DONATE_REQUIRED_MAX:
                     self.logger.warning(
-                        "⚠️ 主题奖励: 上缴次数上限读到 %d，超出合理范围，视为读错",
+                        "⚠️ 主题奖励: 上缴次数上限读到 %d（原文 %r），超出合理范围，视为读错",
                         required_count,
+                        text,
                     )
-                    return None
+                    continue
                 if done_count > required_count:
                     self.logger.warning(
-                        "⚠️ 主题奖励: 上缴进度读到 %d/%d，已完成数超过上限，视为读错",
+                        "⚠️ 主题奖励: 上缴进度读到 %d/%d（原文 %r），已完成数超过上限，视为读错",
                         done_count,
                         required_count,
+                        text,
                     )
-                    return None
+                    continue
+                if len(raw_candidates) > 1:
+                    self.logger.info(
+                        "🔎 主题奖励: 上缴进度有 %d 条候选，采用 %d/%d（原文 %r）",
+                        len(raw_candidates),
+                        done_count,
+                        required_count,
+                        text,
+                    )
                 return done_count, required_count
+            if raw_candidates:
+                self.logger.warning(
+                    "⚠️ 主题奖励: 上缴进度 %d 条候选全部不合法，原始文本=%s",
+                    len(raw_candidates),
+                    raw_candidates,
+                )
             return None
         finally:
             self._cleanup_temp_screenshot(screenshot_path)
