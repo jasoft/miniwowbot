@@ -16,6 +16,7 @@ from typing import Iterable, List, Optional
 import typer
 
 from logger_config import (
+    DETACHED_LOGGER_NAMES,
     attach_emulator_file_handler,
     attach_file_handler_to_loggers,
     setup_logger,
@@ -289,6 +290,54 @@ def _ensure_emulator_ready(emulator: str, logger) -> bool:
         return False
 
 
+def attach_session_file_loggers(logfile: Path, emulator: str) -> Optional[Path]:
+    """把**会话日志文件**同时挂到 root 与项目内所有「脱离」具名 logger 上。
+
+    背景（2026-09-24 实测）：``emulator_manager`` 自建 handler 且
+    ``propagate = False``，只把文件 handler 挂在 root 上时它的日志（模拟器冷启动
+    进度 ``[Emulator] 第 N/6 次尝试连接`` / ``[Emulator] 等待 15 秒...``）
+    进不了会话日志 —— 两个会话日志里历史累计 0 行。
+
+    这不是单纯缺日志：编排器 ``cron_run_all_dungeons`` 正是拿会话日志的
+    ``(mtime, size)`` 当作「会话还活着」的唯一信号，冷启动期间文件不动就会被
+    判成僵死并重启（见 ``logger_config.DETACHED_LOGGER_NAMES`` 的说明）。
+
+    Args:
+        logfile: 会话日志文件路径。
+        emulator: 模拟器地址，写入日志上下文（``config`` / ``emulator`` 字段）。
+
+    Returns:
+        Optional[Path]: 实际写入的日志文件路径；root 挂载失败时返回 ``None``。
+    """
+    try:
+        emulator_log_path = attach_emulator_file_handler(
+            emulator_name=emulator, config_name=None, log_dir=str(logfile.parent)
+        )
+    except Exception as exc:
+        # 挂不上文件日志 = 本次运行没有任何磁盘痕迹，必须喊出来
+        logging.getLogger(__name__).warning(
+            f"⚠️ 挂载模拟器文件日志失败（本次运行将只有控制台输出）: {exc}"
+        )
+        return None
+
+    # 上面的 handler 挂在 root 上，只收得到子模块日志；下面这些具名 logger 的
+    # propagate 被关掉了，不额外各挂一份的话，它们的日志只进控制台 ——
+    # 其中 emulator_manager 的冷启动进度是看门狗判断「会话在动」的唯一依据。
+    try:
+        resolved = Path(emulator_log_path)
+        attach_file_handler_to_loggers(
+            filename=resolved.name,
+            log_dir=str(resolved.parent),
+            level="DEBUG",
+            logger_names=("run_dungeons", *DETACHED_LOGGER_NAMES),
+        )
+    except Exception as exc:
+        logging.getLogger(__name__).warning(
+            f"⚠️ 挂载具名 logger 文件日志失败（仅影响这些模块的落盘）: {exc}"
+        )
+    return Path(emulator_log_path)
+
+
 def run_configs(
     configs: Iterable[str],
     emulator: str,
@@ -311,31 +360,7 @@ def run_configs(
     update_log_context({"session": session})
     if logfile is None:
         logfile = SCRIPT_DIR / "log" / f"autodungeon_{session}.log"
-    try:
-        emulator_log_path = attach_emulator_file_handler(
-            emulator_name=emulator, config_name=None, log_dir=str(logfile.parent)
-        )
-    except Exception as exc:
-        # 挂不上文件日志 = 本次运行没有任何磁盘痕迹，必须喊出来
-        logging.getLogger(__name__).warning(
-            f"⚠️ 挂载模拟器文件日志失败（本次运行将只有控制台输出）: {exc}"
-        )
-    else:
-        # 上面的 handler 挂在 root 上，只收得到子模块日志；本模块的 `run_dungeons`
-        # 是具名 logger（propagate=False），不额外挂一份的话，
-        # 「模拟器准备失败」「所有配置当日任务已完成」这类结论只进控制台。
-        try:
-            resolved = Path(emulator_log_path)
-            attach_file_handler_to_loggers(
-                filename=resolved.name,
-                log_dir=str(resolved.parent),
-                level="DEBUG",
-                logger_names=("run_dungeons",),
-            )
-        except Exception as exc:
-            logging.getLogger(__name__).warning(
-                f"⚠️ 挂载 run_dungeons 自身文件日志失败（仅影响本入口日志）: {exc}"
-            )
+    attach_session_file_loggers(logfile, emulator)
     logger = setup_logger(name="run_dungeons", level="INFO", use_color=False)
 
     cfgs: List[str] = [c for c in configs if str(c).strip()]

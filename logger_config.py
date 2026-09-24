@@ -68,6 +68,7 @@ __all__ = [
     "attach_emulator_file_handler",
     "attach_file_handler_to_loggers",
     "get_log_file_path",
+    "DETACHED_LOGGER_NAMES",
     "DEFAULT_COLOR_FORMAT",
     "DEFAULT_COLOR_DATE_FORMAT",
     "DEFAULT_SIMPLE_FORMAT",
@@ -79,6 +80,25 @@ __all__ = [
 DEFAULT_COLOR_FORMAT = DEFAULT_LOG_FORMAT
 DEFAULT_COLOR_DATE_FORMAT = DEFAULT_DATE_FORMAT
 DEFAULT_SIMPLE_FORMAT = "%(asctime)s.%(msecs)03d %(levelname)s %(filename)s:%(lineno)d %(config)s %(emulator)s %(message)s"
+
+# 项目内「自建 handler 且关闭 propagate」的具名 logger。
+#
+# 这类 logger（`setup_logger(name=...)` 或 `logging.getLogger(__name__)` 后手动
+# `propagate = False`）不向 root 传播，而各入口的文件 handler 习惯挂在 root 上 ——
+# 于是它们的日志**永远只进控制台、进不了日志文件**。
+#
+# 2026-09-24 线上暴露：`emulator_manager` 的模拟器冷启动进度
+# （`[Emulator] 第 N/6 次尝试连接`、`[Emulator] 等待 15 秒...`）
+# 在两个会话日志里**历史累计 0 行**。这不只是「少几行日志」——编排器
+# `cron_run_all_dungeons` 拿会话日志的 (mtime, size) 当作「会话是否还活着」的
+# 唯一信号，实例冷启动（>180 秒）期间文件一动不动，看门狗便把**正在正常启动的
+# 会话**判成僵死，连模拟器一起杀掉重启。
+#
+# 新增这类 logger 时一并登记，否则又会退回「控制台看得到、文件里没有」。
+DETACHED_LOGGER_NAMES: tuple[str, ...] = (
+    "emulator_manager",
+    "miniwow.system_config_loader",
+)
 
 ensure_utf8_output()
 GlobalLogContext.set_defaults({"config": "unknown", "emulator": "unknown"})
