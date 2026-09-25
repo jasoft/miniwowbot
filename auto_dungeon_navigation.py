@@ -10,7 +10,6 @@ from typing import List
 
 from airtest.core.api import (
     keyevent,
-    shell,
     touch,
     wait,
     exists,
@@ -34,8 +33,21 @@ from coordinates import (
 
 logger = logging.getLogger(__name__)
 
+#: 游戏包名，用于判断游戏是否仍在前台。
+GAME_PACKAGE = "com.ms.ysjyzr"
+
 #: 最近一次截图失败的原因，供通知正文引用（``None`` 表示最近一次成功）
 _last_screenshot_error: str | None = None
+
+
+class GameNotForegroundError(TimeoutError):
+    """游戏已不在前台，继续等待主界面没有意义。
+
+    继承 :class:`TimeoutError` 是为了**复用** ``main_wrapper`` 已有的恢复路径：
+    一旦探测到游戏被切到后台或已退出，唯一有效的恢复手段就是重新走一遍
+    「关闭游戏 → 启动游戏 → 等角色选择界面」，而这恰好是 ``main_wrapper``
+    捕获 :class:`TimeoutError` 后做的事。
+    """
 
 
 def get_last_screenshot_error() -> str | None:
@@ -63,6 +75,39 @@ def _has_connected_device() -> bool:
         return getattr(G, "DEVICE", None) is not None
     except Exception:  # pragma: no cover - 取不到就按「没设备」处理
         return False
+
+
+def is_game_foreground(package: str = GAME_PACKAGE) -> bool | None:
+    """判断游戏当前是否在前台。
+
+    为什么需要它：``back_to_main`` 靠「点返回按钮 + 按系统返回键」退回主界面。
+    一旦游戏已经不在前台（被切到桌面或其它 App），返回键**永远**回不到主界面，
+    只能一路空等到超时。2026-09-25 实测：一次退出到桌面后 ``back_to_main``
+    连环超时 18 次、白耗约 4.5 分钟，8 个日常任务全部误报失败，
+    直到外层「超时重启」才恢复。
+
+    Returns:
+        bool | None: ``True`` 游戏在前台；``False`` **明确**不在前台（前台是
+        别的应用）；``None`` 无法判定（没有设备或探测本身异常）。
+        调用方**不要**把 ``None`` 当成 ``False`` —— 探测抖动不该触发重量级的
+        重启动作，宁可退回「等超时」的老行为。
+    """
+    try:
+        from airtest.core.api import G
+
+        device = getattr(G, "DEVICE", None)
+        if device is None:
+            return None
+        top = device.get_top_activity()
+    except Exception as e:
+        logger.warning(f"⚠️ 探测前台应用失败: {type(e).__name__}: {e}")
+        return None
+
+    if not top:
+        return None
+
+    top_package = top[0] if isinstance(top, (tuple, list)) else str(top)
+    return bool(top_package) and top_package == package
 
 
 def save_error_screenshot(operation_name: str) -> str:
@@ -183,8 +228,29 @@ def is_on_character_selection(timeout: int = 30) -> bool:
     return False
 
 
-def back_to_main(max_duration: float = 15, backoff_interval: float = 0.2) -> None:
-    """返回主界面"""
+def back_to_main(
+    max_duration: float = 15,
+    backoff_interval: float = 0.2,
+    foreground_check_interval: int = 3,
+) -> None:
+    """返回主界面。
+
+    实现方式是「点返回按钮 + 按系统返回键」直到检测到主界面。这种「按键硬轰」
+    在弹窗层数不明时会把游戏一路退出到 Android 桌面（系统返回键在游戏的根界面
+    就是「退出应用」），此后无论再按多少次都回不到主界面，只能空等到超时。
+    因此这里每隔 ``foreground_check_interval`` 次尝试探测一次游戏是否还活着，
+    一旦**明确**不在前台就立刻失败，把 15 秒的空转 + 后续连环超时掐断。
+
+    Args:
+        max_duration: 最长等待秒数。
+        backoff_interval: 每次尝试之间的间隔秒数。
+        foreground_check_interval: 每多少次尝试探测一次游戏是否仍在前台；
+            设为 ``0`` 或负数表示关闭探测。
+
+    Raises:
+        GameNotForegroundError: 探测到游戏已不在前台。
+        TimeoutError: 在 ``max_duration`` 秒内仍未检测到主界面。
+    """
     logger.info("🔙 返回主界面")
     start_time = time.time()
     attempt = 0
@@ -199,6 +265,15 @@ def back_to_main(max_duration: float = 15, backoff_interval: float = 0.2) -> Non
             message = f"back_to_main 超时，已等待 {elapsed:.1f} 秒仍未检测到主界面"
             logger.error(message)
             raise TimeoutError(message)
+
+        if foreground_check_interval > 0 and attempt % foreground_check_interval == 0:
+            if is_game_foreground() is False:
+                message = (
+                    f"back_to_main 中止：游戏已不在前台（等待 {elapsed:.1f} 秒后探测到），"
+                    "继续按返回键也不可能回到主界面，需要重启游戏进程"
+                )
+                logger.error(message)
+                raise GameNotForegroundError(message)
 
         attempt += 1
 
@@ -216,23 +291,35 @@ def back_to_main(max_duration: float = 15, backoff_interval: float = 0.2) -> Non
             except Exception as e:
                 logger.warning(f"⚠️ 系统返回键发送失败: {e}")
 
-        if attempt % 5 == 0:
-            try:
-                shell("input keyevent 4")
-            except Exception as e:
-                logger.debug(f"ADB 返回指令失败: {e}")
-
         sleep(backoff_interval)
 
 
 def switch_to_zone(zone_name: str, max_attempts: int = 3) -> bool:
-    """切换到指定区域，最多重试max_attempts次"""
+    """切换到指定区域，最多重试 ``max_attempts`` 次。
+
+    每次尝试前都会确认「地图已打开」。2026-09-25 实测：地图没能打开时，
+    三次尝试全都在非地图界面上盲等 OCR 超时（每次约 20 秒、共白耗 60 秒），
+    最终该副本被整轮跳过，还连带触发了一整轮重试。重开地图约 2.5 秒，
+    成本远低于盲等，所以宁可多开一次地图。
+
+    Args:
+        zone_name: 目标区域名称。
+        max_attempts: 最大尝试次数。
+
+    Returns:
+        bool: 是否成功切换到目标区域。
+    """
     for attempt in range(max_attempts):
         logger.info(f"\n{'=' * 50}")
         logger.info(f"🌍 切换区域: {zone_name} (第 {attempt + 1}/{max_attempts} 次尝试)")
         logger.info(f"{ '=' * 50}")
 
-        find_text_and_click_safe("切换区域", timeout=10)
+        if not is_on_map():
+            logger.warning("⚠️ 当前不在地图界面，重新打开地图后再试")
+            open_map()
+
+        if not find_text_and_click_safe("切换区域", timeout=10):
+            logger.warning("⚠️ 未找到「切换区域」按钮（可能地图未打开或界面异常）")
 
         if find_text_and_click_safe(zone_name, timeout=10, occurrence=2):
             logger.info(f"✅ 成功切换到: {zone_name}")
@@ -242,9 +329,7 @@ def switch_to_zone(zone_name: str, max_attempts: int = 3) -> bool:
         logger.error(f"❌ 切换失败: {zone_name} (第 {attempt + 1}/{max_attempts} 次)")
 
         if attempt < max_attempts - 1:
-            logger.info("🔄 关闭弹窗后重试...")
-            find_text_and_click_safe("切换区域", timeout=10)
-            sleep(1)
+            logger.info("🔄 准备重试（下一轮会先确认地图已打开）")
 
     logger.error(f"❌ 切换区域失败，已重试 {max_attempts} 次: {zone_name}")
     save_error_screenshot("switch_to_zone")

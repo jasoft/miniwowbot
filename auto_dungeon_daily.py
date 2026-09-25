@@ -18,6 +18,7 @@ from airtest.core.api import snapshot, touch
 from auto_dungeon_config import CLICK_INTERVAL
 from auto_dungeon_container import get_container
 from auto_dungeon_navigation import (
+    GameNotForegroundError,
     back_to_main,
     get_last_screenshot_error,
     open_map,
@@ -215,11 +216,21 @@ class DailyCollectManager:
     def execute_task(self, task_name: str) -> bool:
         """根据任务名称执行每日任务。
 
+        ``GameNotForegroundError`` 会被**放行**而不是当成单个任务的失败：
+        它意味着游戏已经不在前台，此时后面每一个日常任务都会以同样的方式失败
+        （各自白等一次 ``back_to_main`` 超时，2026-09-25 实测 8 个任务白耗
+        约 2 分钟），并且都会发出一次内容相同、与真实原因无关的告警。
+        直接抛给 ``main_wrapper`` 去走「超时 → 重启游戏」这条恢复路径，
+        才是这个状态唯一有效的处理方式。
+
         Args:
             task_name: 任务名称。
 
         Returns:
             bool: 执行是否成功。
+
+        Raises:
+            GameNotForegroundError: 游戏已不在前台，需要重启游戏。
         """
         if task_name not in self.TASK_MAPPING:
             self.logger.warning(f"⚠️ 未知的每日任务: {task_name}")
@@ -229,6 +240,11 @@ class DailyCollectManager:
         try:
             self.logger.info(f"🚀 执行每日任务: {task_name}")
             return self._run_step(step_key, method)
+        except GameNotForegroundError:
+            self.logger.error(
+                f"🛑 游戏已不在前台，中止日常任务区并交由外层重启游戏（当前任务: {task_name}）"
+            )
+            raise
         except Exception as e:
             self.logger.error(f"❌ 执行每日任务 {task_name} 失败: {e}")
             save_error_screenshot(f"daily_{task_name}")
