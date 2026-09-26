@@ -223,6 +223,11 @@ class DailyCollectManager:
         直接抛给 ``main_wrapper`` 去走「超时 → 重启游戏」这条恢复路径，
         才是这个状态唯一有效的处理方式。
 
+        这里只是最后一道闸门：各 step 方法内部的 ``except Exception`` 也必须
+        先放行该异常，否则它会被就地降级成「本步骤失败」并补发一条与真实原因
+        无关的告警（2026-09-26 实测记成「未找到商店: back_to_main 中止…」
+        「兑换碎片失败, 请立即检查」）。
+
         Args:
             task_name: 任务名称。
 
@@ -1237,6 +1242,8 @@ class DailyCollectManager:
             find_text_and_click_safe("一键签到")
             back_to_main()
             return True
+        except GameNotForegroundError:
+            raise
         except Exception as e:
             self.logger.error(f"❌ 猎魔试炼失败: {e}, 活动可能已结束")
             back_to_main()
@@ -1274,6 +1281,8 @@ class DailyCollectManager:
             back_to_main()
             self.logger.info("✅ 灵魂之塔签到完成")
             return True
+        except GameNotForegroundError:
+            raise
         except Exception as e:
             self.logger.warning(f"⚠️ 灵魂之塔签到异常: {e}")
             back_to_main()
@@ -1764,6 +1773,8 @@ class DailyCollectManager:
             exchange_success = self._redeem_fire_tower_ticket_items(exchange_tab_states)
             if exchange_success:
                 send_notification("奖券兑换成功", "目标物品兑换完成, 请检查")
+        except GameNotForegroundError:
+            raise
         except Exception as exc:
             self.logger.error("❌ 主题奖励: 兑换碎片失败: %s", exc)
             send_notification("兑换碎片失败", "兑换失败, 请立即检查")
@@ -1811,6 +1822,8 @@ class DailyCollectManager:
 
             back_to_main()
             return True
+        except GameNotForegroundError:
+            raise
         except Exception as e:
             self.logger.warning(f"⚠️ 未找到战斗按钮或点击失败: {e}")
             back_to_main()
@@ -2014,6 +2027,8 @@ class DailyCollectManager:
 
             self.logger.info("✅ 杀死世界boss成功")
             return True
+        except GameNotForegroundError:
+            raise
         except Exception as e:
             self.logger.warning(f"⚠️ 未找到世界boss: {e}")
             back_to_main()
@@ -2042,6 +2057,8 @@ class DailyCollectManager:
             back_to_main()
             self.logger.info("✅ 购买市场商品成功")
             return True
+        except GameNotForegroundError:
+            raise
         except Exception as e:
             self.logger.warning(f"⚠️ 未找到商店: {e}")
             back_to_main()
@@ -2085,11 +2102,12 @@ class DailyCollectManager:
 
             self.logger.info("✅ 打开宝箱成功")
             return True
+        except GameNotForegroundError:
+            raise
         except Exception as e:
             self.logger.warning(f"⚠️ 未找到宝箱: {e}")
             back_to_main()
             return False
-            back_to_main()
 
     def _locate_mail_claim_button(self) -> tuple[int, int]:
         """定位邮箱面板的「一键领取」按钮，带等待重试与固定坐标兜底。
@@ -2149,6 +2167,8 @@ class DailyCollectManager:
             back_to_main()
             self.logger.info("✅ 领取邮件成功")
             return True
+        except GameNotForegroundError:
+            raise
         except Exception as e:
             self.logger.warning(f"⚠️ 领取邮件异常: {e}")
             back_to_main()
