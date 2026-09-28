@@ -9,15 +9,16 @@
 from __future__ import annotations
 
 import json
-import locale
 import logging
 import os
 import shutil
-import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional, Sequence
+
+import adb_runner
+import process_utils
 
 DEFAULT_EMULATOR_PROCESS_NAMES: tuple[str, ...] = (
     # MuMu
@@ -73,21 +74,7 @@ def decode_process_output(raw_output: Optional[bytes]) -> str:
     Returns:
         解码后的文本。若无法准确匹配编码则使用替换字符兜底。
     """
-    if raw_output is None:
-        return ""
-
-    candidate_encodings = (
-        "utf-8",
-        locale.getpreferredencoding(False) or "utf-8",
-        "gbk",
-    )
-    for encoding in candidate_encodings:
-        try:
-            return raw_output.decode(encoding)
-        except UnicodeDecodeError:
-            continue
-
-    return raw_output.decode("utf-8", errors="replace")
+    return process_utils.decode_output(raw_output)
 
 
 def _normalize_emulator(emulator: str) -> str:
@@ -450,13 +437,11 @@ def _is_adb_device_online(
     """
     for attempt in range(1, retries + 1):
         try:
-            result = subprocess.run(
-                [adb_path, "devices"],
-                capture_output=True,
-                text=True,
-                timeout=15,
-            )
-            for line in (result.stdout or "").splitlines():
+            result = adb_runner.run_adb_command([adb_path, "devices"], timeout=15)
+            if result.timed_out:
+                logger.warning(f"⚠️ 检查 ADB 设备状态超时（>15s）: {emulator}")
+                continue
+            for line in result.stdout_text().splitlines():
                 parts = line.split()
                 if len(parts) >= 2 and parts[0] == emulator and parts[1] == "device":
                     logger.info(f"✅ ADB 设备已在线: {emulator}")
@@ -514,14 +499,13 @@ def _query_mumu_instances(manager_path: Path, logger: logging.Logger) -> list[di
         实例信息列表。
     """
     try:
-        result = subprocess.run(
-            [str(manager_path), "info", "-v", "all"],
-            capture_output=True,
-            text=False,
-            timeout=60,
-        )
+        result = process_utils.run_command([str(manager_path), "info", "-v", "all"], timeout=60)
     except Exception as exc:
         logger.warning(f"⚠️ 读取 MuMu 实例信息失败: {exc}")
+        return []
+
+    if result.timed_out:
+        logger.warning("⚠️ MuMu info 超时（>60s），已放弃等待")
         return []
 
     if result.returncode != 0:
@@ -548,15 +532,13 @@ def _run_shell_cmd(command: str, logger: logging.Logger, desc: str) -> bool:
         命令是否执行成功。
     """
     try:
-        result = subprocess.run(
-            command,
-            shell=True,
-            capture_output=True,
-            text=False,
-            timeout=120,
-        )
+        result = process_utils.run_command(command, timeout=120, shell=True)
     except Exception as exc:
         logger.warning(f"⚠️ {desc} 异常: {exc}")
+        return False
+
+    if result.timed_out:
+        logger.warning(f"⚠️ {desc} 超时（>120s），已放弃等待")
         return False
 
     stdout_text = decode_process_output(result.stdout).strip()
@@ -596,18 +578,28 @@ def _run_list_cmd(
     Returns:
         命令是否执行成功。
     """
+    command = list(cmd)
+    # adb 命令走 adb_runner：它会先预热 adb server（无管道，见 process_utils 的说明），
+    # 避免「首个 adb 调用派生 server → 管道句柄被继承 → 调用方被挂死」。
+    runner = adb_runner.run_adb_command if adb_runner.is_adb_command(command) else None
     try:
-        result = subprocess.run(
-            list(cmd),
-            capture_output=True,
-            text=False,
-            timeout=timeout,
-        )
+        if runner is not None:
+            result = runner(command, timeout=timeout)
+        else:
+            result = process_utils.run_command(command, timeout=timeout)
     except Exception as exc:
         if allow_failure:
             logger.info(f"ℹ️ {desc} 异常（忽略）: {exc}")
             return False
         logger.warning(f"⚠️ {desc} 异常: {exc}")
+        return False
+
+    if result.timed_out:
+        message = f"⚠️ {desc} 超时（>{timeout}s），已放弃等待"
+        if allow_failure:
+            logger.info(message + "（忽略）")
+        else:
+            logger.warning(message)
         return False
 
     stdout_text = decode_process_output(result.stdout).strip()
@@ -659,20 +651,15 @@ def _has_any_running_process(process_names: Sequence[str]) -> bool:
 
     if os.name == "nt":
         try:
-            result = subprocess.run(
-                ["tasklist", "/FO", "CSV", "/NH"],
-                capture_output=True,
-                text=True,
-                timeout=20,
-            )
+            result = process_utils.run_command(["tasklist", "/FO", "CSV", "/NH"], timeout=20)
         except Exception:
             return False
 
-        if result.returncode != 0:
+        if result.timed_out or result.returncode != 0:
             return False
 
         targets = {name.lower() for name in process_names}
-        for line in result.stdout.splitlines():
+        for line in result.stdout_text().splitlines():
             cols = line.split(",", 1)
             if not cols:
                 continue
@@ -683,15 +670,10 @@ def _has_any_running_process(process_names: Sequence[str]) -> bool:
 
     for name in process_names:
         try:
-            result = subprocess.run(
-                ["pgrep", "-f", name],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
+            result = process_utils.run_command(["pgrep", "-f", name], timeout=10)
         except Exception:
             continue
-        if result.returncode == 0 and result.stdout.strip():
+        if result.returncode == 0 and result.stdout_text().strip():
             return True
     return False
 

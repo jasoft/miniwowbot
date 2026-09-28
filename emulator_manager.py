@@ -16,6 +16,12 @@ import time
 from shutil import which
 from typing import Optional
 
+import adb_runner
+
+# 单条 adb 命令的超时（秒）。冷启动期间 adb 客户端可能要先拉起 server，
+# 但超时保护必须真实生效 —— 见 process_utils 模块 docstring 的管道死锁说明。
+ADB_COMMAND_TIMEOUT = adb_runner.DEFAULT_ADB_TIMEOUT
+
 # ==================== 模块级 Logger ====================
 # 外部可通过 `from emulator_manager import logger` 导入并修改此 logger
 logger = logging.getLogger(__name__)
@@ -98,18 +104,18 @@ class EmulatorConnectionManager:
     def get_devices(self) -> dict[str, str]:
         """获取已连接的 ADB 设备列表"""
         try:
-            result = subprocess.run(
-                [self.adb_path, "devices"],
-                capture_output=True,
-                text=True,
-                timeout=10,
+            result = adb_runner.run_adb_command(
+                [self.adb_path, "devices"], timeout=ADB_COMMAND_TIMEOUT
             )
+            if result.timed_out:
+                self.logger.error(f"[ADB] devices 超时（>{ADB_COMMAND_TIMEOUT}s），已放弃等待")
+                return {}
             if result.returncode != 0:
-                error_detail = result.stderr.strip() or result.stdout.strip()
+                error_detail = result.stderr_text().strip() or result.stdout_text().strip()
                 self.logger.error(f"[ADB] devices 失败: {error_detail}")
                 return {}
             devices = {}
-            for line in result.stdout.strip().split("\n")[1:]:
+            for line in result.stdout_text().strip().split("\n")[1:]:
                 if line.strip():
                     parts = line.split()
                     if len(parts) >= 2:
@@ -135,21 +141,23 @@ class EmulatorConnectionManager:
     def connect(self, emulator: str) -> bool:
         """尝试通过 adb connect 连接模拟器"""
         try:
-            result = subprocess.run(
-                [self.adb_path, "connect", emulator],
-                capture_output=True,
-                text=True,
-                timeout=10,
+            result = adb_runner.run_adb_command(
+                [self.adb_path, "connect", emulator], timeout=ADB_COMMAND_TIMEOUT
             )
+            if result.timed_out:
+                self.logger.warning(
+                    f"[ADB] 连接超时（>{ADB_COMMAND_TIMEOUT}s），已放弃等待: {emulator}"
+                )
+                return False
             if result.returncode != 0:
-                error_detail = result.stderr.strip() or result.stdout.strip()
+                error_detail = result.stderr_text().strip() or result.stdout_text().strip()
                 self.logger.warning(f"[ADB] 连接失败: {error_detail}")
                 return False
-            output = result.stdout.strip().lower()
+            output = result.stdout_text().strip().lower()
             if "connected" in output or "already connected" in output:
                 self.logger.info(f"[ADB] 已连接: {emulator}")
                 return True
-            error_detail = result.stderr.strip() or result.stdout.strip()
+            error_detail = result.stderr_text().strip() or result.stdout_text().strip()
             self.logger.warning(f"[ADB] 连接失败: {error_detail}")
             return False
         except Exception as exc:
@@ -231,16 +239,17 @@ class EmulatorConnectionManager:
             bool: 连接可用返回 True
         """
         try:
-            result = subprocess.run(
+            result = adb_runner.run_adb_command(
                 [self.adb_path, "-s", emulator, "shell", "echo", "test"],
-                capture_output=True,
-                text=True,
-                timeout=10,
+                timeout=ADB_COMMAND_TIMEOUT,
             )
+            if result.timed_out:
+                self.logger.warning(f"[ADB] 连接测试超时（>{ADB_COMMAND_TIMEOUT}s）: {emulator}")
+                return False
             if result.returncode == 0:
                 self.logger.info(f"[ADB] 连接测试成功: {emulator}")
                 return True
-            self.logger.warning(f"[ADB] 连接测试失败: {emulator}, 输出: {result.stderr}")
+            self.logger.warning(f"[ADB] 连接测试失败: {emulator}, 输出: {result.stderr_text()}")
             return False
         except Exception as exc:
             self.logger.warning(f"[ADB] 连接测试异常: {exc}")
