@@ -1,10 +1,10 @@
 # -*- encoding=utf8 -*-
-"""每周挑战「聚魂之地」自动闯关脚本。
+"""每周挑战「秘境」自动闯关脚本。
 
 背景
 ----
 主界面左上角「领取任务>>」打开「任务清单」，面板里第一条就是每周重置的秘境
-挑战 ``【秘境】聚魂之地-史诗N``（金橙色边框，其余条目是紫/蓝框）。接取后
+挑战 ``【秘境】<副本名>-史诗N``（金橙色边框，其余条目是紫/蓝框）。接取后
 左侧任务追踪栏出现该条目，之后每次开打都走同一条链路：
 
     点追踪条目 → 任务详情弹窗「前往」→ 副本详情页「前往」→ 进入战斗（挂机自动打）
@@ -16,7 +16,7 @@
 
 主循环::
 
-    接取「聚魂之地」→ 前往 → 等回到野外
+    接取「秘境」→ 前往 → 等回到野外
         ├─ 感叹号变金黄 → 交付 → 接下一层 → 继续
         └─ 感叹号仍是灰 → 打不过 → 结束
 
@@ -76,7 +76,11 @@ LOGGER_NAME = "weekly_soul_land"
 DEVICE_DEFAULT = "192.168.1.150:5555"
 PACKAGE = "com.ms.ysjyzr"
 OCR_URL = os.getenv("OCR_SERVER_URL", "http://192.168.1.150:8311/ocr")
-QUEST_KEYWORD = "聚魂之地"
+# 秘境任务识别：
+# 副本名每周会换（实测：聚魂之地 → 凋零废墟），所以不能用副本名当关键词 ——
+# 任务清单里的秘境条目统一以「【秘境】」开头，追踪栏 / 副本标题统一含「史诗」。
+QUEST_LIST_KEYWORD = "【秘境】"  # 任务清单里识别秘境条目
+QUEST_KEYWORD = "史诗"  # 追踪栏 / 副本标题里的秘境任务标记
 
 # —— 模拟器自动拉起（复用 emulators.json 的会话命令 + 现成的 bluestack-tool）——
 EMULATORS_CONFIG = PROJECT_ROOT / "emulators.json"
@@ -98,7 +102,7 @@ CHAR_ENTER = (359, 571)  # 角色选择页「进入游戏」
 
 # —— 识别区域 ——
 TRACK_BOX = (0, 60, 300, 260)  # 左侧任务追踪栏
-TRACK_MARKERS = ("聚魂", "魂之地", "通关", "史诗")  # 任务条目被 OCR 拆行时的定位词
+TRACK_MARKERS = ("通关", "史诗")  # 任务条目被 OCR 拆行时的定位词（只用副本无关的稳定词）
 LIST_BOX = (150, 300, 540, 950)  # 任务清单条目区（排除标题栏）
 GIFT_BOX = (600, 290, 720, 380)  # 主世界专属：「礼包」按钮
 TOP_BOX = (0, 0, 720, 84)  # 顶部标题区（副本名 / 波次计数）
@@ -568,7 +572,7 @@ def find_yellow_badges(image_path: Path, box: Sequence[int] = TRACK_BOX) -> List
 # 执行器
 # --------------------------------------------------------------------------- #
 class SoulLandRunner:
-    """「聚魂之地」每周挑战的执行器。"""
+    """「秘境」每周挑战的执行器。"""
 
     def __init__(self, args: argparse.Namespace) -> None:
         """初始化执行器。
@@ -612,7 +616,7 @@ class SoulLandRunner:
 
         self.deadline = time.monotonic() + self.max_seconds
         logger.info("=" * 60)
-        logger.info("🏰 每周挑战「聚魂之地」自动闯关")
+        logger.info("🏰 每周挑战「秘境」自动闯关")
         logger.info(f"   设备={self.device}  职业={self.char_name}  硬超时={self.max_seconds}s")
         logger.info(f"   截图目录={self.image_dir}")
         logger.info("=" * 60)
@@ -632,7 +636,7 @@ class SoulLandRunner:
                 return self.finish(0)
 
             if not self.ensure_quest_accepted():
-                self.stop_reason = "任务清单里没有可接的「聚魂之地」"
+                self.stop_reason = "任务清单里没有可接的「秘境」"
                 return self.finish(1)
 
             self.main_loop()
@@ -697,7 +701,7 @@ class SoulLandRunner:
             logger.info("dry-run 结束：不发通知、不动游戏")
             return code
 
-        title = "聚魂之地" + ("✅" if self.cleared else "⚠️")
+        title = "秘境" + ("✅" if self.cleared else "⚠️")
         try:
             ok = send_notification(title, summary, provider="bark")
             logger.info(f"📱 通知发送{'成功' if ok else '失败'}: {title}")
@@ -937,7 +941,7 @@ class SoulLandRunner:
         return not frame.has(QUEST_KEYWORD, TOP_BOX)
 
     def has_quest_in_track(self, frame: Optional[Frame] = None) -> bool:
-        """任务追踪栏里是否已有「聚魂之地」。
+        """任务追踪栏里是否已有「秘境」。
 
         Args:
             frame: 可复用的帧；``None`` 时重新截图。
@@ -988,7 +992,7 @@ class SoulLandRunner:
     def track_entry_point(self, frame: Frame) -> Tuple[int, int]:
         """算出任务追踪条目的点击点。
 
-        任务名会被 OCR 拆行，所以用「通关/聚魂/史诗」这类行标记词定位，
+        任务名会被 OCR 拆行，所以用「通关/史诗」这类行标记词定位，
         再取这些片段的外接 y 中心。
 
         Args:
@@ -1005,26 +1009,26 @@ class SoulLandRunner:
         return (TRACK_CLICK_X, (top + bottom) // 2)
 
     def ensure_quest_accepted(self) -> bool:
-        """确保任务追踪栏里挂着「聚魂之地」。
+        """确保任务追踪栏里挂着「秘境」。
 
         Returns:
             bool: 是否接取成功（或本来就有）。
         """
         frame = self.frame.refresh("quest_check")
         if self.has_quest_in_track(frame):
-            logger.info("任务追踪栏已有「聚魂之地」，直接开打")
+            logger.info("任务追踪栏已有「秘境」，直接开打")
             return True
         return self.accept_from_list()
 
     def accept_from_list(self) -> bool:
-        """打开任务清单，接取第一条含「聚魂之地」的任务。
+        """打开任务清单，接取第一条含「秘境」的任务。
 
         Returns:
             bool: 是否接取成功。
         """
         for attempt in range(3):
             self.reset_view()
-            logger.info(f"📋 打开任务清单找「{QUEST_KEYWORD}」（第 {attempt + 1} 次）")
+            logger.info(f"📋 打开任务清单找「{QUEST_LIST_KEYWORD}」（第 {attempt + 1} 次）")
 
             frame = self.frame.refresh("quest_entry")
             entry_point = self.quest_list_entry_point(frame)
@@ -1034,9 +1038,9 @@ class SoulLandRunner:
             tap(*entry_point, wait=3)
 
             frame = self.frame.refresh("quest_list")
-            entry = frame.find(QUEST_KEYWORD, LIST_BOX)
+            entry = frame.find(QUEST_LIST_KEYWORD, LIST_BOX)
             if not entry:
-                logger.warning("⚠️ 任务清单里没找到「聚魂之地」条目")
+                logger.warning("⚠️ 任务清单里没找到「秘境」条目")
                 continue
 
             logger.info(f"👆 点击任务条目: {entry['text']!r} @ {entry['center']}")
@@ -1045,7 +1049,7 @@ class SoulLandRunner:
 
             frame = self.frame.refresh("quest_accepted")
             if frame.has(QUEST_KEYWORD, TRACK_BOX):
-                logger.info("✅ 已接取「聚魂之地」")
+                logger.info("✅ 已接取「秘境」")
                 self.reset_view()  # 关掉任务清单面板
                 return True
             logger.warning("⚠️ 点了接受任务但追踪栏没出现该任务")
@@ -1093,12 +1097,12 @@ class SoulLandRunner:
             return False
         self.cleared += 1
 
-        logger.info("🔎 回任务清单找下一层「聚魂之地」…")
+        logger.info("🔎 回任务清单找下一层「秘境」…")
         if self.accept_from_list():
             return True
 
-        self.stop_reason = "没有下一层「聚魂之地」任务了"
-        logger.info("🏁 任务清单里已无「聚魂之地」，全部打完")
+        self.stop_reason = "没有下一层「秘境」任务了"
+        logger.info("🏁 任务清单里已无「秘境」，全部打完")
         return False
 
     def claim_quest(self) -> bool:
@@ -1154,7 +1158,7 @@ class SoulLandRunner:
         """
         frame = self.frame.refresh("goto_track")
         if not self.has_quest_in_track(frame):
-            logger.warning("⚠️ 追踪栏没有「聚魂之地」，先重新接取")
+            logger.warning("⚠️ 追踪栏没有「秘境」，先重新接取")
             if not self.accept_from_list():
                 return False
             frame = self.frame.refresh("goto_track_retry")
@@ -1259,7 +1263,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     Returns:
         argparse.Namespace: 解析结果。
     """
-    parser = argparse.ArgumentParser(description="每周挑战「聚魂之地」自动闯关")
+    parser = argparse.ArgumentParser(description="每周挑战「秘境」自动闯关")
     parser.add_argument("--device", default=DEVICE_DEFAULT, help="模拟器地址")
     parser.add_argument("--config", default="warrior", help="日志上下文里的配置名")
     parser.add_argument("--char", default="战士", help="角色选择页要选的职业")
