@@ -116,15 +116,52 @@ def select_character(char_class: str) -> None:
     wait_for_main()
 
 
-def wait_for_main(timeout: int = 300) -> None:
-    """等待回到主界面"""
-    logger.info("⏳ 等待战斗结束...")
+# 等待主界面时的心跳间隔（秒）。必须显著小于编排器的日志停滞阈值
+# （cron_run_all_dungeons.LOG_IDLE_TIMEOUT_SECONDS = 180），否则看门狗会把
+# 「正在正常等待战斗结束」的会话判成僵死并杀掉重启。
+WAIT_FOR_MAIN_HEARTBEAT_SECONDS = 30
+# 默认超时。刻意收敛到小于看门狗阈值，让"真卡住"时由本函数自己超时抛出，
+# 而不是被外部看门狗连模拟器一起杀掉 —— 后者代价是重开一轮模拟器（约 4 分钟）。
+WAIT_FOR_MAIN_DEFAULT_TIMEOUT = 150
+
+
+def wait_for_main(timeout: int = WAIT_FOR_MAIN_DEFAULT_TIMEOUT) -> None:
+    """等待回到主界面（带心跳日志，避免看门狗误判僵死）。
+
+    过去这里直接调用 airtest 的 ``wait()`` 阻塞最长 ``timeout`` 秒且**中途不打任何
+    日志**。而编排器 ``cron_run_all_dungeons`` 用会话日志的 ``(mtime, size)`` 当作
+    「会话是否还活着」的唯一信号，超过 ``LOG_IDLE_TIMEOUT_SECONDS``(180 秒) 无更新
+    就判定僵死，杀掉会话并重启模拟器。当 ``timeout``(默认 300) > 180 时，
+    只要这一次等待真的卡满 180 秒，就必然被误杀 —— 2026-09-30 06:06:57 实测命中。
+
+    现在改为分段轮询：每 ``WAIT_FOR_MAIN_HEARTBEAT_SECONDS`` 秒打一条心跳日志，
+    命中模板立即返回，累计超过 ``timeout`` 才抛 ``TimeoutError``。
+
+    Args:
+        timeout: 最长等待秒数，默认 150 秒（小于编排器 180 秒的日志停滞阈值）。
+
+    Raises:
+        TimeoutError: 等待超过 ``timeout`` 秒仍未回到主界面。
+    """
+    logger.info(f"⏳ 等待战斗结束...(最长 {timeout} 秒)")
     start_time = time.time()
-    try:
-        result = wait(GIFTS_TEMPLATE, timeout=timeout, interval=0.5)
-        if result:
-            elapsed = time.time() - start_time
-            logger.info(f"✅ 战斗结束，用时 {elapsed:.1f} 秒")
-    except Exception as e:
-        logger.error(f"⏱️ 等待 GIFTS_TEMPLATE 超时或出错: {e}")
-        raise TimeoutError("等待主界面超时")
+    deadline = start_time + timeout
+    last_heartbeat = start_time
+    while True:
+        try:
+            if wait(GIFTS_TEMPLATE, timeout=0.5, interval=0.5):
+                elapsed = time.time() - start_time
+                logger.info(f"✅ 战斗结束，用时 {elapsed:.1f} 秒")
+                return
+        except Exception as e:  # noqa: BLE001 - 单次轮询异常不应中断整个等待
+            logger.debug(f"等待主界面轮询异常（继续重试）: {e}")
+
+        now = time.time()
+        if now >= deadline:
+            elapsed = now - start_time
+            logger.error(f"⏱️ 等待主界面超时（已等待 {elapsed:.1f} 秒）")
+            raise TimeoutError("等待主界面超时")
+        if now - last_heartbeat >= WAIT_FOR_MAIN_HEARTBEAT_SECONDS:
+            last_heartbeat = now
+            elapsed_text = f"已等待 {now - start_time:.0f} 秒，上限 {timeout} 秒"
+            logger.info(f"⏳ 等待主界面中...（{elapsed_text}）")

@@ -36,6 +36,11 @@ logger = logging.getLogger(__name__)
 #: 游戏包名，用于判断游戏是否仍在前台。
 GAME_PACKAGE = "com.ms.ysjyzr"
 
+#: 等待角色选择界面时的心跳间隔（秒）。必须显著小于编排器的日志停滞阈值
+#: （cron_run_all_dungeons.LOG_IDLE_TIMEOUT_SECONDS = 180），否则看门狗会把
+#: 「正在正常等待游戏启动」的会话判成僵死，连模拟器一起杀掉重启。
+CHARACTER_SELECTION_HEARTBEAT_SECONDS = 30
+
 #: 最近一次截图失败的原因，供通知正文引用（``None`` 表示最近一次成功）
 _last_screenshot_error: str | None = None
 
@@ -197,9 +202,11 @@ def is_on_character_selection(timeout: int = 30) -> bool:
     Returns:
         True 表示已进入角色选择界面；False 表示超时仍未进入。
     """
-    logger.info("🔍 等待进入角色选择界面...")
-    deadline = time.time() + max(1, timeout)
+    logger.info(f"🔍 等待进入角色选择界面...(最长 {timeout} 秒)")
+    start_time = time.time()
+    deadline = start_time + max(1, timeout)
     transient_errors: List[str] = []
+    last_heartbeat = start_time
 
     while True:
         remaining = deadline - time.time()
@@ -219,6 +226,13 @@ def is_on_character_selection(timeout: int = 30) -> bool:
             transient_errors.append(f"{type(e).__name__}: {e}")
             logger.warning(f"⚠️ 检测角色选择界面时出现临时异常，继续重试: {type(e).__name__}: {e}")
             time.sleep(1)
+
+        # 心跳：wait() 会在整段 timeout 内静默阻塞，而编排器把「日志文件 180 秒
+        # 无更新」当作会话僵死的唯一信号。这里定期留痕，避免正常等待被误杀。
+        now = time.time()
+        if now - last_heartbeat >= CHARACTER_SELECTION_HEARTBEAT_SECONDS:
+            last_heartbeat = now
+            logger.info(f"🔍 等待角色选择界面中...（已等待 {now - start_time:.0f} 秒）")
 
     if transient_errors:
         logger.error(
