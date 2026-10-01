@@ -41,6 +41,19 @@ GAME_PACKAGE = "com.ms.ysjyzr"
 #: 「正在正常等待游戏启动」的会话判成僵死，连模拟器一起杀掉重启。
 CHARACTER_SELECTION_HEARTBEAT_SECONDS = 30
 
+#: 等待角色选择界面时，单次 ``wait`` 的轮询切片（秒）。
+#:
+#: airtest 的 ``wait(template, timeout=T)`` 会在 T 秒内**整段阻塞**，中途既不打日志
+#: 也不会回到调用方。若把整个超时一次性交给它（``timeout=remaining``），等待期间
+#: 日志文件零增长，而编排器 ``cron_run_all_dungeons`` 把会话日志的 ``(mtime, size)``
+#: 当作「会话是否还活着」的**唯一**信号 —— 超过 ``LOG_IDLE_TIMEOUT_SECONDS``(180 秒)
+#: 就判定僵死，杀掉会话并重启模拟器。
+#:
+#: 2026-10-01 06:06:22.264 实测：静默 **180.07 秒**后由本函数自己超时，与阈值擦边，
+#: 纯属侥幸没被看门狗选中；当天会话日志里 ``等待角色选择界面中...`` 出现 **0 次**，
+#: 即"心跳代码存在但永远执行不到"。切成小片后每片返回一次，心跳才有机会落盘。
+CHARACTER_SELECTION_POLL_SLICE_SECONDS = 1.0
+
 #: 最近一次截图失败的原因，供通知正文引用（``None`` 表示最近一次成功）
 _last_screenshot_error: str | None = None
 
@@ -113,6 +126,37 @@ def is_game_foreground(package: str = GAME_PACKAGE) -> bool | None:
 
     top_package = top[0] if isinstance(top, (tuple, list)) else str(top)
     return bool(top_package) and top_package == package
+
+
+def describe_foreground() -> str:
+    """返回当前前台应用的 ``包名/Activity`` 描述，用于诊断「游戏卡在哪个画面」。
+
+    与 :func:`is_game_foreground` 共用 ``get_top_activity`` 探测，区别是它**永不抛异常**
+    且返回可读字符串而不是三态布尔 —— 唯一用途是写进等待超时的日志里，供事后定位。
+
+    为什么需要它：2026-10-01 06:06~06:35 mage_alt 连续 9 次「启动游戏后 180 秒内未
+    进入角色选择界面」，但脚本侧**没有任何画面信息**，只能靠 BlueStacks 的 Player.log
+    反推"游戏一直停在同一画面"。把前台应用记进日志后，下次一眼就能看出卡在哪。
+
+    Returns:
+        str: 形如 ``com.ms.ysjyzr/org.cocos2dx.javascript.AppActivity``；
+        无法判定时返回 ``unknown`` 或 ``unknown(<异常类型>)``。
+    """
+    try:
+        from airtest.core.api import G
+
+        device = getattr(G, "DEVICE", None)
+        if device is None:
+            return "unknown"
+        top = device.get_top_activity()
+    except Exception as e:  # noqa: BLE001 - 纯诊断，任何异常都不该影响主流程
+        return f"unknown({type(e).__name__})"
+
+    if not top:
+        return "unknown"
+    if isinstance(top, (tuple, list)):
+        return "/".join(str(part) for part in top if part)
+    return str(top)
 
 
 def save_error_screenshot(operation_name: str) -> str:
@@ -196,6 +240,14 @@ def is_on_character_selection(timeout: int = 30) -> bool:
     adb 瞬时不可用）就立刻判定"未在角色选择界面"，进而触发整个流程重启游戏，
     形成"在选人界面反复杀游戏重启"的死循环。现在这类异常会被记录并继续重试。
 
+    等待被切成 ``CHARACTER_SELECTION_POLL_SLICE_SECONDS`` 秒的小片，每片结束后回到
+    本函数检查是否已超时、并按 ``CHARACTER_SELECTION_HEARTBEAT_SECONDS`` 打心跳 ——
+    详见该常量的说明。**不要**改回 ``wait(timeout=remaining)``：那会让整段等待静默，
+    并把阻塞上限顶到看门狗阈值之上。
+
+    超时未命中时会落一张错误截图（并记录超时瞬间的前台应用），让"游戏卡在哪个画面"
+    有据可查，而不是只能靠模拟器日志反推。
+
     Args:
         timeout: 最长等待秒数。
 
@@ -213,32 +265,42 @@ def is_on_character_selection(timeout: int = 30) -> bool:
         if remaining <= 0:
             break
         try:
-            wait(ENTER_GAME_BUTTON_TEMPLATE, timeout=remaining, interval=0.1)
+            wait(
+                ENTER_GAME_BUTTON_TEMPLATE,
+                timeout=min(remaining, CHARACTER_SELECTION_POLL_SLICE_SECONDS),
+                interval=0.1,
+            )
             if transient_errors:
                 logger.info(
                     f"✅ 已进入角色选择界面（期间出现过 {len(transient_errors)} 次截图/识别异常，已恢复）"
                 )
             return True
         except TargetNotFoundError:
-            # 真正的"整段时间都没找到"：正常判定为不在该界面
-            break
+            # 这一小片没命中只说明"还没进界面"，继续下一片；整体是否超时由 deadline 判定。
+            # 注意：这里**不能** break —— airtest 的 wait 在整段找不到目标时抛的就是本异常，
+            # 一旦 break，循环下方的超时日志与心跳将永远执行不到（2026-10-01 实测）。
+            pass
         except Exception as e:
             transient_errors.append(f"{type(e).__name__}: {e}")
             logger.warning(f"⚠️ 检测角色选择界面时出现临时异常，继续重试: {type(e).__name__}: {e}")
             time.sleep(1)
 
-        # 心跳：wait() 会在整段 timeout 内静默阻塞，而编排器把「日志文件 180 秒
-        # 无更新」当作会话僵死的唯一信号。这里定期留痕，避免正常等待被误杀。
+        # 心跳：wait() 每片只阻塞一小段，这里按期留痕。编排器把「日志文件 180 秒
+        # 无更新」当作会话僵死的唯一信号，漏打心跳会让正常等待被误杀。
         now = time.time()
         if now - last_heartbeat >= CHARACTER_SELECTION_HEARTBEAT_SECONDS:
             last_heartbeat = now
             logger.info(f"🔍 等待角色选择界面中...（已等待 {now - start_time:.0f} 秒）")
 
+    detail = ""
     if transient_errors:
-        logger.error(
-            f"❌ {timeout}s 内未检测到角色选择界面，"
-            f"期间出现 {len(transient_errors)} 次截图/识别异常，最后一次: {transient_errors[-1]}"
+        detail = (
+            f"，期间出现 {len(transient_errors)} 次截图/识别异常，最后一次: {transient_errors[-1]}"
         )
+    logger.error(
+        f"❌ {timeout}s 内未检测到角色选择界面{detail}；" f"超时瞬间前台: {describe_foreground()}"
+    )
+    save_error_screenshot("character_selection_timeout")
     return False
 
 
