@@ -313,9 +313,65 @@ def _build_tab_manager(monkeypatch, reads: list[Any]):
     return manager
 
 
+def _full_layout_states() -> list[auto_dungeon_daily.EventExchangeItemState]:
+    """真机 5 行布局的完整行状态（券价 40/30/30/20/50）。
+
+    行顺序与页面一致，币价与 `FIRE_TOWER_PURPLE_REQUIRED` /
+    `FIRE_TOWER_BLUE_REQUIRED` 对齐，因此不会触发界面一致性告警。
+
+    Returns:
+        list[EventExchangeItemState]: 5 行完整状态。
+    """
+    prices = (40, 30, 30, 20, 50)
+    return [
+        _make_state(
+            row_index=index,
+            required_tickets=price,
+            current_tickets=price if index < 2 else 0,
+            button_center=(300, 400 + 120 * index),
+        )
+        for index, price in enumerate(prices)
+    ]
+
+
+def _build_counting_tab_manager(monkeypatch, reads: list[list[Any]]):
+    """构造会记账的 tab manager：记录每次读取返回的行数。
+
+    与 :func:`_build_tab_manager` 的区别是**读取次数超预算会直接判失败**，
+    而不是抛 `StopIteration` —— 「只读一次就收手」这种缺陷必须表现为
+    一次清晰的断言失败，才能证明重读逻辑真的被触发。
+
+    Args:
+        monkeypatch: pytest 打桩工具。
+        reads: 按顺序返回的每次读取结果。
+
+    Returns:
+        tuple[DailyCollectManager, list[int]]: manager 与「每次读取的行数」列表。
+    """
+    manager = auto_dungeon_daily.DailyCollectManager(
+        config_loader=MagicMock(),
+        db=MagicMock(),
+    )
+    calls: list[int] = []
+
+    def _fake_load() -> list[Any]:
+        if len(calls) >= len(reads):
+            pytest.fail(
+                f"兑换页读取次数超出预期：只准备了 {len(reads)} 次结果，"
+                f"脚本却发起了第 {len(calls) + 1} 次读取（疑似无上限重读）"
+            )
+        result = reads[len(calls)]
+        calls.append(len(result))
+        return result
+
+    monkeypatch.setattr(manager, "_load_fire_tower_exchange_states", _fake_load)
+    monkeypatch.setattr(auto_dungeon_daily, "sleep", lambda *a, **k: None)
+    return manager, calls
+
+
 def test_open_exchange_tab_skips_click_when_already_on_page(monkeypatch) -> None:
-    """已经停在兑换页时不点击：那个按钮是开关，再点会退回活动主页。"""
-    states = [_make_state(row_index=0, required_tickets=40, current_tickets=40)]
+    """已经停在兑换页且读满行数时不点击：那个按钮是开关，再点会退回活动主页。"""
+    states = _full_layout_states()
     manager = _build_tab_manager(monkeypatch, [states])
     touched: list[Any] = []
     monkeypatch.setattr(auto_dungeon_daily, "touch", lambda point: touched.append(point))
@@ -332,7 +388,7 @@ def test_open_exchange_tab_skips_click_when_already_on_page(monkeypatch) -> None
 
 def test_open_exchange_tab_clicks_fixed_coordinate(monkeypatch) -> None:
     """不在兑换页时按固定坐标点击标签（OCR 读不出标签文字）。"""
-    states = [_make_state(row_index=0, required_tickets=40, current_tickets=40)]
+    states = _full_layout_states()
     manager = _build_tab_manager(monkeypatch, [[], states])
     touched: list[Any] = []
     monkeypatch.setattr(auto_dungeon_daily, "touch", lambda point: touched.append(point))
@@ -349,7 +405,7 @@ def test_open_exchange_tab_clicks_fixed_coordinate(monkeypatch) -> None:
 
 def test_open_exchange_tab_retries_once_when_page_not_readable(monkeypatch) -> None:
     """点击一次后没读到兑换页时再点一次，避免一次失败浪费当天机会。"""
-    states = [_make_state(row_index=0, required_tickets=40, current_tickets=40)]
+    states = _full_layout_states()
     manager = _build_tab_manager(monkeypatch, [[], [], states])
     touched: list[Any] = []
     monkeypatch.setattr(auto_dungeon_daily, "touch", lambda point: touched.append(point))
@@ -368,6 +424,53 @@ def test_open_exchange_tab_returns_empty_after_two_failures(monkeypatch) -> None
     assert manager._open_exchange_tab() == []
 
     assert touched == [auto_dungeon_daily.EVENT_EXCHANGE_TAB_BUTTON] * 2
+
+
+def test_open_exchange_tab_rereads_when_rows_incomplete(monkeypatch) -> None:
+    """只读到部分行时重读补齐（2026-10-02 真机：页面已渲染，是 OCR 漏检）。
+
+    真机实测：截图里 5 行券进度肉眼清晰可读，OCR 只认出 3 行；旧逻辑把
+    「读到非空」当成成功，于是这次部分读取被行序闸门拒绝 → 整轮跳过兑换
+    并误发「每日任务未完成」。重读一次就补齐了，因此这里必须重读。
+    """
+    partial = _full_layout_states()[:3]
+    complete = _full_layout_states()
+    manager, calls = _build_counting_tab_manager(monkeypatch, [partial, complete])
+    touched: list[Any] = []
+    monkeypatch.setattr(auto_dungeon_daily, "touch", lambda point: touched.append(point))
+
+    assert manager._open_exchange_tab() == complete
+
+    assert calls == [3, 5], "行数不足时必须重读到 5 行才收手"
+    assert touched == [], "重读只能重新截图 OCR，不能点「兑换」标签（开关会切成主页）"
+
+
+def test_open_exchange_tab_reread_is_bounded_and_keeps_best(monkeypatch) -> None:
+    """始终读不满时：重读次数有上限，且返回行数最多的一次，不比只读一次更差。"""
+    manager, calls = _build_counting_tab_manager(
+        monkeypatch,
+        [
+            _full_layout_states()[:3],
+            _full_layout_states()[:2],
+            _full_layout_states()[:4],
+        ],
+    )
+    monkeypatch.setattr(auto_dungeon_daily, "touch", lambda point: None)
+
+    result = manager._open_exchange_tab()
+
+    assert len(result) == 4, "应取读到行数最多的一次"
+    assert calls == [3, 2, 4], "重读次数必须被 EXCHANGE_STATE_READ_MAX_ATTEMPTS 限制住"
+
+
+def test_reread_does_not_waste_ocr_when_rows_already_complete(monkeypatch) -> None:
+    """已经把 5 行读全时不再多打一次 OCR。"""
+    manager, calls = _build_counting_tab_manager(monkeypatch, [_full_layout_states()])
+
+    result = manager._read_exchange_states_until_complete(_full_layout_states())
+
+    assert len(result) == 5
+    assert calls == [], "读全了还重读会平白多花一次截图 + OCR"
 
 
 def test_redeem_uses_passed_states_without_reloading(monkeypatch) -> None:

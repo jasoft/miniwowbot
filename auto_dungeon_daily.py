@@ -70,6 +70,15 @@ FIRE_TOWER_BLUE_REQUIRED = 30
 # 宁可整轮跳过，也不能赌「漏的不是前几行」而换错物品。
 FIRE_TOWER_EXCHANGE_EXPECTED_ROWS = 5
 
+# 兑换页读取的重试预算。
+# 2026-10-02 真机实测：页面 5 行都已渲染、截图里券进度清晰可读，
+# 但 OCR 只认出其中 3 行（漏掉行 0 的 10/40 与行 2 的 10/30），
+# 只读一次就接受 → 行序闸门整轮跳过兑换 + 误发「每日任务未完成」告警。
+# OCR 漏检是概率性的，重新截一次图往往就齐了，所以读到行数不足时重试，
+# 并且**只重读、不点击**「兑换」标签（那个标签是开关，重复点会退回活动主页）。
+EXCHANGE_STATE_READ_MAX_ATTEMPTS = 3
+EXCHANGE_STATE_READ_RETRY_INTERVAL_SECONDS = 0.8
+
 EXCHANGE_PROGRESS_PATTERN = re.compile(r"(\d+)\s*/\s*(\d+)")
 # 严格版：整段文本就是一个 `x/y`，用于排除「剩余次数：13/13」这类干扰项
 EXCHANGE_PROGRESS_FULL_PATTERN = re.compile(r"^\s*(\d+)\s*/\s*(\d+)\s*$")
@@ -1424,6 +1433,61 @@ class DailyCollectManager:
                 touch((351, 758))
             sleep(1, "等待弹窗关闭")
 
+    def _read_exchange_states_until_complete(
+        self,
+        existing: Optional[list[EventExchangeItemState]] = None,
+        max_attempts: int = EXCHANGE_STATE_READ_MAX_ATTEMPTS,
+    ) -> list[EventExchangeItemState]:
+        """反复读取兑换页，直到读满预期行数或重试次数用尽。
+
+        只重新截图 + OCR，**绝不点击**页面元素 —— 调用方可能已经停在兑换页，
+        而切页的「兑换」标签是开关，重复点击会退回活动主页（见
+        :meth:`_open_exchange_tab`），所以补齐行数只能靠重读。
+
+        为什么需要它：2026-10-02 真机实测（mage_alt 06:11），页面 5 行全部
+        已渲染、错误截图里 `10/40`、`10/30`、`10/30`、`10/20`、`10/50` 肉眼
+        清晰可读，OCR 却只认出 3 行。旧逻辑把「读到非空」当成成功，于是这次
+        部分读取被直接采纳，行序闸门判定「行数不足」→ 整轮跳过兑换，还发了
+        一条「每日任务未完成」告警（同刻另一个会话同代码路径读到 5 行，
+        说明是 OCR 抖动而非页面问题）。多读一两次即可补齐。
+
+        Args:
+            existing: 已经读到的一次结果；为空时先自己读一次。
+            max_attempts: 最多读取次数（`existing` 也计入其中）。
+
+        Returns:
+            list[EventExchangeItemState]: 行状态列表。始终返回**行数最多**的
+                一次结果，因此即便始终读不满也不会比只读一次更差；
+                读满时提前返回，不会白白多打 OCR。
+        """
+        best = list(existing) if existing else []
+        if len(best) >= FIRE_TOWER_EXCHANGE_EXPECTED_ROWS:
+            return best
+
+        reads_done = 1 if existing else 0
+        while reads_done < max_attempts:
+            reads_done += 1
+            self.logger.warning(
+                "⚠️ 兑换页只读到 %d 行（应有 %d 行），重新读取（第 %d/%d 次）",
+                len(best),
+                FIRE_TOWER_EXCHANGE_EXPECTED_ROWS,
+                reads_done,
+                max_attempts,
+            )
+            sleep(EXCHANGE_STATE_READ_RETRY_INTERVAL_SECONDS, "等待兑换页重新渲染")
+            current = self._load_fire_tower_exchange_states()
+            if len(current) > len(best):
+                best = current
+            if len(best) >= FIRE_TOWER_EXCHANGE_EXPECTED_ROWS:
+                self.logger.info(
+                    "✅ 兑换页重新读取后补齐到 %d 行（共读取 %d 次）",
+                    len(best),
+                    reads_done,
+                )
+                return best
+
+        return best
+
     def _open_exchange_tab(self) -> list[EventExchangeItemState]:
         """切到活动面板的兑换页并返回行状态。
 
@@ -1439,11 +1503,16 @@ class DailyCollectManager:
         会退回活动主页（实测第 1 次点击后读不到行、第 2 次点击才回来）。
         因此先读一次页面 —— 已经在兑换页就直接复用，不在才点。
 
+        读到但**行数不足**时不再直接交给行序闸门：那多半只是 OCR 漏检了一两个
+        券进度文字（真机实测 2026-10-02），交给
+        :meth:`_read_exchange_states_until_complete` 重读补齐（只重读、不点标签）。
+
         Returns:
             list[EventExchangeItemState]: 兑换页行状态；没能打开时返回空列表。
         """
         states = self._load_fire_tower_exchange_states()
         if states:
+            states = self._read_exchange_states_until_complete(states)
             self.logger.info("🔎 主题奖励: 兑换页已打开，读到 %d 行", len(states))
             return states
 
@@ -1456,6 +1525,7 @@ class DailyCollectManager:
             sleep(CLICK_INTERVAL)
             states = self._load_fire_tower_exchange_states()
             if states:
+                states = self._read_exchange_states_until_complete(states)
                 self.logger.info(
                     "🔎 主题奖励: 已打开兑换页（第 %d 次点击标签，读到 %d 行）",
                     attempt,
