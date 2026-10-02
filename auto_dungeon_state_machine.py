@@ -243,4 +243,7 @@ class DungeonStateMachine:
 
     def _on_sell_loot(self, event):
         self.logger.info("🧹 状态机: 卖出垃圾道具")
-        sell_trashes()
+        if not sell_trashes():
+            # 卖垃圾失败不影响副本进度（下一个卖垃圾周期会再来），但不能静默：
+            # sell_trashes 内部已记 ERROR + 落诊断截图，这里补一条状态机侧留痕。
+            self.logger.warning("⚠️ 卖垃圾未成功，跳过本轮，继续后续流程")
