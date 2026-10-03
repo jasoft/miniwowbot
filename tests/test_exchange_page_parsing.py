@@ -41,6 +41,30 @@ REAL_EXCHANGE_OCR: list[dict[str, Any]] = [
     {"text": "10/50", "center": (538, 893), "confidence": 1.00},
 ]
 
+# 2026-10-03 真机（战士 · 角斗奖券兑换）全量 OCR 摘录。
+# 关键点：第 5 行的券进度被 OCR 与左侧噪声粘连成「临20/50」，
+# 旧的全匹配判据会把这**已经检测到**的一行丢掉 → 只读到 4 行 →
+# 行序闸门整轮跳过兑换并误发「每日任务未完成」。
+# （2026-10-02 行 0/行 2 是同一病根：「通10/40」「#10/30」。）
+REAL_NOISY_EXCHANGE_OCR: list[dict[str, Any]] = [
+    {"text": "角斗奖券兑换", "center": (360, 286), "confidence": 0.98},
+    {"text": "兑换", "center": (522, 372), "confidence": 0.99},
+    {"text": "剩余次数：13/13", "center": (316, 383), "confidence": 0.99},
+    {"text": "20/40", "center": (524, 400), "confidence": 0.98},
+    {"text": "兑换", "center": (522, 495), "confidence": 0.99},
+    {"text": "剩余次数：13/13", "center": (315, 507), "confidence": 0.99},
+    {"text": "20/30", "center": (522, 523), "confidence": 0.99},
+    {"text": "兑换", "center": (522, 618), "confidence": 0.98},
+    {"text": "剩余次数：13/13", "center": (316, 628), "confidence": 0.99},
+    {"text": "20/30", "center": (523, 645), "confidence": 0.99},
+    {"text": "兑换", "center": (521, 740), "confidence": 0.99},
+    {"text": "剩余次数：13/13", "center": (316, 752), "confidence": 0.99},
+    {"text": "20/20", "center": (522, 769), "confidence": 0.99},
+    {"text": "兑换", "center": (521, 864), "confidence": 0.98},
+    {"text": "剩余次数：1/1", "center": (303, 875), "confidence": 0.99},
+    {"text": "临20/50", "center": (523, 892), "confidence": 0.84},
+]
+
 
 def _build_manager(monkeypatch, ocr_results: list[dict[str, Any]]):
     """构造注入了固定 OCR 结果的 DailyCollectManager。
@@ -191,6 +215,53 @@ def test_load_states_does_not_cross_rows(monkeypatch) -> None:
         (10, 40),
         (20, 30),
     ]
+
+
+def test_load_states_tolerates_ocr_noise_around_progress(monkeypatch) -> None:
+    """券进度被 OCR 粘连噪声字符时仍要认出该行（真机 2026-10-03 第 5 行「临20/50」）。
+
+    这些行**检测到了**，只是文本带噪声；旧的「整段恰好是 x/y」全匹配会把它丢掉，
+    于是只读到 4 行 → 行序闸门整轮跳过兑换并误发「每日任务未完成」。
+    重读补不齐（噪声是稳定的，2026-10-02 同样病因），所以必须在筛选处容忍噪声。
+    """
+    manager = _build_manager(monkeypatch, REAL_NOISY_EXCHANGE_OCR)
+
+    states = manager._load_fire_tower_exchange_states()
+
+    assert [state.required_tickets for state in states] == [40, 30, 30, 20, 50]
+    assert [state.current_tickets for state in states] == [20, 20, 20, 20, 20]
+    assert states[4].row_index == 4
+
+
+def test_load_states_tolerates_noise_but_ignores_remaining_attempts(monkeypatch) -> None:
+    """放宽判据后，「剩余次数：13/13」仍不能被当成券进度。"""
+    manager = _build_manager(monkeypatch, REAL_NOISY_EXCHANGE_OCR)
+
+    states = manager._load_fire_tower_exchange_states()
+
+    # 干扰项「剩余次数：13/13」若被采纳，行 0 的券价会变成 13。
+    assert all(state.required_tickets != 13 for state in states)
+
+
+def test_redeem_does_not_alert_when_progress_text_is_noisy(monkeypatch) -> None:
+    """噪声漏读修复后不应再误发告警：券够不着时只记 info，不动数据库。"""
+    fake_db = MagicMock()
+    fake_db.is_event_item_completed.return_value = False
+    fake_db.get_event_cycle_id.return_value = "cycle-1"
+    manager = _build_manager(monkeypatch, REAL_NOISY_EXCHANGE_OCR)
+    manager.db = fake_db
+    alerts: list[str] = []
+    monkeypatch.setattr(
+        manager,
+        "_notify_step_failure",
+        lambda step_name, raw_result: alerts.append(step_name),
+    )
+
+    # 券只有 20 张（< 40），本次不兑换；但不应因为「行数不足」而告警。
+    assert manager._redeem_fire_tower_ticket_items() is False
+
+    assert alerts == []
+    fake_db.mark_event_item_completed.assert_not_called()
 
 
 def test_select_row_by_fixed_index_ignores_duplicate_prices() -> None:

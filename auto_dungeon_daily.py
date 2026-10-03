@@ -72,16 +72,22 @@ FIRE_TOWER_EXCHANGE_EXPECTED_ROWS = 5
 
 # 兑换页读取的重试预算。
 # 2026-10-02 真机实测：页面 5 行都已渲染、截图里券进度清晰可读，
-# 但 OCR 只认出其中 3 行（漏掉行 0 的 10/40 与行 2 的 10/30），
-# 只读一次就接受 → 行序闸门整轮跳过兑换 + 误发「每日任务未完成」告警。
-# OCR 漏检是概率性的，重新截一次图往往就齐了，所以读到行数不足时重试，
+# 但 OCR 只认出其中 3 行，只读一次就接受 → 行序闸门整轮跳过兑换 +
+# 误发「每日任务未完成」告警。读到行数不足时重试，
 # 并且**只重读、不点击**「兑换」标签（那个标签是开关，重复点会退回活动主页）。
 EXCHANGE_STATE_READ_MAX_ATTEMPTS = 3
 EXCHANGE_STATE_READ_RETRY_INTERVAL_SECONDS = 0.8
 
+# 券进度文本的提取判据。
+# 真机实测 OCR 会把券进度与其左侧紧邻的图标/描边噪声框进同一个检测框，
+# 于是读成带前缀字符的文本：2026-10-02 行 0/行 2 读成「通10/40」「#10/30」，
+# 2026-10-03 行 4 读成「临20/50」。这些行**检测到了**、只是文本带噪声，
+# 而旧判据「整段必须恰好是 x/y」（全匹配）会把整行丢掉 → 读到行数不足 →
+# 行序闸门整轮跳过兑换并误发告警（10-02、10-03 各一次，且重读补不齐，
+# 因为噪声是稳定的而非抖动）。因此改为「文本中出现 x/y 即可」，
+# 再用关键词排除「剩余次数：13/13」这类同样长得像 x/y 的干扰项。
 EXCHANGE_PROGRESS_PATTERN = re.compile(r"(\d+)\s*/\s*(\d+)")
-# 严格版：整段文本就是一个 `x/y`，用于排除「剩余次数：13/13」这类干扰项
-EXCHANGE_PROGRESS_FULL_PATTERN = re.compile(r"^\s*(\d+)\s*/\s*(\d+)\s*$")
+EXCHANGE_PROGRESS_IGNORE_KEYWORDS = ("次数",)
 
 # 「兑换」按钮与其内部券进度文字的纵坐标最大容差。
 # 实测进度文字就印在按钮内部（按钮文字在上、券进度在下），
@@ -676,11 +682,38 @@ class DailyCollectManager:
             return False
         return None
 
+    @staticmethod
+    def _is_exchange_progress_text(text: str) -> bool:
+        """判断 OCR 文本是否可作为一行的券进度。
+
+        判据刻意放宽：只要文本中出现 `x/y` 即可，允许前后粘连 OCR 噪声字符
+        （真机实测「通10/40」「#10/30」「临20/50」）。用「整段恰好是 x/y」的
+        全匹配会把这些**已经检测到**的行丢掉，导致读到的行数不足、整轮跳过兑换。
+
+        干扰项「剩余次数：13/13」同样是 `x/y` 形式，用关键词排除。
+
+        Args:
+            text: OCR 识别出的文本。
+
+        Returns:
+            bool: 该文本是否可作为券进度使用。
+        """
+        normalized = (text or "").strip()
+        if not normalized:
+            return False
+        if any(keyword in normalized for keyword in EXCHANGE_PROGRESS_IGNORE_KEYWORDS):
+            return False
+        return EXCHANGE_PROGRESS_PATTERN.search(normalized) is not None
+
     def _load_fire_tower_exchange_states(self) -> list[EventExchangeItemState]:
         """读取兑换页每一行的兑换状态。
 
         以页面上每个「兑换」按钮作为行锚点（按钮文字是整个列表里 OCR 最稳的元素），
         再为按钮匹配同一行内的券进度文字，最后按从上到下的顺序输出各行状态。
+
+        券进度的识别对 OCR 噪声容忍（见 :meth:`_is_exchange_progress_text`）：
+        真机实测进度文字常与左侧图标噪声粘连成「临20/50」这类文本，
+        若用严格全匹配筛掉，会让**已检测到**的行凭空消失。
 
         Returns:
             list[EventExchangeItemState]: 兑换行状态列表，按行序排列。
@@ -695,8 +728,7 @@ class DailyCollectManager:
             progress_items = [
                 item
                 for item in ocr_results
-                if EXCHANGE_PROGRESS_FULL_PATTERN.match((item.get("text") or "").strip())
-                and item.get("center")
+                if self._is_exchange_progress_text(item.get("text") or "") and item.get("center")
             ]
             button_items.sort(key=lambda item: (item["center"][1], item["center"][0]))
 
