@@ -96,6 +96,8 @@ async def scan_workflow(state: WorldState, cooldown: float) -> None:
 
     _set_signal(state.signals, "xp_full", bool(xp_full))
     _set_signal(state.signals, "request_task_el", request_el)
+    if now < state.request_retry_after:
+        _set_signal(state.signals, "request_task_el", None)
     _set_signal(state.signals, "equip_el", equip_el)
     logger.debug(
         "scan_workflow完成: xp_full=%s request_task=%s equip=%s cost=%.3fs",

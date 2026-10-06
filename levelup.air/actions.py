@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import logging
-import os
 import time
 
 import requests
-from airtest.core.api import exists, sleep, snapshot, swipe, touch
+from airtest.core.api import exists, sleep, touch
 from config import BARK_URL
 from state import WorldState
 
-from color_helper import ColorHelper
+from task_workflow import click_text, read_task_screen, request_tasks
 
 logger = logging.getLogger(__name__)
 
@@ -64,17 +63,13 @@ def action_task_completion(state: WorldState) -> None:
     touch(pos)
     logger.info("点击任务完成图标: %s", pos)
 
-    state.last_task_time = time.time()
-    logger.debug("任务完成后更新last_task_time: %.2f", state.last_task_time)
-    sleep(2)
-    touch((363, 867))
-    logger.info("任务已完成")
-
-    sleep(2)
-    touch((363, 867))
-    logger.info("接受下一个任务")
-    sleep(2)
-
+    sleep(1)
+    if click_text(read_task_screen(state), "完成"):
+        state.last_task_time = time.time()
+        logger.info("任务已完成")
+        if click_text(read_task_screen(state), "接受任务"):
+            logger.info("已接受后续任务")
+    back_to_main(state)
     clear_signal(state, "task_complete_pos")
 
 
@@ -84,61 +79,8 @@ def action_request_task(state: WorldState) -> None:
     Args:
         state: 共享的世界状态。
     """
-    request_el = state.signals.get("request_task_el")
-    if not request_el:
-        logger.debug("领取任务动作跳过: request_task_el为空")
-        return
-
-    logger.info("执行领取任务动作: %s", request_el)
-    try:
-        clicked = request_el.click()
-    except Exception as exc:
-        logger.error("领取任务点击失败: %s", exc)
-        return
-    logger.info("领取任务点击结果: %s", clicked)
-    sleep(1.5)
-
-    tasks_available = False
-    for _ in range(5):
-        if should_preempt(state):
-            return
-        if state.actions.find_all(use_cache=False).contains("支线").first().click():
-            sleep(1)
-            touch((358, 865))
-            tasks_available = True
-        else:
-            swipe((360, 900), (360, 300))
-
-    if not tasks_available:
-        logger.warning("未找到支线任务，正在切换区域")
-        switch_el = state.actions.find("切换区域")
-        if switch_el:
-            switch_el.click()
-        else:
-            logger.warning("未找到切换区域元素")
-            return
-
-        temp_path = os.path.join(state.ocr.temp_dir, "task_request.png")
-        snapshot(filename=temp_path)
-
-        ocr_results = state.ocr.get_all_texts_from_image(temp_path)
-        green_pos = ColorHelper.find_green_text(temp_path, ocr_results)
-
-        if green_pos:
-            logger.info("检测到当前区域（绿色文字）: %s", green_pos)
-            next_area_pos = (green_pos[0], green_pos[1] + 50)
-            logger.info("点击下一个区域: %s", next_area_pos)
-            touch(next_area_pos)
-            sleep(1)
-        else:
-            logger.warning("未找到绿色文字，需要手动选择")
-            send_notification("副本助手 - 错误", "未找到绿色文字")
-
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-
+    request_tasks(state)
     back_to_main(state)
-    clear_signal(state, "request_task_el")
 
 
 def action_combat(state: WorldState) -> None:
@@ -256,3 +198,4 @@ def back_to_main(state: WorldState, taps: int = 5) -> None:
     """
     for _ in range(taps):
         touch((719, 1))
+        sleep(0.3)

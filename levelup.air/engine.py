@@ -26,6 +26,11 @@ class LevelUpEngine:
     """
 
     def __init__(self, logger: logging.Logger) -> None:
+        """初始化传感器、运行状态和动作锁。
+
+        Args:
+            logger: 运行日志记录器。
+        """
         self._logger = logger
         ocr = OCRHelper(snapshot_func=snapshot)
         actions = GameActions(ocr)
@@ -75,8 +80,12 @@ class LevelUpEngine:
         """运行工作流传感器循环。"""
         self._logger.info("工作流传感器循环已启动")
         while self._running:
+            if self._action_lock.locked():
+                await asyncio.sleep(WORKFLOW_SCAN_INTERVAL)
+                continue
             try:
-                await scan_workflow(self._state, WORKFLOW_SCAN_INTERVAL)
+                async with self._action_lock:
+                    await scan_workflow(self._state, WORKFLOW_SCAN_INTERVAL)
             except Exception as exc:
                 self._logger.error("工作流传感器错误: %s", exc)
                 await asyncio.sleep(1)

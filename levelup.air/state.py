@@ -24,6 +24,7 @@ class WorldState:
         last_task_time: 上次任务完成或进展的时间戳。
         failed_in_dungeon: 副本进度是否失败。
         last_workflow_scan: 上次工作流扫描的时间戳。
+        request_retry_after: 领取流程失败或任务已满后的下次重试时间。
     """
 
     ocr: OCRHelper
@@ -33,3 +34,4 @@ class WorldState:
     last_task_time: float = field(default_factory=time.time)
     failed_in_dungeon: bool = False
     last_workflow_scan: float = 0.0
+    request_retry_after: float = 0.0

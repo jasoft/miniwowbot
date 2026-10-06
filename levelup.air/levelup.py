@@ -10,7 +10,8 @@ import logging
 import os
 import sys
 
-from airtest.core.api import auto_setup
+from airtest.core.api import auto_setup, device
+from airtest.core.helper import G
 
 # 添加当前目录和项目根目录到 sys.path 以便使用共享模块。
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -31,7 +32,11 @@ DEFAULT_EMULATOR = "192.168.1.150:5565"
 
 
 def setup_logging() -> logging.Logger:
-    """配置并返回升级日志记录器。"""
+    """配置并返回升级日志记录器。
+
+    Returns:
+        升级日志记录器。
+    """
     logging.basicConfig(
         level=logging.DEBUG,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -44,11 +49,14 @@ def setup_logging() -> logging.Logger:
 
 async def main() -> None:
     """运行升级行为树引擎。"""
-    emulator = os.environ.get("MINIWOW_EMULATOR", DEFAULT_EMULATOR)
-    # 显式指定设备，避免多开时连错账号。ANDROID_SERIAL 同时约束 Airtest 内部的 adb 调用。
-    os.environ["ANDROID_SERIAL"] = emulator
-    device = auto_setup(__file__, devices=[f"Android://127.0.0.1:5037/{emulator}"])
-    print(f"[levelup] 目标设备: {emulator} ({device})")
+    # Airtest CLI 已根据 --device 连接设备，直接复用，避免重复连接到默认账号。
+    if G.DEVICE_LIST:
+        auto_setup(__file__)
+    else:
+        emulator = os.environ.get("MINIWOW_EMULATOR", DEFAULT_EMULATOR)
+        auto_setup(__file__, devices=[f"Android://127.0.0.1:5037/{emulator}"])
+    os.environ["ANDROID_SERIAL"] = device().uuid
+    print(f"[levelup] 目标设备: {device().uuid}")
     configure_airtest()
     logger = setup_logging()
     engine = LevelUpEngine(logger)
