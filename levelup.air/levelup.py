@@ -23,6 +23,12 @@ if PROJECT_ROOT not in sys.path:
 from config import configure_airtest
 from engine import LevelUpEngine
 
+# 要升级的模拟器实例（adb 序列号）。多开时必须显式指定，否则 Airtest 会挑错设备。
+# 取值与 emulators.json 保持一致：
+#   192.168.1.150:5555 -> 主账号（战士）
+#   192.168.1.150:5565 -> 金币法师号
+DEFAULT_EMULATOR = "192.168.1.150:5565"
+
 
 def setup_logging() -> logging.Logger:
     """配置并返回升级日志记录器。"""
@@ -38,7 +44,11 @@ def setup_logging() -> logging.Logger:
 
 async def main() -> None:
     """运行升级行为树引擎。"""
-    auto_setup(__file__)
+    emulator = os.environ.get("MINIWOW_EMULATOR", DEFAULT_EMULATOR)
+    # 显式指定设备，避免多开时连错账号。ANDROID_SERIAL 同时约束 Airtest 内部的 adb 调用。
+    os.environ["ANDROID_SERIAL"] = emulator
+    device = auto_setup(__file__, devices=[f"Android://127.0.0.1:5037/{emulator}"])
+    print(f"[levelup] 目标设备: {emulator} ({device})")
     configure_airtest()
     logger = setup_logging()
     engine = LevelUpEngine(logger)
