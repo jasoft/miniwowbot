@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import date
 from urllib.parse import quote
 
 import requests
@@ -151,7 +152,7 @@ def goto_next_place(state: WorldState) -> bool:
     Returns:
         确认进入目标地点时返回 True，未完成导航时返回 False。
     """
-    if should_preempt(state):
+    if state.manual_dungeon or should_preempt(state):
         return False
     try:
         reason = navigate_to_task(state)
@@ -164,7 +165,12 @@ def goto_next_place(state: WorldState) -> bool:
         return True
     logger.warning("导航暂未完成：%s", reason)
     now = time.time()
-    if "免费次数已耗尽" not in reason and now >= state.navigation_notice_after:
+    if "今日免费次数已用完" in reason and state.navigation_target:
+        state.manual_dungeon = state.navigation_target
+        state.manual_wait_day = date.today().isoformat()
+        send_notification("副本助手 - 等待手工处理", reason)
+        return False
+    if now >= state.navigation_notice_after:
         send_notification("副本助手 - 导航异常", reason)
         state.navigation_notice_after = now + 1800
     back_to_main(state)
@@ -172,11 +178,13 @@ def goto_next_place(state: WorldState) -> bool:
 
 
 def navigate_active_tasks(state: WorldState) -> None:
-    """优先打开主线，等级任务没有地点时改做未完成的支线。
+    """固定主线目标，升级任务只优先使用野外支线，不跳转旧副本。
 
     Args:
         state: 共享的世界状态。
     """
+    if state.manual_dungeon:
+        return
     back_to_main(state)
     texts = read_task_screen(state)
     candidates = [
@@ -190,18 +198,20 @@ def navigate_active_tasks(state: WorldState) -> None:
     candidates.sort(
         key=lambda item: (
             item["center"][1] > 140,
-            "通关" not in item.get("text", ""),
+            "消灭" not in item.get("text", ""),
             item["center"][1],
         )
     )
     for item in candidates:
         if should_preempt(state):
             return
+        if item["center"][1] > 140 and "通关" in item.get("text", ""):
+            continue
         touch(tuple(item["center"]))
         sleep(1)
         if task_target(read_task_screen(state)):
-            if goto_next_place(state):
-                return
+            goto_next_place(state)
+            return
         else:
             back_to_main(state)
     logger.info("当前任务没有可导航的地点，继续等待升级或领取任务")

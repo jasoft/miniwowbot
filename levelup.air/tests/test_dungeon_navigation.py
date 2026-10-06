@@ -4,7 +4,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import sys
+from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import Mock, call
 
@@ -15,6 +17,9 @@ sys.path.insert(1, str(Path(__file__).resolve().parents[2]))
 
 import actions
 import dungeon_navigation as navigation
+import manual_intervention
+from behavior_rule import BehaviorRule
+from engine import LevelUpEngine
 from state import WorldState
 
 
@@ -102,8 +107,8 @@ def test_exhausted_free_entry_never_clicked(state: WorldState) -> None:
         state: 模拟运行状态。
     """
     quest, map_screen, panel = frames(state, remaining=0)
-    state.ocr.capture_and_get_all_texts.side_effect = [quest, map_screen, panel]
-    assert navigation.navigate_to_task(state) == "深渊囚牢免费次数已耗尽"
+    state.ocr.capture_and_get_all_texts.side_effect = [quest, map_screen, panel, panel]
+    assert "今日免费次数已用完" in navigation.navigate_to_task(state)
     assert navigation.touch.call_count == 2  # type: ignore[attr-defined]
 
 
@@ -140,15 +145,15 @@ def test_only_foreground_free_count_is_accepted() -> None:
 
 
 def test_paid_entry_is_exhausted_not_missing(state: WorldState) -> None:
-    """出现门票扣费金额时跳过，不把付费入口误判为免费。
+    """重复确认目标副本需要门票，不把付费入口误判为免费。
 
     Args:
         state: 模拟运行状态。
     """
     quest, map_screen, panel = frames(state)
     panel[2] = item("-21", 322, 921)
-    state.ocr.capture_and_get_all_texts.side_effect = [quest, map_screen, panel]
-    assert "免费次数已耗尽" in navigation.navigate_to_task(state)
+    state.ocr.capture_and_get_all_texts.side_effect = [quest, map_screen, panel, panel]
+    assert "今日免费次数已用完" in navigation.navigate_to_task(state)
     assert navigation.touch.call_count == 2  # type: ignore[attr-defined]
 
 
@@ -188,10 +193,10 @@ def test_navigation_notice_has_cooldown(state: WorldState, monkeypatch: pytest.M
     notice.assert_called_once()
 
 
-def test_level_task_falls_back_to_dungeon(
+def test_level_task_uses_field_instead_of_old_dungeon(
     state: WorldState, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """升级主线没有地图目标时，选择未完成地下城任务。
+    """升级主线没有地图目标时优先做野外支线，避免旧副本。
 
     Args:
         state: 模拟运行状态。
@@ -210,36 +215,128 @@ def test_level_task_falls_back_to_dungeon(
             item("通关0/1次凋", 55, 255),
         ],
         [item("等级达到434/435级", 360, 527)],
-        [item("通关「凋零废墟」。", 354, 557)],
+        [item("前往「亡者战场」消灭「软泥巨人」。", 354, 557)],
     ]
     actions.navigate_active_tasks(state)
-    assert click.call_args_list == [call((55, 98)), call((55, 255))]
+    assert click.call_args_list == [call((55, 98)), call((55, 178))]
     goto.assert_called_once_with(state)
 
 
-def test_exhausted_dungeon_continues_to_other_task(
+def test_navigation_failure_keeps_main_target(
     state: WorldState, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """前一个副本不能免费进入时仍然尝试下一项任务。
+    """主线导航失败时不自动改去其他旧副本或支线。
 
     Args:
         state: 模拟运行状态。
         monkeypatch: 测试替换工具。
     """
-    goto = Mock(side_effect=[False, True])
+    goto = Mock(return_value=False)
     click = Mock()
     monkeypatch.setattr(actions, "goto_next_place", goto)
     monkeypatch.setattr(actions, "touch", click)
     monkeypatch.setattr(actions, "sleep", Mock())
     monkeypatch.setattr(actions, "back_to_main", Mock())
     state.ocr.capture_and_get_all_texts.side_effect = [
-        [item("通关0/1次凋", 55, 255), item("通关0/1次战", 55, 333)],
-        [item("通关「凋零废墟」。", 354, 557)],
-        [item("通关「战争剧院」。", 354, 557)],
+        [item("通关0/1次猩", 55, 98), item("通关0/1次凋", 55, 255)],
+        [item("通关「猩红古堡」。", 354, 557)],
     ]
     actions.navigate_active_tasks(state)
-    assert goto.call_count == 2
-    assert click.call_args_list == [call((55, 255)), call((55, 333))]
+    goto.assert_called_once_with(state)
+    assert click.call_args_list == [call((55, 98))]
+
+
+@pytest.mark.parametrize("entry_text", ["免费(1/1)", "-21"])
+def test_wrong_dungeon_never_clicks_or_reports_exhaustion(
+    state: WorldState, entry_text: str
+) -> None:
+    """即使错误副本有入口，也不点击或通知免费次数耗尽。
+
+    Args:
+        state: 模拟运行状态。
+        entry_text: 错误副本中的入口文字。
+    """
+    quest, map_screen, panel = frames(state)
+    panel[0] = item("凋零废墟", 359, 259)
+    panel[2] = item(entry_text, 306, 922)
+    state.ocr.capture_and_get_all_texts.side_effect = [quest, map_screen, panel]
+    reason = navigation.navigate_to_task(state)
+    assert "任务目标是深渊囚牢，当前打开的是凋零废墟" in reason
+    assert "今日免费次数已用完" not in reason
+    assert navigation.touch.call_count == 2  # type: ignore[attr-defined]
+
+
+def test_no_free_notifies_once_and_preserves_panel(
+    state: WorldState, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """确证免费次数已用完后保留详情并等待玩家，不重复通知。
+
+    Args:
+        state: 模拟运行状态。
+        monkeypatch: 测试替换工具。
+    """
+    notice, close = Mock(), Mock()
+    quest, map_screen, panel = frames(state, remaining=0)
+    state.ocr.capture_and_get_all_texts.side_effect = [quest, map_screen, panel, panel]
+    monkeypatch.setattr(actions, "send_notification", notice)
+    monkeypatch.setattr(actions, "back_to_main", close)
+    assert not actions.goto_next_place(state)
+    assert state.manual_dungeon == "深渊囚牢"
+    assert state.manual_wait_day == date.today().isoformat()
+    assert not actions.goto_next_place(state)
+    actions.navigate_active_tasks(state)
+    notice.assert_called_once()
+    assert "深渊囚牢今日免费次数已用完" in notice.call_args.args[1]
+    close.assert_not_called()
+
+
+def test_manual_wait_only_resumes_after_correct_entry(state: WorldState) -> None:
+    """玩家进入错误副本不会解除等待，进入指定副本后恢复。
+
+    Args:
+        state: 模拟运行状态。
+    """
+    state.manual_dungeon = "深渊囚牢"
+    state.manual_wait_day = date.today().isoformat()
+    state.ocr.capture_and_get_all_texts.side_effect = [
+        [item("地下城-凋零废墟", 359, 210)],
+        [item("地下城-深渊囚牢", 359, 210)],
+    ]
+    manual_intervention.refresh_manual_wait(state)
+    assert state.manual_dungeon == "深渊囚牢"
+    manual_intervention.refresh_manual_wait(state)
+    assert state.manual_dungeon is None
+    navigation.touch.assert_not_called()  # type: ignore[attr-defined]
+
+
+def test_new_day_rechecks_instead_of_permanent_skip(state: WorldState) -> None:
+    """每天的免费资格重新检查，不永久跳过昨天无次数的副本。
+
+    Args:
+        state: 模拟运行状态。
+    """
+    state.manual_dungeon = "深渊囚牢"
+    state.manual_wait_day = (date.today() - timedelta(days=1)).isoformat()
+    manual_intervention.refresh_manual_wait(state)
+    assert state.manual_dungeon is None
+    assert state.last_task_time == 0.0
+    state.ocr.capture_and_get_all_texts.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_manual_wait_blocks_selected_rule(state: WorldState) -> None:
+    """等待手工处理时，已经选中的超时或交任务规则也不能点击。
+
+    Args:
+        state: 模拟运行状态。
+    """
+    state.manual_dungeon = "深渊囚牢"
+    runtime = object.__new__(LevelUpEngine)
+    runtime._state = state
+    runtime._action_lock = asyncio.Lock()
+    action = Mock()
+    await runtime._execute_rule(BehaviorRule("超时恢复", Mock(return_value=True), action))
+    action.assert_not_called()
 
 
 def test_close_panel_avoids_android_debug_overlay(

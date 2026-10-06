@@ -14,6 +14,7 @@ from behavior_rule import BehaviorRule
 from config import DECISION_INTERVAL, FAST_SCAN_INTERVAL, WORKFLOW_SCAN_INTERVAL
 from detectors import scan_fast, scan_workflow
 from game_actions import GameActions
+from manual_intervention import refresh_manual_wait
 from state import WorldState
 from templates import build_templates
 from vibe_ocr import OCRHelper
@@ -88,7 +89,12 @@ class LevelUpEngine:
                 continue
             try:
                 async with self._action_lock:
-                    await scan_workflow(self._state, WORKFLOW_SCAN_INTERVAL)
+                    if self._state.manual_dungeon:
+                        await asyncio.get_running_loop().run_in_executor(
+                            None, refresh_manual_wait, self._state
+                        )
+                    else:
+                        await scan_workflow(self._state, WORKFLOW_SCAN_INTERVAL)
             except Exception as exc:
                 self._logger.error("工作流传感器错误: %s", exc)
                 await asyncio.sleep(1)
@@ -99,6 +105,9 @@ class LevelUpEngine:
         """运行决策循环。"""
         self._logger.info("决策循环已启动")
         while self._running:
+            if self._state.manual_dungeon:
+                await asyncio.sleep(DECISION_INTERVAL)
+                continue
             rule = self._tree.select(self._state)
             if rule is None:
                 now = time.time()
@@ -121,6 +130,8 @@ class LevelUpEngine:
             rule: 要执行的行为规则。
         """
         async with self._action_lock:
+            if self._state.manual_dungeon:
+                return
             self._logger.info("执行规则: %s", rule.name)
             loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, rule.action, self._state)
