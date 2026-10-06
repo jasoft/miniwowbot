@@ -3,9 +3,44 @@ name = "miniwow-levelup-air"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 dependencies = [
     "airtest>=1.3.6",
     "coloredlogs>=15.0.1",
     "pytest>=7.4.0",
+]
+
+[dependency-groups]
+# 测试与运行时都 import `vibe_ocr`（engine.py / state.py / tests），但它是
+# **同机另一个仓库**的本地包（E:\Projects\pythonlib\vibe-ocr，monorepo 的一部分），
+# 不在 PyPI 上。写成 path 依赖 + editable，测试才能收集（否则
+# ModuleNotFoundError: vibe_ocr / imagehash，3 个测试文件全部收集失败）。
+#
+# 注意它内部依赖 `opencv-python`（非 contrib），与 airtest 的
+# `opencv-contrib-python` 抢同一个 `cv2` 模块 —— 见下方 override 说明。
+dev = [
+    "vibe-ocr>=0.1.6",
+    # tests/test_task_workflow.py 里有 @pytest.mark.asyncio 用例；没有这个插件时
+    # pytest 会警告 Unknown mark 并把async 函数当普通函数跑 —— 表现为
+    # "async def functions are not natively supported" 直接失败（不是测试本身的问题）。
+    "pytest-asyncio>=0.24",
+]
+
+[tool.uv.sources]
+vibe-ocr = { path = "E:/Projects/pythonlib/vibe-ocr", editable = true }
+
+[tool.uv]
+# airtest 1.3.6 把 opencv-contrib-python 钉死在 `>=4.4.0.46,<=4.6.0.66`，解析到
+# 2022-06 的 4.6.0.66。它与本项目解析出的 numpy 1.26.4 组合时直接段错误
+# （exit 139，崩在 `import numpy` 之后），Airtest 根本起不来。
+#
+# 4.6.0.66 是 numpy 1.19/1.20 时代的构建，与 numpy>=1.24 不兼容。Airtest 只用到
+# cv2 的基础模板匹配，不需要 contrib 模块，所以强制提升到与 numpy 1.26.4 兼容的
+# 4.11.0（与项目主 venv 一致）。
+#
+# ⚠️ 同理必须 override `opencv-python`：vibe-ocr 声明的是它，而两个包提供同一个
+# `cv2` 顶层模块，不统一版本会互相覆盖。
+override-dependencies = [
+  "opencv-contrib-python>=4.11.0.86",
+  "opencv-python>=4.11.0.86",
 ]
