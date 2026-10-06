@@ -25,6 +25,10 @@ class WorldState:
         failed_in_dungeon: 副本进度是否失败。
         last_workflow_scan: 上次工作流扫描的时间戳。
         request_retry_after: 领取流程失败或任务已满后的下次重试时间。
+        navigation_notice_after: 导航异常通知的下次允许发送时间。
+        navigation_target: 本次任务详情明确指定的地点。
+        manual_dungeon: 已确认没有今日免费次数、等待手工处理的副本。
+        manual_wait_day: 进入手工等待的本地日期，次日重新检查。
     """
 
     ocr: OCRHelper
@@ -35,3 +39,7 @@ class WorldState:
     failed_in_dungeon: bool = False
     last_workflow_scan: float = 0.0
     request_retry_after: float = 0.0
+    navigation_notice_after: float = 0.0
+    navigation_target: str | None = None
+    manual_dungeon: str | None = None
+    manual_wait_day: str = ""

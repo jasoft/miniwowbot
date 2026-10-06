@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import date
+from urllib.parse import quote
 
 import requests
-from airtest.core.api import exists, sleep, touch
+from airtest.core.api import sleep, touch
 from config import BARK_URL
+from dungeon_navigation import navigate_to_task, task_target
 from state import WorldState
 
 from task_workflow import click_text, read_task_screen, request_tasks
@@ -22,10 +25,18 @@ def send_notification(title: str, content: str) -> None:
         title: 通知标题。
         content: 通知内容。
     """
+    if not BARK_URL:
+        logger.warning("BARK_SERVER 未配置，未发送通知")
+        return
+    logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
     try:
-        requests.get(f"{BARK_URL}/{title}/{content}", timeout=5)
-    except Exception as exc:
-        logger.error("Bark 通知发送失败: %s", exc)
+        response = requests.get(
+            f"{BARK_URL}/{quote(title, safe='')}/{quote(content, safe='')}", timeout=5
+        )
+        if response.status_code != 200 or response.json().get("code") != 200:
+            logger.error("Bark 未确认发送成功，HTTP 状态：%s", response.status_code)
+    except (requests.RequestException, ValueError):
+        logger.error("Bark 通知发送失败，网络请求异常或响应不是有效 JSON")
 
 
 def should_preempt(state: WorldState) -> bool:
@@ -102,9 +113,7 @@ def action_dungeon_transition(state: WorldState) -> None:
         state: 共享的世界状态。
     """
     logger.info("推进副本/区域")
-    touch((160, 112))
-    sleep(1)
-    goto_next_place(state)
+    navigate_active_tasks(state)
     clear_signal(state, "xp_full")
 
 
@@ -116,9 +125,7 @@ def action_timeout_recovery(state: WorldState) -> None:
     """
     logger.warning("任务超时，强制导航恢复")
 
-    back_to_main(state)
-    touch((65, 265))
-    goto_next_place(state)
+    navigate_active_tasks(state)
     state.last_task_time = time.time()
     logger.debug("超时恢复后更新last_task_time: %.2f", state.last_task_time)
 
@@ -136,43 +143,78 @@ def action_equip_item(state: WorldState) -> None:
     clear_signal(state, "equip_el")
 
 
-def goto_next_place(state: WorldState) -> None:
+def goto_next_place(state: WorldState) -> bool:
     """导航到下一个地点。
 
     Args:
         state: 共享的世界状态。
-    """
-    try:
-        if not state.actions.find_all(use_cache=False).equals("前往").first().click():
-            return
 
-        sleep(1)
-        for _ in range(5):
-            if should_preempt(state):
-                return
-            arrow = exists(state.templates["arrow"])
-            if not arrow:
-                continue
-            touch((arrow[0], arrow[1] + 100))
-            sleep(1)
-            if state.actions.find("声望商店"):
-                touch((355, 780))
-                sleep(30)
-            elif state.actions.find("免费", use_cache=False).click():
-                logger.info("检测到免费副本，正在进入")
-                sleep(3)
-                sell_trash(state)
-                touch((357, 1209))
-            else:
-                state.failed_in_dungeon = True
-                fail_msg = "未找到免费副本按钮"
-                logger.warning(fail_msg)
-                send_notification("副本助手 - 错误", fail_msg)
-                back_to_main(state)
+    Returns:
+        确认进入目标地点时返回 True，未完成导航时返回 False。
+    """
+    if state.manual_dungeon or should_preempt(state):
+        return False
+    try:
+        reason = navigate_to_task(state)
+    except Exception:
+        logger.exception("导航异常")
+        reason = "导航发生异常，请检查运行日志"
+    state.failed_in_dungeon = bool(reason)
+    if not reason:
+        state.last_task_time = time.time()
+        return True
+    logger.warning("导航暂未完成：%s", reason)
+    now = time.time()
+    if "今日免费次数已用完" in reason and state.navigation_target:
+        state.manual_dungeon = state.navigation_target
+        state.manual_wait_day = date.today().isoformat()
+        send_notification("副本助手 - 等待手工处理", reason)
+        return False
+    if now >= state.navigation_notice_after:
+        send_notification("副本助手 - 导航异常", reason)
+        state.navigation_notice_after = now + 1800
+    back_to_main(state)
+    return False
+
+
+def navigate_active_tasks(state: WorldState) -> None:
+    """固定主线目标，升级任务只优先使用野外支线，不跳转旧副本。
+
+    Args:
+        state: 共享的世界状态。
+    """
+    if state.manual_dungeon:
+        return
+    back_to_main(state)
+    texts = read_task_screen(state)
+    candidates = [
+        item
+        for item in texts
+        if item.get("center")
+        and item["center"][0] <= 110
+        and 80 <= item["center"][1] <= 400
+        and any(word in item.get("text", "") for word in ("通关", "消灭", "等级达到", "前往"))
+    ]
+    candidates.sort(
+        key=lambda item: (
+            item["center"][1] > 140,
+            "消灭" not in item.get("text", ""),
+            item["center"][1],
+        )
+    )
+    for item in candidates:
+        if should_preempt(state):
             return
-    except Exception as exc:
-        logger.error("导航失败: %s", exc)
-        back_to_main(state)
+        if item["center"][1] > 140 and "通关" in item.get("text", ""):
+            continue
+        touch(tuple(item["center"]))
+        sleep(1)
+        if task_target(read_task_screen(state)):
+            goto_next_place(state)
+            return
+        else:
+            back_to_main(state)
+    logger.info("当前任务没有可导航的地点，继续等待升级或领取任务")
 
 
 def sell_trash(state: WorldState) -> None:
@@ -197,5 +239,6 @@ def back_to_main(state: WorldState, taps: int = 5) -> None:
         taps: 返回点击次数。
     """
     for _ in range(taps):
-        touch((719, 1))
+        # 顶部有 Android 指针调试栏；点击弹窗外的右下空白才能可靠关闭地图。
+        touch((710, 1150))
         sleep(0.3)
