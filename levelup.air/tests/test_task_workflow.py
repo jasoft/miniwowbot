@@ -204,3 +204,18 @@ async def test_cli_device_is_reused(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ANDROID_SERIAL", "old-device")
     await levelup.main()
     setup.assert_called_once_with(levelup.__file__)
+
+
+@pytest.mark.asyncio
+async def test_empty_ocr_element_does_not_trigger_actions(state: WorldState, monkeypatch) -> None:
+    """真实空元素不应触发装备动作，避免没有任务时一直空转。"""
+    import detectors
+    from behavior_setup import build_behavior_tree
+    from vibe_ocr.game_actions import GameElement
+
+    monkeypatch.setattr(detectors, "exists", Mock(return_value=False))
+    state.templates = {"xp_full": Mock()}
+    state.actions.find.return_value = GameElement.empty(state.actions)
+    await detectors.scan_workflow(state, 0)
+    tree = build_behavior_tree(logging.getLogger("test"))
+    assert tree.select(state) is None

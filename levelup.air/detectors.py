@@ -98,7 +98,9 @@ async def scan_workflow(state: WorldState, cooldown: float) -> None:
     _set_signal(state.signals, "request_task_el", request_el)
     if now < state.request_retry_after:
         _set_signal(state.signals, "request_task_el", None)
-    _set_signal(state.signals, "equip_el", equip_el)
+    # GameActions 未找到元素时返回 NullGameElement，而不是 None。
+    # 必须规范为空信号，避免行为树持续执行不存在的装备动作。
+    _set_signal(state.signals, "equip_el", equip_el if equip_el else None)
     logger.debug(
         "scan_workflow完成: xp_full=%s request_task=%s equip=%s cost=%.3fs",
         bool(xp_full),

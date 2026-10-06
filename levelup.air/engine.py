@@ -8,6 +8,7 @@ import time
 
 from airtest.core.api import snapshot
 
+from actions import back_to_main
 from behavior_setup import build_behavior_tree
 from behavior_rule import BehaviorRule
 from config import DECISION_INTERVAL, FAST_SCAN_INTERVAL, WORKFLOW_SCAN_INTERVAL
@@ -57,7 +58,9 @@ class LevelUpEngine:
         self._last_idle_log = 0.0
 
     async def run(self) -> None:
-        """运行引擎循环。"""
+        """关闭上次遗留的弹窗后运行引擎循环。"""
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, back_to_main, self._state)
         await asyncio.gather(
             self._fast_sensor_loop(),
             self._workflow_sensor_loop(),
