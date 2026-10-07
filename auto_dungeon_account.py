@@ -15,7 +15,11 @@ from airtest.core.api import (
 )
 from auto_dungeon_container import get_container
 from auto_dungeon_ui import find_text, find_text_and_click_safe, find_text_and_click
-from auto_dungeon_navigation import is_on_character_selection, save_error_screenshot
+from auto_dungeon_navigation import (
+    describe_foreground,
+    is_on_character_selection,
+    save_error_screenshot,
+)
 from auto_dungeon_utils import sleep
 from coordinates import (
     ACCOUNT_AVATAR,
@@ -123,6 +127,11 @@ WAIT_FOR_MAIN_HEARTBEAT_SECONDS = 30
 # 默认超时。刻意收敛到小于看门狗阈值，让"真卡住"时由本函数自己超时抛出，
 # 而不是被外部看门狗连模拟器一起杀掉 —— 后者代价是重开一轮模拟器（约 4 分钟）。
 WAIT_FOR_MAIN_DEFAULT_TIMEOUT = 150
+# 等待主界面超时时落盘的错误截图名。
+# 2026-10-07 实测：mage_alt 在「进入游戏 → 等主界面」这段卡满 150 秒，而脚本侧
+# **零画面信息**，只能靠 BlueStacks 的 Player.log 反推"游戏一直在跑但画面没推进"。
+# 补上截图 + 前台应用后，下次一眼就能看到卡在哪个画面。
+WAIT_FOR_MAIN_TIMEOUT_SCREENSHOT_NAME = "main_screen_timeout"
 
 
 def wait_for_main(timeout: int = WAIT_FOR_MAIN_DEFAULT_TIMEOUT) -> None:
@@ -136,6 +145,9 @@ def wait_for_main(timeout: int = WAIT_FOR_MAIN_DEFAULT_TIMEOUT) -> None:
 
     现在改为分段轮询：每 ``WAIT_FOR_MAIN_HEARTBEAT_SECONDS`` 秒打一条心跳日志，
     命中模板立即返回，累计超过 ``timeout`` 才抛 ``TimeoutError``。
+
+    超时抛出前会落一张错误截图，并把**超时瞬间的前台应用**写进日志 —— 2026-10-07
+    那次超时因为没有任何画面信息，只能靠模拟器日志反推，无法直接看出卡在哪个画面。
 
     Args:
         timeout: 最长等待秒数，默认 150 秒（小于编排器 180 秒的日志停滞阈值）。
@@ -159,7 +171,11 @@ def wait_for_main(timeout: int = WAIT_FOR_MAIN_DEFAULT_TIMEOUT) -> None:
         now = time.time()
         if now >= deadline:
             elapsed = now - start_time
-            logger.error(f"⏱️ 等待主界面超时（已等待 {elapsed:.1f} 秒）")
+            logger.error(
+                f"⏱️ 等待主界面超时（已等待 {elapsed:.1f} 秒）；"
+                f"超时瞬间前台: {describe_foreground()}"
+            )
+            save_error_screenshot(WAIT_FOR_MAIN_TIMEOUT_SCREENSHOT_NAME)
             raise TimeoutError("等待主界面超时")
         if now - last_heartbeat >= WAIT_FOR_MAIN_HEARTBEAT_SECONDS:
             last_heartbeat = now
