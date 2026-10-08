@@ -4,6 +4,7 @@ auto_dungeon 导航模块
 
 import logging
 import os
+import tempfile
 import time
 from datetime import datetime
 from typing import List
@@ -208,6 +209,74 @@ def save_error_screenshot(operation_name: str) -> str:
             + (f"，目标目录 {directory}" if directory else "")
         )
         return ""
+
+
+#: 判定「画面全黑」的平均亮度阈值（0~255）。
+#:
+#: 2026-10-08 06:06 实测：mage_alt 冷启动时，游戏在「判定已进入角色选择界面」
+#: 与「OCR 查找职业」之间发生了场景切换（模拟器广告退出 + 音频停止 + 转屏，
+#: Player.log 显示 06:06:50.023 ``SplitAdsExitComplete``、06:06:52.688
+#: ``PlaybackStopped``、06:06:55.020 ``hcallOnOrientationChangedClbk``）。这 3~5 秒内
+#: airtest 截图整幅几乎全黑 —— 对脚本自己落下的错误截图做离线像素分析：除顶部
+#: 调试条外 **99.99% 的像素是 RGB(0,0,0)**，通道均值 0.18。OCR 自然读不到任何文字，
+#: 于是被误报成「未找到职业: 法师」，进而把整个配置炸掉重跑一轮（约 1 分钟）。
+#:
+#: 黑屏的含义是 **"画面还没渲染出来"**，而不是 **"画面上没有这个文字"** ——
+#: 两者该走完全不同的处理路径（前者等待恢复，后者才该放弃）。
+BLANK_SCREEN_MEAN_THRESHOLD = 8.0
+
+
+def screenshot_is_blank(threshold: float = BLANK_SCREEN_MEAN_THRESHOLD) -> bool:
+    """判断当前画面是否几乎全黑（游戏正在切换场景 / 加载 / 广告过渡）。
+
+    动机见 :data:`BLANK_SCREEN_MEAN_THRESHOLD`：黑屏时 OCR 必然读不到任何文字，
+    调用方若把它当成"目标文字不存在"，就会误判并触发不必要的重量级恢复。
+
+    实现上刻意复用 ``snapshot(filename=...)`` + PIL 这条**已验证可用**的截图链路
+    （与 :func:`save_error_screenshot` 一致），而不是 ``device.snapshot()`` 的数组
+    返回值 —— 后者在不同 airtest / 模拟器组合下返回类型并不统一。临时文件用完即删。
+
+    任何异常都按「不是黑屏」处理（返回 ``False``）：本函数只是**辅助判据**，
+    不能因为诊断本身失败而改变主流程行为。
+
+    Args:
+        threshold: 平均亮度阈值（0~255），画面均值低于它即判为全黑。
+
+    Returns:
+        bool: 画面几乎全黑返回 ``True``；画面正常或无法判定返回 ``False``。
+    """
+    if not _has_connected_device():
+        return False
+
+    tmp_path = ""
+    try:
+        fd, tmp_path = tempfile.mkstemp(suffix=".png")
+        os.close(fd)
+        snapshot(filename=tmp_path)
+
+        if not os.path.isfile(tmp_path) or os.path.getsize(tmp_path) == 0:
+            return False
+
+        from PIL import Image
+        import numpy as np
+
+        with Image.open(tmp_path).convert("L") as image:
+            pixels = np.asarray(image, dtype=np.uint8)
+
+        mean_brightness = float(pixels.mean())
+        if mean_brightness < threshold:
+            logger.debug(f"🌑 检测到黑屏帧（平均亮度 {mean_brightness:.2f} < {threshold}）")
+            return True
+        return False
+    except Exception as e:  # noqa: BLE001 - 纯辅助判据，任何异常都不该影响主流程
+        logger.debug(f"检测黑屏失败（按非黑屏处理）: {type(e).__name__}: {e}")
+        return False
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:  # pragma: no cover - 清理失败无需处理
+                pass
 
 
 def open_map() -> None:

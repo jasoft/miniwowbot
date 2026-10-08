@@ -19,6 +19,7 @@ from auto_dungeon_navigation import (
     describe_foreground,
     is_on_character_selection,
     save_error_screenshot,
+    screenshot_is_blank,
 )
 from auto_dungeon_utils import sleep
 from coordinates import (
@@ -32,8 +33,26 @@ from auto_dungeon_config import GIFTS_TEMPLATE
 
 logger = logging.getLogger(__name__)
 
-# 查找角色职业的最大尝试次数（应对截图/OCR 抖动）
+# 查找角色职业的最大尝试次数（应对截图/OCR 抖动）。
+# 仅统计「画面正常但找不到该文字」的失败 —— 画面全黑另有独立预算，见下。
 CHARACTER_FIND_RETRIES = 3
+
+# 画面全黑（游戏正在切换场景/加载）时允许的**额外**等待次数。
+#
+# 2026-10-08 06:06 真机实测：mage_alt 冷启动时，游戏在「判定已进入角色选择界面」
+# 与「OCR 查找职业」之间发生了场景切换（模拟器广告退出 + 转屏），这 3~5 秒内截图
+# 整幅几乎全黑，OCR 读不到任何文字，被误报成「未找到职业: 法师」→ 整个配置被炸掉
+# 重跑一轮（约 1 分钟）。黑屏不是"没有这个文字"，而是"画面还没渲染出来"，
+# 正确做法是**等画面恢复再重试**，因此给它独立预算、不占用 CHARACTER_FIND_RETRIES。
+#
+# 上限与 CHARACTER_RETRY_INTERVAL_SECONDS 一起把本函数内最长等待控制在数十秒量级
+# —— 必须显著小于编排器的日志停滞阈值
+# （cron_run_all_dungeons.LOG_IDLE_TIMEOUT_SECONDS = 180），否则会被看门狗误判僵死
+# 并连模拟器一起重启；而且每次重试都会打日志，不存在静默阻塞。
+CHARACTER_BLANK_SCREEN_MAX_RETRIES = 15
+
+# 查找职业失败后、下一次尝试前的等待秒数。
+CHARACTER_RETRY_INTERVAL_SECONDS = 2.0
 
 def switch_account(account_name: str) -> None:
     """切换账号"""
@@ -86,21 +105,44 @@ def select_character(char_class: str) -> None:
     # 查找职业时截图/OCR 偶发抖动（minicap 失败、adb 瞬时不可用）会让 find_text
     # 抛异常或返回空结果；过去一次失败就抛 RuntimeError 并重启整个流程，
     # 现在先就地重试几次，并把真实异常打出来，避免被"未找到职业"掩盖。
+    #
+    # 2026-10-08 补充第三种情况：游戏正在切换场景/加载时，截图**整幅全黑**。
+    # 此时"OCR 读不到任何文字"与"画面上确实没有该文字"表现一致，但语义完全不同 ——
+    # 前者只需等画面恢复。若按后者处理，就会白扔一轮（停/重启游戏 + 重跑配置）。
+    # 因此画面全黑走独立预算，不计入普通失败次数。
     result = None
     last_error: Optional[str] = None
-    for attempt in range(1, CHARACTER_FIND_RETRIES + 1):
+    normal_failures = 0
+    blank_waits = 0
+    while True:
         try:
             result = find_text(char_class, similarity_threshold=0.8, use_cache=False)
         except Exception as exc:
             result = None
             last_error = f"{type(exc).__name__}: {exc}"
             logger.warning(
-                f"⚠️ 查找职业出现异常（第 {attempt}/{CHARACTER_FIND_RETRIES} 次）: {last_error}"
+                f"⚠️ 查找职业出现异常（第 {normal_failures + 1}/{CHARACTER_FIND_RETRIES} 次）: "
+                f"{last_error}"
             )
         if result and result.get("found"):
             break
-        if attempt < CHARACTER_FIND_RETRIES:
-            sleep(2, f"未找到职业 {char_class}，准备第 {attempt + 1} 次重试")
+
+        if screenshot_is_blank():
+            blank_waits += 1
+            if blank_waits > CHARACTER_BLANK_SCREEN_MAX_RETRIES:
+                logger.error(f"❌ 画面持续全黑 {blank_waits - 1} 次仍未恢复，放弃查找职业")
+                break
+            logger.warning(
+                f"⚠️ 截图全黑（游戏正在切换场景/加载中），等画面恢复后重试"
+                f"（第 {blank_waits}/{CHARACTER_BLANK_SCREEN_MAX_RETRIES} 次）"
+            )
+        else:
+            normal_failures += 1
+            if normal_failures >= CHARACTER_FIND_RETRIES:
+                break
+            logger.info(f"未找到职业 {char_class}，准备第 {normal_failures + 1} 次重试")
+
+        sleep(CHARACTER_RETRY_INTERVAL_SECONDS, f"等待画面就绪后重新查找职业 {char_class}")
 
     if result and result.get("found"):
         pos = result["center"]
@@ -112,6 +154,8 @@ def select_character(char_class: str) -> None:
         logger.info(f"✅ 成功选择角色: {char_class}")
     else:
         detail = f"（最后一次异常: {last_error}）" if last_error else ""
+        if blank_waits:
+            detail += f"（期间检测到 {blank_waits} 次全黑画面）"
         logger.error(f"❌ 未找到职业: {char_class}{detail}")
         save_error_screenshot("select_character")
         raise RuntimeError(f"无法找到职业: {char_class}{detail}")
