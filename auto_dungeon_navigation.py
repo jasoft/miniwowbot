@@ -55,6 +55,23 @@ CHARACTER_SELECTION_HEARTBEAT_SECONDS = 30
 #: 即"心跳代码存在但永远执行不到"。切成小片后每片返回一次，心跳才有机会落盘。
 CHARACTER_SELECTION_POLL_SLICE_SECONDS = 1.0
 
+#: 等待角色选择界面时，探测「游戏是否仍在前台」的间隔（秒）。
+CHARACTER_SELECTION_FOREGROUND_CHECK_INTERVAL_SECONDS = 5.0
+
+#: 连续多少次「明确探测到游戏不在前台」就提前结束等待。
+#:
+#: 2026-10-10 06:05~06:35 实测（mage_alt / Pie64_1）：游戏进程每次都被正常拉起
+#: （``Player.log`` 里 ``com.ms.ysjyzr`` 的 socket 一次不落），但顶层 Activity 反复
+#: 被 BlueStacks launcher 夺回 —— 当天该实例 **20 次**前台切换（对照 main 仅 2 次）、
+#: **6 次** SystemUI 重启（对照 main 0 次），且每次 launcher 前台的 ``callingPackage``
+#: 都是预装的应用宝 ``com.tencent.android.qqdownloader``。本函数当时只会一路盲等到
+#: 180 秒超时：9 次超时白耗约 27 分钟，并把一次**实例异常**放大成
+#: 「3 次配置重试 × 3 次应用重启 = 9 条告警」，直到编排器重启该实例才在 1 分钟内恢复。
+#:
+#: 取 4 次（约 20 秒）而不是 1 次，是为了不和真实的画面过渡打架：实测健康轮次里
+#: ``start_app`` 后约 5~6 秒游戏才把 Activity 显示到前台。
+CHARACTER_SELECTION_FOREGROUND_LOST_LIMIT = 4
+
 #: 最近一次截图失败的原因，供通知正文引用（``None`` 表示最近一次成功）
 _last_screenshot_error: str | None = None
 
@@ -314,6 +331,11 @@ def is_on_character_selection(timeout: int = 30) -> bool:
     详见该常量的说明。**不要**改回 ``wait(timeout=remaining)``：那会让整段等待静默，
     并把阻塞上限顶到看门狗阈值之上。
 
+    等待期间还会按 ``CHARACTER_SELECTION_FOREGROUND_CHECK_INTERVAL_SECONDS`` 探测游戏
+    是否仍在前台：**曾经看到过游戏在前台、随后又连续 ``CHARACTER_SELECTION_FOREGROUND_LOST_LIMIT``
+    次明确探测到它不在前台**时，直接抛 :class:`GameNotForegroundError` 提前结束等待 ——
+    此时角色选择界面不可能出现，盲等 180 秒纯属浪费（2026-10-10 实测白耗约 27 分钟）。
+
     超时未命中时会落一张错误截图（并记录超时瞬间的前台应用），让"游戏卡在哪个画面"
     有据可查，而不是只能靠模拟器日志反推。
 
@@ -322,12 +344,19 @@ def is_on_character_selection(timeout: int = 30) -> bool:
 
     Returns:
         True 表示已进入角色选择界面；False 表示超时仍未进入。
+
+    Raises:
+        GameNotForegroundError: 游戏曾被看到在前台、之后又明确被顶到后台（继承
+            ``TimeoutError``，会走 ``main_wrapper`` 已有的「重启游戏」恢复路径）。
     """
     logger.info(f"🔍 等待进入角色选择界面...(最长 {timeout} 秒)")
     start_time = time.time()
     deadline = start_time + max(1, timeout)
     transient_errors: List[str] = []
     last_heartbeat = start_time
+    last_foreground_check = start_time
+    seen_game_foreground = False
+    foreground_lost_streak = 0
 
     while True:
         remaining = deadline - time.time()
@@ -360,6 +389,33 @@ def is_on_character_selection(timeout: int = 30) -> bool:
         if now - last_heartbeat >= CHARACTER_SELECTION_HEARTBEAT_SECONDS:
             last_heartbeat = now
             logger.info(f"🔍 等待角色选择界面中...（已等待 {now - start_time:.0f} 秒）")
+
+        # 前台感知：游戏「曾经在过前台」之后又被别的应用顶掉时，继续盲等毫无意义 ——
+        # 角色选择界面不可能出现，唯一有效的恢复是重走「关游戏 → 开游戏」，而那正是
+        # main_wrapper 捕获 TimeoutError 后做的事。这里直接抛 GameNotForegroundError
+        # 复用该路径，把 180 秒的盲等压缩到约 20 秒。
+        #
+        # 必须先「见过游戏在前台」：刚 start_app 的几秒内顶层 Activity 还是 launcher
+        # （真机实测约 5~6 秒），一上来就判「不在前台」会把**正常启动**也误杀。
+        # ``None`` 不计数：探测本身失败（无设备 / get_top_activity 抖动）不该触发任何
+        # 恢复动作，宁可按老行为等满超时。
+        if now - last_foreground_check >= CHARACTER_SELECTION_FOREGROUND_CHECK_INTERVAL_SECONDS:
+            last_foreground_check = now
+            state = is_game_foreground()
+            if state is True:
+                seen_game_foreground = True
+                foreground_lost_streak = 0
+            elif state is False and seen_game_foreground:
+                foreground_lost_streak += 1
+                if foreground_lost_streak >= CHARACTER_SELECTION_FOREGROUND_LOST_LIMIT:
+                    message = (
+                        f"游戏已被顶到后台：连续 {foreground_lost_streak} 次探测都显示游戏不在前台"
+                        f"（当前前台: {describe_foreground()}），继续等待不可能出现角色选择界面，"
+                        "提前结束等待以复用「超时 → 重启游戏」的恢复路径"
+                    )
+                    logger.error(f"❌ {message}")
+                    save_error_screenshot("character_selection_foreground_lost")
+                    raise GameNotForegroundError(message)
 
     detail = ""
     if transient_errors:
