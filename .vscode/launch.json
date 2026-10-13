@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": "-c configs/mage_alt.json --emulator 127.0.0.1:5565"
+            "args": "-c configs/warrior.json --emulator 192.168.1.150:5555"
         }
     ]
 }
