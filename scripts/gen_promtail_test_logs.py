@@ -19,8 +19,7 @@ def write_sample_logs(emulator: str, cfg: str, n: int = 5):
 
 
 def main():
-    write_sample_logs("192.168.1.150:5555", "mage", 5)
-    write_sample_logs("192.168.1.150:5565", "paladin", 5)
+    write_sample_logs("192.168.1.150:5555", "warrior", 5)
 
 
 if __name__ == "__main__":

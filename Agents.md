@@ -9,7 +9,7 @@
 
 - 在测试的时候需要需要使用 `-m "not integration"` 参数跳过集成测试，不要写到pytest.ini中
 - 如需手动运行集成测试：`uv run pytest -m integration -v -s`（或在命令行覆盖 `-m "not integration"`）
-- 改动完成后你必须运行uv run 'E:\Projects\miniwowbot\run_dungeons.py' --emulator 192.168.1.150:5555 --logfile 'log\autodungeon_main.log' --session main --config mage --config warrior --dryrun 确保不报错
+- 改动完成后你必须运行uv run 'E:\Projects\miniwowbot\run_dungeons.py' --emulator 192.168.1.150:5555 --logfile 'log\autodungeon_main.log' --session main --config warrior --dryrun 确保不报错
 - 测试通过后, 总结这次改动,并提交到 github.
 
 ## Worktree 工具

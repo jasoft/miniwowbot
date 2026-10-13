@@ -86,7 +86,7 @@ def test_health_report_uses_dedicated_channel_and_skips_context(
         {"enabled": True, "server": DEFAULT_SERVER, "health_server": HEALTH_SERVER},
     )
 
-    ok = notif.send_health_report("体检 ✅", "warrior 11/11\nmage_alt 9/10")
+    ok = notif.send_health_report("体检 ✅", "warrior 11/11")
 
     assert ok is True
     assert len(captured_requests) == 1

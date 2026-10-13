@@ -27,8 +27,8 @@ from engine import LevelUpEngine
 # 要升级的模拟器实例（adb 序列号）。多开时必须显式指定，否则 Airtest 会挑错设备。
 # 取值与 emulators.json 保持一致：
 #   192.168.1.150:5555 -> 主账号（战士）
-#   192.168.1.150:5565 -> 金币法师号
-DEFAULT_EMULATOR = "192.168.1.150:5565"
+# 2026-10-13：金币法师号（5565）已下线，默认设备统一切到主账号。
+DEFAULT_EMULATOR = "192.168.1.150:5555"
 
 
 def setup_logging() -> logging.Logger:

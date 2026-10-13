@@ -428,7 +428,7 @@ def _is_adb_device_online(
 
     Args:
         adb_path: ADB 可执行文件路径。
-        emulator: 规范化后的模拟器地址，例如 ``192.168.1.150:5565``。
+        emulator: 规范化后的模拟器地址，例如 ``192.168.1.150:5555``。
         logger: 日志对象。
         retries: 轮询次数，每次间隔 5 秒。
 

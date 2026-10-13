@@ -177,7 +177,7 @@ python view_progress.py -c main_character --clear-all
 ## 最佳实践
 
 ### 1. 命名规范
-- 使用有意义的文件名：`warrior_main.json`、`mage_alt.json`
+- 使用有意义的文件名：`warrior_main.json`、`warrior_alt.json`
 - 避免使用中文文件名
 - 使用小写字母和下划线
 

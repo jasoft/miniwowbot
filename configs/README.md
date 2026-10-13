@@ -154,6 +154,6 @@ A: 直接复制 JSON 文件即可
 
 1. **按区域分组**：可以先把某个区域的所有副本都设为 `false`，然后只选择需要的
 2. **版本控制**：可以用 Git 管理配置文件的变更
-3. **命名规范**：建议使用有意义的文件名，如 `warrior_main.json`、`mage_alt.json`
+3. **命名规范**：建议使用有意义的文件名，如 `warrior_main.json`、`warrior_alt.json`
 4. **注释说明**：在 `description` 字段中详细说明配置用途
 

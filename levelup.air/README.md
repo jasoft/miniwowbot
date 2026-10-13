@@ -3,7 +3,7 @@
 运行入口：
 
 ```powershell
-uv run airtest run levelup.air --device Android://127.0.0.1:5037/127.0.0.1:5565
+uv run airtest run levelup.air --device Android://127.0.0.1:5037/127.0.0.1:5555
 ```
 
 入口复用 Airtest 命令行已经连接的设备。直接运行 `levelup.py` 时，才读取

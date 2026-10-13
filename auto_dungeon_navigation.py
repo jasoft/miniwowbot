@@ -60,7 +60,7 @@ CHARACTER_SELECTION_FOREGROUND_CHECK_INTERVAL_SECONDS = 5.0
 
 #: 连续多少次「明确探测到游戏不在前台」就提前结束等待。
 #:
-#: 2026-10-10 06:05~06:35 实测（mage_alt / Pie64_1）：游戏进程每次都被正常拉起
+#: 2026-10-10 06:05~06:35 实测（法师小号实例 Pie64_1，已下线）：游戏进程每次都被正常拉起
 #: （``Player.log`` 里 ``com.ms.ysjyzr`` 的 socket 一次不落），但顶层 Activity 反复
 #: 被 BlueStacks launcher 夺回 —— 当天该实例 **20 次**前台切换（对照 main 仅 2 次）、
 #: **6 次** SystemUI 重启（对照 main 0 次），且每次 launcher 前台的 ``callingPackage``
@@ -152,7 +152,7 @@ def describe_foreground() -> str:
     与 :func:`is_game_foreground` 共用 ``get_top_activity`` 探测，区别是它**永不抛异常**
     且返回可读字符串而不是三态布尔 —— 唯一用途是写进等待超时的日志里，供事后定位。
 
-    为什么需要它：2026-10-01 06:06~06:35 mage_alt 连续 9 次「启动游戏后 180 秒内未
+    为什么需要它：2026-10-01 06:06~06:35 法师小号实例（已下线）连续 9 次「启动游戏后 180 秒内未
     进入角色选择界面」，但脚本侧**没有任何画面信息**，只能靠 BlueStacks 的 Player.log
     反推"游戏一直停在同一画面"。把前台应用记进日志后，下次一眼就能看出卡在哪。
 
@@ -230,7 +230,7 @@ def save_error_screenshot(operation_name: str) -> str:
 
 #: 判定「画面全黑」的平均亮度阈值（0~255）。
 #:
-#: 2026-10-08 06:06 实测：mage_alt 冷启动时，游戏在「判定已进入角色选择界面」
+#: 2026-10-08 06:06 实测：法师小号实例（已下线）冷启动时，游戏在「判定已进入角色选择界面」
 #: 与「OCR 查找职业」之间发生了场景切换（模拟器广告退出 + 音频停止 + 转屏，
 #: Player.log 显示 06:06:50.023 ``SplitAdsExitComplete``、06:06:52.688
 #: ``PlaybackStopped``、06:06:55.020 ``hcallOnOrientationChangedClbk``）。这 3~5 秒内

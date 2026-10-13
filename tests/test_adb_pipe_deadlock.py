@@ -8,7 +8,7 @@ CPython 会在 ``_mswindows`` 分支里**再次调用无超时的** ``communicat
 若子进程派生出的孙进程继承了本次调用那对 stdout/stderr 管道句柄的写端，
 ``communicate()`` 永远等不到 EOF —— ``timeout`` 形同虚设，调用方被无限期挂住。
 
-当时会话 mage_alt 卡在 ``adb devices`` 上 **194 秒零日志**：adb 客户端在
+当时法师小号会话（已下线）卡在 ``adb devices`` 上 **194 秒零日志**：adb 客户端在
 没有 server 时拉起的常驻 ``adb server`` 继承了管道句柄；而 0.8 秒后启动的 main
 会话复用了已存在的 server，1.6 秒就返回 —— 只有「需要派生 server 的那一次」死锁。
 后果是编排器看门狗按「180 秒无日志」判它为僵死，杀掉会话并重启了模拟器。
@@ -129,7 +129,7 @@ class TestRunListCmdDoesNotHang:
 
         assert finished, (
             f"命令被孙进程继承的管道句柄挂住（>{WATCHDOG_JOIN_TIMEOUT:.0f}s 未返回）—— "
-            "超时保护失效，这正是 2026-09-27 06:05 mage_alt 卡死 194 秒的成因"
+            "超时保护失效，这正是 2026-09-27 06:05 法师小号会话（已下线）卡死 194 秒的成因"
         )
         assert elapsed < WATCHDOG_JOIN_TIMEOUT
         assert result["ok"] is True, "命令正常退出应判定为成功（输出仍要能拿到）"

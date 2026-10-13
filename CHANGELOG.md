@@ -1,5 +1,23 @@
 # 更新日志
 
+## [变更] 下线 mage_alt 账号，统一使用主账号 warrior - 2026-10-13
+
+### 变更内容
+
+法师小号（mage_alt，Pie64_1 / 192.168.1.150:5565）已废弃，全项目统一切回主账号 warrior（Pie64 / 192.168.1.150:5555）。
+
+### 受影响的范围
+
+- **会话配置**：`emulators.json` 删除 `mage_alt` 会话；`main` 会话的配置列表由 12 个职业配置收缩为 `["warrior"]`，每日编排（`cron_run_all_dungeons.py`）与每周秘境（`weekly_soul_land.py`，默认设备本就是 5555）均只驱动 warrior。
+- **配置文件**：删除 `configs/mage_alt.json`；`poe stats`（`check_progress.py`）随之不再统计该配置，其余 11 个历史职业配置本就零选中、不影响完成判据。
+- **poe 任务**：`pyproject.toml` 删除 `cron-2`（5565/mage_alt）。
+- **启动与文档**：`Agents.md` 冒烟命令改为 `--config warrior`；`configs/README.md`、`docs/MULTI_CONFIG_GUIDE.md`、`scripts/gen_promtail_test_logs.py`、`scripts/reset_daily_progress.py` 的示例统一为 warrior。
+- **定时任务**：`RunDungeons`（每日 06:05）与 `WeeklySoulLand`（每周一 10:00）的任务定义无需改动——二者分别由 `emulators.json` 与默认参数驱动，删除会话即完成收敛；调度时间、执行路径与日志落盘均已回读确认。
+- **测试**：11 个测试文件中的 mage_alt 背景注释改为「法师小号实例（已下线）」；`test_ended_activity_tasks_disabled` 的「至少两个配置」断言随单账号化放宽为「至少一个」。
+- **数据**：数据库中 mage_alt 的历史进度记录（189 条副本 + 事件记录）保留未删，7 天自动清理，不影响任何运行判据。
+
+---
+
 ## [优化] text_exists 基于单次 OCR 结果复用提升性能 - 2025-11-28
 
 ### 优化内容

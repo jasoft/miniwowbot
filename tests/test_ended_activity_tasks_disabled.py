@@ -11,8 +11,10 @@
 * 「灵魂之塔签到」——2026-10-04 起主界面入口消失（``Found: '灵魂之塔'``
   连续 10 天可读、当天两个会话同时读不到），需要同步置 ``false``。
 
-同时锁一条「两个 config 必须一致」的不变量：历史上出现过只改
-``warrior.json``、漏掉 ``mage_alt.json``，导致次日另一个会话继续告警。
+同时锁一条「多个配置必须一致」的不变量：历史上出现过只改
+``warrior.json``、漏掉另一个配置，导致次日另一个会话继续告警。
+（2026-10-13 mage_alt 下线后只剩 warrior 一个配置定义 daily_tasks，
+因此下限从 2 放宽到 1。）
 """
 
 import json
@@ -71,9 +73,13 @@ def test_ended_activity_tasks_are_disabled(config_name: str) -> None:
 
 
 def test_daily_tasks_selection_is_consistent_across_configs() -> None:
-    """多个配置的日常任务选中集合必须一致（防止只改一个配置）。"""
+    """多个配置的日常任务选中集合必须一致（防止只改一个配置）。
+
+    只有一个配置时该断言自动通过（集合无法互相对比），但扫描逻辑照常执行，
+    恢复第二个配置时立即恢复横向校验。
+    """
     configs = _configs_with_daily_tasks()
-    assert len(configs) >= 2, f"预期至少两个配置定义 daily_tasks，实际 {configs}"
+    assert len(configs) >= 1, f"预期至少一个配置定义 daily_tasks，实际 {configs}"
 
     baseline_name = configs[0]
     baseline = _load_daily_tasks(baseline_name)

@@ -16,7 +16,7 @@ CPython 的 ``subprocess.run`` 会在 ``_mswindows`` 分支里**再次调用无�
 没有 server 时拉起的常驻 adb server 正是如此，C 实现用可继承句柄），
 ``communicate()`` 永远等不到 EOF —— 调用方被无限期挂住，``timeout`` 形同虚设。
 
-真实后果：会话 mage_alt 卡在 ``adb devices`` 上 **194 秒零日志**，编排器看门狗
+真实后果：法师小号会话（已下线）卡在 ``adb devices`` 上 **194 秒零日志**，编排器看门狗
 按「180 秒无日志」判它僵死，杀掉会话并重启了模拟器。
 
 本模块的对策：**不使用管道**。把子进程的 stdout/stderr 重定向到临时文件，于是：

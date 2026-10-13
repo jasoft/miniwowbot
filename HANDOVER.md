@@ -22,7 +22,7 @@
 | 项目根 | `E:\Projects\miniwowbot` |
 | Python | 项目自带 `E:\Projects\miniwowbot\.venv\Scripts\python.exe`（不要用系统 Python） |
 | 游戏包名 | `com.ms.ysjyzr`（《异世界勇者》） |
-| 主账号设备 | `192.168.1.150:5555`（BlueStacks 实例 1 / Pie64），多开 `:5565` |
+| 主账号设备 | `192.168.1.150:5555`（BlueStacks 实例 1 / Pie64，战士 warrior） |
 | 分辨率 | **720x1280 / 320dpi**，所有坐标常量基于此 |
 | OCR | `http://192.168.1.150:8311/ocr`（PaddleX 3.0 协议，BASE64 传图） |
 | 专用技能 | `~/.workbuddy/skills/miniwow-game-automation/` |

@@ -146,11 +146,11 @@ def test_filter_pending_session_tasks_skips_completed_session(monkeypatch) -> No
     """已完成的会话不应进入启动列表。"""
     logger = logging.getLogger("test_filter_pending_session_tasks")
     task = cron.SessionTask(
-        name="mage_alt",
-        emulator="127.0.0.1:5565",
-        logfile=Path("log") / "mage_alt.log",
-        configs=["mage_alt"],
-        cmd="echo mage_alt",
+        name="main",
+        emulator="127.0.0.1:5555",
+        logfile=Path("log") / "main.log",
+        configs=["warrior"],
+        cmd="echo warrior",
     )
 
     monkeypatch.setattr(cron, "filter_pending_configs", lambda _configs, _logger: [])

@@ -1,28 +1,9 @@
 {
     "sessions": [
         {
-            "name": "mage_alt",
-            "emulator": "192.168.1.150:5565",
-            "configs": ["mage_alt"],
-            "log": "log/autodungeon_mage_alt.log",
-            "emulator_shutdown_cmd": "python scripts/bluestack-tool.py stop --id 2",
-            "emulator_start_cmd": "pwsh -File c:\\tools\\scripts\\start_bluestacks.ps1 -Id 2"
-        },
-        {
             "name": "main",
             "emulator": "192.168.1.150:5555",
             "configs": [
-                "mage",
-                "rogue",
-                "priest",
-                "shaman",
-                "druid",
-                "hunter",
-                "paladin",
-                "deathknight",
-                "monk",
-                "warlock",
-                "demonhunter",
                 "warrior"
             ],
             "log": "log/autodungeon_main.log",

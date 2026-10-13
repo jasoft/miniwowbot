@@ -1,6 +1,6 @@
 """日常任务各 step 不得把 ``GameNotForegroundError`` 降级成普通失败。
 
-背景（2026-09-26 06:07:41 mage_alt 实测）：
+背景（2026-09-26 06:07:41 法师小号实例（已下线）实测）：
 
 实例里的「应用宝」(``com.tencent.android.qqdownloader``) 的
 ``GarbageCleanActivity`` 抢到前台，``back_to_main`` 的守卫正确探测到并抛出

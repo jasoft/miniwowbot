@@ -156,7 +156,7 @@ def test_cron_orchestrator_logs_land_in_cron_file(tmp_path: Path, monkeypatch) -
 def test_session_log_covers_detached_named_loggers(tmp_path: Path) -> None:
     """回归（2026-09-24）：模拟器冷启动进度必须写进**会话日志**。
 
-    线上表现：``log/autodungeon_mage_alt.log`` 里 ``[Emulator] 第 N/6 次尝试连接``
+    线上表现：``log/autodungeon_main.log`` 里 ``[Emulator] 第 N/6 次尝试连接``
     与 ``[Emulator] 等待 15 秒...`` **历史累计 0 行** —— ``emulator_manager`` 的
     模块级 logger 自建 handler 且 ``propagate = False``，而会话日志的文件 handler
     只挂在 root 与 ``run_dungeons`` 上，两条链互不相通。
@@ -175,11 +175,11 @@ def test_session_log_covers_detached_named_loggers(tmp_path: Path) -> None:
     ), "前提：emulator_manager 的 logger 不向 root 传播"
 
     attached = run_dungeons.attach_session_file_loggers(
-        tmp_path / "autodungeon_mage_alt.log", "192.168.1.150:5565"
+        tmp_path / "autodungeon_main.log", "192.168.1.150:5555"
     )
     assert attached is not None, "会话文件日志没挂上"
 
-    emulator_manager.logger.info("[Emulator] 第 1/6 次尝试连接 192.168.1.150:5565")
+    emulator_manager.logger.info("[Emulator] 第 1/6 次尝试连接 192.168.1.150:5555")
     emulator_manager.logger.info("MARKER-模拟器冷启动进度")
 
     content = Path(attached).read_text(encoding="utf-8")

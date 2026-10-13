@@ -13,8 +13,8 @@
     # 真删 warrior 今天的记录
     uv run python -m scripts.reset_daily_progress warrior --yes
 
-    # 一次清理多个职业 / 全部职业
-    uv run python -m scripts.reset_daily_progress warrior mage --yes
+    # 一次清理多个职业
+    uv run python -m scripts.reset_daily_progress warrior warrior_alt --yes
     uv run python -m scripts.reset_daily_progress --all --yes
 
     # 只清副本记录，保留日常任务与领取记录
@@ -228,7 +228,7 @@ def print_summary(summary: dict[str, dict[str, int]]) -> None:
 @app.command(help="清理指定职业的当日副本完成记录。")
 def main(
     configs: Optional[list[str]] = typer.Argument(
-        None, help="要清理的职业配置名，可传多个；如 warrior 或 warrior mage"
+        None, help="要清理的职业配置名，可传多个；如 warrior 或 warrior warrior_alt"
     ),
     all_configs: bool = typer.Option(False, "--all", "-a", help="清理数据库中所有出现过的配置"),
     date: Optional[str] = typer.Option(
