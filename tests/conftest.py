@@ -109,6 +109,16 @@ def isolate_runtime_dirs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
         raising=False,
     )
 
+    # 编排器用 ``SCRIPT_DIR / "log"`` 拼**绝对路径**落当天 cron 日志，绕过上面
+    # ``resolve_project_path`` 的重定向：测试调 ``cron.main()`` 会把当天真实的
+    # ``log/cron_YYYY-MM-DD.log`` 污染掉（2026-10-13 实测：跑一遍 pytest，
+    # 真实 cron 日志末尾混进 60 余行测试输出，把运行档案搅乱）。把 SCRIPT_DIR
+    # 指到临时目录，落盘动作整体搬走；真正测落盘的
+    # ``test_log_file_handler_attach`` 自带 tmp_path，不受影响。
+    import cron_run_all_dungeons as _cron
+
+    monkeypatch.setattr(_cron, "SCRIPT_DIR", tmp_path)
+
 
 def _blocked_ids() -> set[int]:
     """收集通知模块里「会真正发出去」的函数 id。
