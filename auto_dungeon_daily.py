@@ -6,6 +6,7 @@
 import logging
 import os
 import re
+import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
@@ -21,12 +22,14 @@ from auto_dungeon_navigation import (
     GameNotForegroundError,
     back_to_main,
     get_last_screenshot_error,
+    is_game_foreground,
     open_map,
     save_error_screenshot,
 )
 from auto_dungeon_notification import send_notification
 from auto_dungeon_ui import (
     click_back,
+    find_all_texts,
     find_text,
     find_text_and_click,
     find_text_and_click_safe,
@@ -141,6 +144,38 @@ DONATE_CLAIM_MAX_ATTEMPTS = 3
 # 标记按钮已不可领取的文字。子串匹配「领取」会命中「已领取」，
 # 必须在点击前排除，否则每天白点一次。
 DONATE_CLAIM_DONE_MARK = "已领取"
+
+# ====== 宝箱存量与挂机补充 ======
+
+# 宝库面板里每个宝箱格子下方的存量行，形如「504/5」：
+# 斜杠前是**当前存量**（靠挂机累积），斜杠后是每日可开启次数（固定 5）。
+# OCR 真机实测 9 个格子全部读出且置信度 0.976~0.999。
+CHEST_STOCK_PATTERN = re.compile(r"^(\d+)\s*/\s*(\d+)$")
+
+# 存量行必须与所属「宝箱名」落在**同一个格子**里。
+# 真机实测 3x3 布局：格子宽约 180px、同列纵向间距约 210px，
+# 存量行在宝箱名正下方 34px 处。
+# 只按纵向距离（容差 40px）不够 —— 左邻格的存量行与本格宝箱名
+# dy 恰好也是 34px，会取到隔壁的箱子（2026-10-12 实测把军团宝箱的
+# 422 当成了亡灵宝箱的存量）。因此纵向容差收紧到 40px 之内再叠一个
+# 横向约束：|dx| 必须小于半格宽。
+CHEST_STOCK_MAX_DY = 40
+CHEST_STOCK_MAX_DX = 60
+
+# 存量低于该值时，先在野外挂机一段时间再领。
+# 大王定义：存量不足 400 就挂半小时，否则领几天就把存量领空、
+# 每天开不满 30 个（面板底部「今日开启数量30/30」就是上限）。
+CHEST_STOCK_TARGET = 400
+CHEST_AFK_SECONDS = 30 * 60
+
+# 挂机期间的轮询片长与心跳间隔。心跳必须显著小于编排器的日志停滞阈值
+# （cron_run_all_dungeons.LOG_IDLE_TIMEOUT_SECONDS = 180），否则半小时的
+# 静默挂机会被看门狗判成僵死，连模拟器一起杀掉重启。
+CHEST_AFK_POLL_SECONDS = 5
+CHEST_AFK_HEARTBEAT_SECONDS = 60
+
+# 读取存量前进入宝库的面板渲染等待秒数
+CHEST_VAULT_SETTLE_SECONDS = 2.0
 
 # ====== 灵魂之塔签到 ======
 
@@ -2166,8 +2201,160 @@ class DailyCollectManager:
             back_to_main()
             return False
 
+    def _read_chest_stock(self, chest_name: str) -> Optional[int]:
+        """进宝库读取指定宝箱的当前存量。
+
+        判据以**宝箱名为锚点**去找同一格下方的存量行：面板里 9 个宝箱
+        都有形如「504/5」的存量行，只按"第一个 x/y"会读到别的格子
+        （2026-10-12 实测把军团宝箱的 422 当成亡灵宝箱的存量）。
+
+        Args:
+            chest_name: 宝箱名称。
+
+        Returns:
+            Optional[int]: 读到的存量；进不去宝库或读不到该行时返回 None
+            （None 表示"读不到"，不是"存量为 0"，调用方必须区别对待）。
+        """
+        back_to_main()
+        if not (
+            find_text_and_click_safe("主城", regions=[9])
+            and find_text_and_click_safe("宝库", regions=[9])
+        ):
+            self.logger.warning("⚠️ 未能进入宝库，读不到%s存量", chest_name)
+            return None
+        sleep(CHEST_VAULT_SETTLE_SECONDS, "等待宝库面板渲染")
+
+        items = find_all_texts()
+        name_pos = next(
+            (it["center"] for it in items if it.get("text") == chest_name),
+            None,
+        )
+        if name_pos is None:
+            self.logger.warning("⚠️ 宝库里未读到「%s」，读不到存量", chest_name)
+            return None
+
+        for it in items:
+            match = CHEST_STOCK_PATTERN.match((it.get("text") or "").strip())
+            if not match:
+                continue
+            dx = it["center"][0] - name_pos[0]
+            dy = it["center"][1] - name_pos[1]
+            if abs(dy) > CHEST_STOCK_MAX_DY or abs(dx) > CHEST_STOCK_MAX_DX:
+                continue
+            stock = int(match.group(1))
+            self.logger.info(
+                "📦 %s 当前存量 %d（每日可开 %s 次），位置 %s",
+                chest_name,
+                stock,
+                match.group(2),
+                it["center"],
+            )
+            return stock
+
+        self.logger.warning("⚠️ 读到「%s」但未读到其下方存量行", chest_name)
+        return None
+
+    def _afk_for_chest_stock(self, seconds: int = CHEST_AFK_SECONDS) -> None:
+        """在野外挂机一段时间，让宝箱存量自然累积。
+
+        存量只在挂机时增长；任务跑完立刻下线的话存量长期不涨，
+        每天就开不满（面板底部「今日开启数量 30/30」是每日上限）。
+
+        等待**必须**切成 ``CHEST_AFK_POLL_SECONDS`` 的小片并按
+        ``CHEST_AFK_HEARTBEAT_SECONDS`` 打心跳：编排器把「会话日志 180 秒
+        无更新」当作僵死的唯一信号（``cron_run_all_dungeons`` 的
+        ``LOG_IDLE_TIMEOUT_SECONDS``），半小时静默必然被误杀并重启模拟器。
+        整段 ``sleep(seconds)`` 不可用 —— 心跳写在阻塞调用之后等价于没有。
+
+        同时每片探测一次前台：游戏被顶到后台就抛
+        :class:`GameNotForegroundError` 提前结束（继承 ``TimeoutError``，
+        复用 main_wrapper 的重启路径），而不是空等半小时。
+
+        Args:
+            seconds: 挂机总秒数。
+
+        Raises:
+            GameNotForegroundError: 挂机期间游戏被明确探测到不在前台。
+        """
+        self.logger.info("🌙 回到野外挂机 %d 秒，让宝箱存量累积", seconds)
+        back_to_main()
+        start_time = time.time()
+        deadline = start_time + seconds
+        last_heartbeat = start_time
+        while True:
+            now = time.time()
+            if now >= deadline:
+                break
+            # 前台感知：None（探测抖动/无设备）不计数，明确不在前台立刻中止
+            if is_game_foreground() is False:
+                raise GameNotForegroundError(
+                    f"挂机期间游戏被顶到后台（已挂 {now - start_time:.0f} 秒）"
+                )
+            remaining = deadline - now
+            sleep(min(CHEST_AFK_POLL_SECONDS, remaining), "挂机分片等待")
+            now = time.time()
+            if now >= deadline:
+                break
+            if now - last_heartbeat >= CHEST_AFK_HEARTBEAT_SECONDS:
+                last_heartbeat = now
+                self.logger.info(
+                    "⏳ 挂机中...（已挂 %.0f 秒，剩余 %.0f 秒）",
+                    now - start_time,
+                    deadline - now,
+                )
+
+        self.logger.info("🌙 挂机结束，共 %.0f 秒", time.time() - start_time)
+
+    def _ensure_chest_stock(self, chest_name: str) -> None:
+        """领宝箱前保证存量充足：不足目标值就先挂机补充。
+
+        顺序是**先补后领**：先领会把存量花掉，补到目标线的意义就丢了。
+
+        读不到存量时按"存量未知"处理，只告警不挂机 —— 盲目挂半小时的
+        代价（时间）远大于跳过一次的代价。
+
+        Args:
+            chest_name: 宝箱名称。
+        """
+        stock = self._read_chest_stock(chest_name)
+        if stock is None:
+            self.logger.warning(
+                "⚠️ 读不到 %s 存量，本次跳过挂机补充（宁可少领也不盲挂）", chest_name
+            )
+            return
+        if stock >= CHEST_STOCK_TARGET:
+            self.logger.info(
+                "✅ %s 存量 %d ≥ %d，无需挂机补充", chest_name, stock, CHEST_STOCK_TARGET
+            )
+            return
+
+        self.logger.info(
+            "⚠️ %s 存量仅 %d，低于 %d，先挂机 %d 秒再领",
+            chest_name,
+            stock,
+            CHEST_STOCK_TARGET,
+            CHEST_AFK_SECONDS,
+        )
+        self._afk_for_chest_stock(CHEST_AFK_SECONDS)
+
+        new_stock = self._read_chest_stock(chest_name)
+        if new_stock is None:
+            self.logger.warning("⚠️ 挂机后仍读不到 %s 存量", chest_name)
+        else:
+            self.logger.info(
+                "🌙 挂机后 %s 存量 %d → %d（目标 %d）",
+                chest_name,
+                stock,
+                new_stock,
+                CHEST_STOCK_TARGET,
+            )
+
     def _open_chests(self, chest_name: str) -> bool:
         """开启指定宝箱。
+
+        领之前先看存量：不足 ``CHEST_STOCK_TARGET`` 时先在野外挂机补充，
+        否则任务跑完立刻下线、存量不涨，连着几天就把存量领空，
+        每天开不满 30 个。
 
         Args:
             chest_name: 宝箱名称。
@@ -2176,6 +2363,11 @@ class DailyCollectManager:
             bool: 是否成功进入「宝库」并找到目标宝箱。
         """
         self.logger.info(f"🎁 开始开启{chest_name}")
+        try:
+            self._ensure_chest_stock(chest_name)
+        except GameNotForegroundError:
+            raise
+
         back_to_main()
         try:
             if not (
