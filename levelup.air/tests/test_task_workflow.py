@@ -81,7 +81,7 @@ def test_scroll_checks_lower_tasks_and_restarts_at_top(state: WorldState) -> Non
         screen("军团领域", "【支线】后续任务"),
     ]
     assert workflow.find_available_task(state)["center"] == (280, 350)
-    workflow.swipe.assert_any_call((360, 420), (360, 860), duration=0.5)
+    workflow.swipe.assert_any_call((360, 420), (360, 860), duration=workflow.TASK_SCROLL_DURATION)
 
 
 def test_empty_ocr_is_not_an_exhausted_region(state: WorldState) -> None:
@@ -150,6 +150,43 @@ def test_non_side_foreground_detail_is_ignored(state: WorldState) -> None:
         {"text": "接受任务", "center": (359, 866)},
     ]
     assert workflow.find_available_task(state) is None
+
+
+def test_task_list_scrolls_slowly_upward(state: WorldState) -> None:
+    """清单下扫必须缓慢从下向上滑动，避免惯性一次滑过整屏。"""
+    state.ocr.capture_and_get_all_texts.side_effect = [
+        screen("风暴群岛"),
+        screen("风暴群岛"),
+        screen("风暴群岛"),
+        screen("风暴群岛", "【支线】斩草除根"),
+    ]
+    assert workflow.find_available_task(state)["text"] == "【支线】斩草除根"
+    upward = [call for call in workflow.swipe.call_args_list if call.args[1][1] < call.args[0][1]]
+    assert upward, "应存在从下向上的滚动"
+    assert all(call.kwargs.get("duration", 0) >= workflow.TASK_SCROLL_DURATION for call in upward)
+
+
+def test_accepted_side_task_is_not_scanned_again(state: WorldState, monkeypatch) -> None:
+    """接受成功的支线加入跳过集，同一轮不再重复扫描点击。"""
+    seen: list[set[str]] = []
+
+    def fake_find(_state: WorldState, skipped: set[str] | None = None) -> dict | None:
+        seen.append(set(skipped or set()))
+        if skipped:
+            return None
+        return {"text": "【支线】斩草除根", "center": (280, 350)}
+
+    monkeypatch.setattr(workflow, "find_available_task", fake_find)
+    state.ocr.capture_and_get_all_texts.side_effect = [
+        screen("风暴群岛"),
+        [{"text": "接受任务", "center": (359, 866)}],
+        [],
+        screen("风暴群岛"),
+        screen("风暴群岛"),
+    ]
+    workflow.request_tasks(state)
+    assert seen[0] == set()
+    assert "【支线】斩草除根" in seen[1]
 
 
 def test_pending_side_task_blocks_region_switch(state: WorldState, monkeypatch) -> None:

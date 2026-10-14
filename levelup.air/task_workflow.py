@@ -16,6 +16,10 @@ logger = logging.getLogger(__name__)
 # 地下城任务偏离升级路线且占用任务名额，其他类别一律跳过（2026-10-14 大王指定）。
 ACCEPT_TASK_KEYWORD = "支线"
 
+# 清单滚动使用慢速拖动：从下向上缓慢滑动，避免惯性一次滑过整屏、漏掉中间支线条目
+# （2026-10-14 大王要求）。
+TASK_SCROLL_DURATION = 1.2
+
 
 def read_task_screen(state: WorldState) -> list[dict[str, Any]]:
     """获取未使用缓存的当前画面文本。
@@ -100,7 +104,7 @@ def find_available_task(
     skipped = skipped or set()
     previous_top: tuple[str, ...] | None = None
     for _ in range(12):
-        swipe((360, 420), (360, 860), duration=0.5)
+        swipe((360, 420), (360, 860), duration=TASK_SCROLL_DURATION)
         sleep(0.5)
         texts = read_task_screen(state)
         detail = task_detail_title(texts)
@@ -150,7 +154,7 @@ def find_available_task(
         else:
             stable_pages = 0
         previous = fingerprint
-        swipe((360, 850), (360, 400), duration=0.5)
+        swipe((360, 850), (360, 400), duration=TASK_SCROLL_DURATION)
         sleep(0.5)
     raise RuntimeError("任务清单扫描未抵达末尾，本轮不切区")
 
@@ -195,7 +199,7 @@ def switch_task_region(state: WorldState, current: str) -> bool:
 
 
 def request_tasks(state: WorldState) -> None:
-    """领取本区任务，确认清空后切区并立即领取新区任务。
+    """领取本区支线任务，接到任务名额满或清单无支线为止，确认清空后切区。
 
     Args:
         state: 当前运行状态。
@@ -237,8 +241,9 @@ def request_tasks(state: WorldState) -> None:
             else:
                 after_accept = read_task_screen(state)
                 if task_detail_title(after_accept) is not None:
-                    logger.info("接受任务后详情仍未关闭，等待任务名额或界面恢复")
+                    logger.info("接受任务后详情仍未关闭，任务名额可能已满，保留区域稍后重试")
                     return
+                skipped.add(candidate["text"])
                 state.last_task_time = time.time()
                 logger.info("接受任务已验证: %s", candidate["text"])
             texts = read_task_screen(state)
