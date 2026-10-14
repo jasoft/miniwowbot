@@ -30,9 +30,7 @@ def _levelup_python_pid() -> int:
         errors="ignore",
     ).stdout
     pids = [
-        int(line.split('","')[1])
-        for line in out.splitlines()
-        if line.startswith('"python.exe"')
+        int(line.split('","')[1]) for line in out.splitlines() if line.startswith('"python.exe"')
     ]
     if not pids:
         return 0
