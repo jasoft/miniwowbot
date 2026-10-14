@@ -180,6 +180,11 @@ def goto_next_place(state: WorldState) -> bool:
 def navigate_active_tasks(state: WorldState) -> None:
     """固定主线目标，升级任务只优先使用野外支线，不跳转旧副本。
 
+    左侧追踪栏第一条是主任务；「等级达到」型主任务没有导航目标，
+    点击它只会打开无「前往」按钮的详情、白耗一次 OCR，
+    因此只在没有任何可导航区域任务时才尝试它（2026-10-14 实测，
+    「击败」型区域任务因缺少关键词被整轮跳过）。
+
     Args:
         state: 共享的世界状态。
     """
@@ -187,13 +192,14 @@ def navigate_active_tasks(state: WorldState) -> None:
         return
     back_to_main(state)
     texts = read_task_screen(state)
+    navigable_keywords = ("通关", "消灭", "击败", "前往")
     candidates = [
         item
         for item in texts
         if item.get("center")
         and item["center"][0] <= 110
         and 80 <= item["center"][1] <= 400
-        and any(word in item.get("text", "") for word in ("通关", "消灭", "等级达到", "前往"))
+        and any(word in item.get("text", "") for word in navigable_keywords)
     ]
     candidates.sort(
         key=lambda item: (

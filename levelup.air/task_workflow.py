@@ -12,6 +12,28 @@ from task_regions import next_region, region_menu_position, task_list_region
 
 logger = logging.getLogger(__name__)
 
+# 扫描清单时的类别优先级：主任务必须最先被接取。
+# 左侧追踪栏的第一条也是主任务，但清单里它通常排在下方，
+# 因此按类别标签筛选而不是按行序。
+TASK_CATEGORY_PRIORITY = ("主线", "支线", "地下城")
+
+# 只剩这些类别的已接任务时仍允许切区：它们是跨区长期任务，
+# 不会随当前区域的支线/地下城清空而完成（2026-10-14 战士号实测，
+# 「等级达到415级」挂清单导致本区永远"仍有已接任务"）。
+REGION_BLOCKING_CATEGORIES = ("支线", "地下城")
+
+
+def is_main_task_text(text: str) -> bool:
+    """判断任务文本是否为主任务条目。
+
+    Args:
+        text: 清单或追踪栏中的任务文本。
+
+    Returns:
+        带【主线】/[主线] 标签或属于「等级达到」型升级目标时返回 True。
+    """
+    return "【主线】" in text or "[主线]" in text or "等级达到" in text
+
 
 def read_task_screen(state: WorldState) -> list[dict[str, Any]]:
     """获取未使用缓存的当前画面文本。
@@ -132,7 +154,7 @@ def find_available_task(
             and 180 <= item["center"][0] <= 600
             and 325 <= item["center"][1] <= 890
         ]
-        for category in ("支线", "地下城", "主线"):
+        for category in TASK_CATEGORY_PRIORITY:
             for item in rows:
                 text = item.get("text", "")
                 if text in skipped:
@@ -213,7 +235,9 @@ def request_tasks(state: WorldState) -> None:
                 return
             candidate = find_available_task(state, skipped)
             if candidate is None:
-                if skipped:
+                if skipped and any(not is_main_task_text(title) for title in skipped):
+                    # 只剩主任务（等级型跨区目标）未完成时不算阻塞，
+                    # 否则本区永远"仍有已接任务"、区域无法推进。
                     logger.info("本区仍有已接任务，等待完成后再切区")
                     return
                 if switch_task_region(state, current):

@@ -125,6 +125,34 @@ def test_active_task_does_not_hide_other_available_tasks(state: WorldState) -> N
     assert candidate["text"] == "【地下城】废墟探宝"
 
 
+def test_main_task_selected_before_side_tasks(state: WorldState) -> None:
+    """清单同时有支线和主线时，主任务最先被选中接受。"""
+    state.ocr.capture_and_get_all_texts.return_value = screen(
+        "亡灵之地", "【支线】斩草除根", "【主线】亡灵大陆的冒险"
+    )
+    candidate = workflow.find_available_task(state)
+    assert candidate["text"] == "【主线】亡灵大陆的冒险"
+
+
+def test_only_main_task_pending_still_switches_region(state: WorldState, monkeypatch) -> None:
+    """本区只剩跨区主任务未完成时照常切区，不被长期任务阻塞。"""
+    monkeypatch.setattr(
+        workflow,
+        "find_available_task",
+        Mock(side_effect=[{"text": "【主线】等级达到415级", "center": (280, 350)}, None]),
+    )
+    switch = Mock(return_value=False)
+    monkeypatch.setattr(workflow, "switch_task_region", switch)
+    state.ocr.capture_and_get_all_texts.side_effect = [
+        screen("风暴群岛"),
+        [{"text": "前往", "center": (359, 865)}],
+        screen("风暴群岛"),
+        screen("风暴群岛"),
+    ]
+    workflow.request_tasks(state)
+    switch.assert_called_once_with(state, "风暴群岛")
+
+
 def test_menu_failure_does_not_report_success(state: WorldState) -> None:
     """只点击按钮而未见目标区域标题时不得报告切区成功。"""
     state.ocr.capture_and_get_all_texts.return_value = screen("风暴群岛")

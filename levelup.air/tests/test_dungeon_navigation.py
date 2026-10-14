@@ -214,11 +214,60 @@ def test_level_task_uses_field_instead_of_old_dungeon(
             item("消灭0/2个软", 55, 178),
             item("通关0/1次凋", 55, 255),
         ],
-        [item("等级达到434/435级", 360, 527)],
         [item("前往「亡者战场」消灭「软泥巨人」。", 354, 557)],
     ]
     actions.navigate_active_tasks(state)
-    assert click.call_args_list == [call((55, 98)), call((55, 178))]
+    # 等级型主任务没有导航目标，直接跳过，不浪费点击和 OCR。
+    assert click.call_args_list == [call((55, 178))]
+    goto.assert_called_once_with(state)
+
+
+def test_defeat_task_is_navigable(state: WorldState) -> None:
+    """「击败」型区域任务是可导航的追踪条目。
+
+    Args:
+        state: 模拟运行状态。
+    """
+    click = Mock()
+    goto = Mock()
+    monkeypatch1 = pytest.MonkeyPatch()
+    try:
+        monkeypatch1.setattr(actions, "touch", click)
+        monkeypatch1.setattr(actions, "sleep", Mock())
+        monkeypatch1.setattr(actions, "back_to_main", Mock())
+        monkeypatch1.setattr(actions, "goto_next_place", goto)
+        state.ocr.capture_and_get_all_texts.side_effect = [
+            [item("击败0/1次软泥爵士", 55, 127), item("等级达到434/435级", 55, 82)],
+            [item("前往「堕落教堂」消灭「软泥爵士」。", 354, 557)],
+        ]
+        actions.navigate_active_tasks(state)
+        assert click.call_args_list == [call((55, 127))]
+        goto.assert_called_once_with(state)
+    finally:
+        monkeypatch1.undo()
+
+
+def test_level_main_task_skipped_when_field_task_exists(
+    state: WorldState, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """等级型主任务没有导航目标，有可导航支线时不点击它。
+
+    Args:
+        state: 模拟运行状态。
+        monkeypatch: 测试替换工具。
+    """
+    click = Mock()
+    goto = Mock()
+    monkeypatch.setattr(actions, "touch", click)
+    monkeypatch.setattr(actions, "sleep", Mock())
+    monkeypatch.setattr(actions, "back_to_main", Mock())
+    monkeypatch.setattr(actions, "goto_next_place", goto)
+    state.ocr.capture_and_get_all_texts.side_effect = [
+        [item("等级达到411/415级", 55, 82), item("击败0/1次软泥爵士", 55, 127)],
+        [item("前往「堕落教堂」消灭「软泥爵士」。", 354, 557)],
+    ]
+    actions.navigate_active_tasks(state)
+    assert click.call_args_list == [call((55, 127))]
     goto.assert_called_once_with(state)
 
 
