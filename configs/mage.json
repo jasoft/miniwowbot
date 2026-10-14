@@ -4,7 +4,20 @@
         "梦魔丛林": "梦魇丛林"
     },
     "class": "法师",
-    "zone_dungeons": {
+    "zone_dungeons": {        
+		"亡灵之地": [
+            { "name": "聚魂之地", "selected": true },
+            { "name": "永恒王座", "selected": true },
+            { "name": "深渊圣所", "selected": true },
+            { "name": "猩红古堡", "selected": true },
+            { "name": "堕落教堂", "selected": true },
+            { "name": "权力高塔", "selected": true },
+            { "name": "深渊囚牢", "selected": true },
+            { "name": "亡灵异界", "selected": true },
+            { "name": "迷雾林地", "selected": true },
+            { "name": "凋零废墟", "selected": true },
+            { "name": "战争剧院", "selected": true }
+        ],
         "风暴群岛": [
             { "name": "真理之地", "selected": false },
             { "name": "预言神殿", "selected": false },
