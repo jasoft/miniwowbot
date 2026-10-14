@@ -193,7 +193,7 @@ async def test_cli_device_is_reused(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(levelup.G, "DEVICE_LIST", [Mock()])
     setup = Mock()
     monkeypatch.setattr(levelup, "auto_setup", setup)
-    monkeypatch.setattr(levelup, "device", Mock(return_value=Mock(uuid="127.0.0.1:5565")))
+    monkeypatch.setattr(levelup, "device", Mock(return_value=Mock(uuid="127.0.0.1:5555")))
     engine = Mock()
     from unittest.mock import AsyncMock
 

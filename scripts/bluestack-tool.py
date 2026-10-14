@@ -647,6 +647,35 @@ def cmd_start(args: argparse.Namespace) -> int:
     return EXIT_OK if reached else EXIT_STATE_MISMATCH
 
 
+def resolve_doctor_instance_ids(config_sessions: list[dict[str, Any]]) -> list[str]:
+    """从 ``emulators.json`` 的 sessions 反解出需要诊断的实例 id。
+
+    诊断实例必须与项目实际使用的会话一致：单账号化后只保留主账号
+    warrior，doctor 不应再去拉起已下线的多开实例。匹配规则与
+    ``cmd_doctor`` Step 2 一致 —— 实例 ``expected_port + 1`` 的地址
+    出现在某个 session 的 ``emulator`` 字段里（5555 -> 实例 1）。
+
+    Args:
+        config_sessions: ``emulators.json`` 里 ``sessions`` 列表。
+
+    Returns:
+        实例 id 列表，保持 ``DEFAULT_INSTANCES`` 的原始顺序；
+        配置缺失或解析不到任何会话时回退为 ``["1"]``（主实例），
+        绝不再默认拉起多开实例。
+    """
+    ids: list[str] = []
+    for inst in build_default_instances():
+        if not inst.expected_port:
+            continue
+        port_tail = str(inst.expected_port + 1)
+        for session in config_sessions:
+            emulator = str(session.get("emulator", ""))
+            if emulator and port_tail in emulator:
+                ids.append(inst.id)
+                break
+    return ids or ["1"]
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     """诊断模式：复用 start/stop 逻辑测试模拟器全生命周期。"""
     adb_path = resolve_adb_path(args.adb)
@@ -667,7 +696,9 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     except Exception:
         pass
 
-    test_ids = ["1", "2"]
+    # 诊断对象跟随 emulators.json：只测会话真正用到的实例，
+    # 避免拉起已下线的多开实例（mage_alt/Pie64_1 下线前的教训）。
+    test_ids = resolve_doctor_instance_ids(config_sessions)
     print(f"=== [Doctor] 开始诊断 (测试实例: {', '.join(test_ids)}, 超时: {args.timeout}s) ===")
 
     success_count = 0
