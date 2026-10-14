@@ -65,10 +65,10 @@ def test_region_selection_ignores_green_background_and_offsets() -> None:
     assert task_list_region(screen("风暴群岛")) == "风暴群岛"
 
 
-def test_dungeon_tasks_prevent_premature_region_switch(state: WorldState) -> None:
-    """没有支线时，剩余地下城任务仍必须领取。"""
+def test_dungeon_tasks_are_not_accepted(state: WorldState) -> None:
+    """只接支线：清单里只剩地下城任务时不再领取。"""
     state.ocr.capture_and_get_all_texts.return_value = screen("亡灵之地", "【地下城】废墟探宝")
-    assert workflow.find_available_task(state)["center"] == (280, 350)
+    assert workflow.find_available_task(state) is None
     state.ocr.capture_and_get_all_texts.assert_called_with(use_cache=False)
 
 
@@ -116,30 +116,48 @@ def test_last_region_never_clicks_below_menu(state: WorldState) -> None:
     workflow.touch.assert_not_called()
 
 
-def test_active_task_does_not_hide_other_available_tasks(state: WorldState) -> None:
-    """已接支线仍出现在清单时，继续选择其他地下城任务。"""
+def test_active_task_does_not_hide_other_side_tasks(state: WorldState) -> None:
+    """已接支线仍出现在清单时，继续选择其他支线任务。"""
     state.ocr.capture_and_get_all_texts.return_value = screen(
-        "亡灵之地", "【支线】进行中的任务", "【地下城】废墟探宝"
+        "亡灵之地", "【支线】进行中的任务", "【支线】斩草除根"
     )
     candidate = workflow.find_available_task(state, {"【支线】进行中的任务"})
-    assert candidate["text"] == "【地下城】废墟探宝"
+    assert candidate["text"] == "【支线】斩草除根"
 
 
-def test_main_task_selected_before_side_tasks(state: WorldState) -> None:
-    """清单同时有支线和主线时，主任务最先被选中接受。"""
+def test_only_side_tasks_are_accepted(state: WorldState) -> None:
+    """清单同时列出三种类别时，只选中支线任务。"""
     state.ocr.capture_and_get_all_texts.return_value = screen(
-        "亡灵之地", "【支线】斩草除根", "【主线】亡灵大陆的冒险"
+        "亡灵之地", "【主线】亡灵大陆的冒险", "【支线】斩草除根", "【地下城】废墟探宝"
     )
     candidate = workflow.find_available_task(state)
-    assert candidate["text"] == "【主线】亡灵大陆的冒险"
+    assert candidate["text"] == "【支线】斩草除根"
 
 
-def test_only_main_task_pending_still_switches_region(state: WorldState, monkeypatch) -> None:
-    """本区只剩跨区主任务未完成时照常切区，不被长期任务阻塞。"""
+def test_non_side_categories_are_never_accepted(state: WorldState) -> None:
+    """清单只有主线和地下城时视为本区没有可接任务。"""
+    state.ocr.capture_and_get_all_texts.return_value = screen(
+        "亡灵之地", "【主线】亡灵大陆的冒险", "【地下城】废墟探宝"
+    )
+    assert workflow.find_available_task(state) is None
+
+
+def test_non_side_foreground_detail_is_ignored(state: WorldState) -> None:
+    """前景弹窗是地下城详情时不作为可接任务。"""
+    state.ocr.capture_and_get_all_texts.return_value = [
+        *screen("亡灵之地"),
+        {"text": "【地下城】废墟探宝", "center": (360, 431)},
+        {"text": "接受任务", "center": (359, 866)},
+    ]
+    assert workflow.find_available_task(state) is None
+
+
+def test_pending_side_task_blocks_region_switch(state: WorldState, monkeypatch) -> None:
+    """本区仍有已接支线在执行时不切区，等它完成后再推进。"""
     monkeypatch.setattr(
         workflow,
         "find_available_task",
-        Mock(side_effect=[{"text": "【主线】等级达到415级", "center": (280, 350)}, None]),
+        Mock(side_effect=[{"text": "【支线】斩草除根", "center": (280, 350)}, None]),
     )
     switch = Mock(return_value=False)
     monkeypatch.setattr(workflow, "switch_task_region", switch)
@@ -150,7 +168,7 @@ def test_only_main_task_pending_still_switches_region(state: WorldState, monkeyp
         screen("风暴群岛"),
     ]
     workflow.request_tasks(state)
-    switch.assert_called_once_with(state, "风暴群岛")
+    switch.assert_not_called()
 
 
 def test_menu_failure_does_not_report_success(state: WorldState) -> None:

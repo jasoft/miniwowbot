@@ -12,27 +12,9 @@ from task_regions import next_region, region_menu_position, task_list_region
 
 logger = logging.getLogger(__name__)
 
-# 扫描清单时的类别优先级：主任务必须最先被接取。
-# 左侧追踪栏的第一条也是主任务，但清单里它通常排在下方，
-# 因此按类别标签筛选而不是按行序。
-TASK_CATEGORY_PRIORITY = ("主线", "支线", "地下城")
-
-# 只剩这些类别的已接任务时仍允许切区：它们是跨区长期任务，
-# 不会随当前区域的支线/地下城清空而完成（2026-10-14 战士号实测，
-# 「等级达到415级」挂清单导致本区永远"仍有已接任务"）。
-REGION_BLOCKING_CATEGORIES = ("支线", "地下城")
-
-
-def is_main_task_text(text: str) -> bool:
-    """判断任务文本是否为主任务条目。
-
-    Args:
-        text: 清单或追踪栏中的任务文本。
-
-    Returns:
-        带【主线】/[主线] 标签或属于「等级达到」型升级目标时返回 True。
-    """
-    return "【主线】" in text or "[主线]" in text or "等级达到" in text
+# 领取任务时只接受支线：主线是跨区长期目标（左侧追踪栏自动跟随，无需领取），
+# 地下城任务偏离升级路线且占用任务名额，其他类别一律跳过（2026-10-14 大王指定）。
+ACCEPT_TASK_KEYWORD = "支线"
 
 
 def read_task_screen(state: WorldState) -> list[dict[str, Any]]:
@@ -78,7 +60,7 @@ def task_detail_title(texts: list[dict[str, Any]]) -> dict[str, Any] | None:
         texts: 当前截图的 OCR 条目。
 
     Returns:
-        前景详情中的任务标题；没有任务操作按钮时返回 None。
+        前景详情中的支线任务标题；没有任务操作按钮或不是支线时返回 None。
     """
     if not any(
         item.get("text", "").strip() in ("接受任务", "前往", "完成")
@@ -93,7 +75,7 @@ def task_detail_title(texts: list[dict[str, Any]]) -> dict[str, Any] | None:
             for item in texts
             if item.get("center")
             and 400 <= item["center"][1] <= 460
-            and any(name in item.get("text", "") for name in ("支线", "地下城", "主线"))
+            and ACCEPT_TASK_KEYWORD in item.get("text", "")
         ),
         None,
     )
@@ -102,14 +84,14 @@ def task_detail_title(texts: list[dict[str, Any]]) -> dict[str, Any] | None:
 def find_available_task(
     state: WorldState, skipped: set[str] | None = None
 ) -> dict[str, Any] | None:
-    """从列表顶部扫描到末尾，兼顾支线和地下城任务。
+    """从列表顶部扫描到末尾，只挑选支线任务。
 
     Args:
         state: 当前运行状态。
         skipped: 本轮已确认处于执行中的任务标题。
 
     Returns:
-        可接任务标题的 OCR 条目；完整扫描确认没有任务时返回 None。
+        可接支线任务标题的 OCR 条目；完整扫描确认没有支线时返回 None。
 
     Raises:
         RuntimeError: 清单未打开、OCR 失败或扫描未抵达末尾。
@@ -154,13 +136,12 @@ def find_available_task(
             and 180 <= item["center"][0] <= 600
             and 325 <= item["center"][1] <= 890
         ]
-        for category in TASK_CATEGORY_PRIORITY:
-            for item in rows:
-                text = item.get("text", "")
-                if text in skipped:
-                    continue
-                if f"【{category}】" in text or f"[{category}]" in text:
-                    return item
+        for item in rows:
+            text = item.get("text", "")
+            if text in skipped:
+                continue
+            if ACCEPT_TASK_KEYWORD in text:
+                return item
         fingerprint = tuple(item.get("text", "") for item in rows)
         if fingerprint == previous:
             stable_pages += 1
@@ -235,9 +216,8 @@ def request_tasks(state: WorldState) -> None:
                 return
             candidate = find_available_task(state, skipped)
             if candidate is None:
-                if skipped and any(not is_main_task_text(title) for title in skipped):
-                    # 只剩主任务（等级型跨区目标）未完成时不算阻塞，
-                    # 否则本区永远"仍有已接任务"、区域无法推进。
+                if skipped:
+                    # 本区仍有已接的支线任务在执行，等它完成后再考虑切区。
                     logger.info("本区仍有已接任务，等待完成后再切区")
                     return
                 if switch_task_region(state, current):
