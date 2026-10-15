@@ -1,5 +1,5 @@
 {
-    "description": "满级配置 - 打所有副本",
+    "description": "满级法师配置 - 只打副本，不跑日常任务（日常由 warrior 账号执行，账号内共享）",
     "ocr_correction_map": {
         "梦魔丛林": "梦魇丛林"
     },
