@@ -439,7 +439,13 @@ def run_configs(
         for name, dur in per_durations:
             summary_lines.append(f"• {name}: {format_duration_zh(dur)}")
         summary_lines.append(f"总耗时: {format_duration_zh(duration)}")
-        _notify_and_log(logger, "副本运行汇总", "\n".join(summary_lines))
+        if dryrun:
+            # dryrun 没有真实执行任何副本，此时推送「副本运行汇总」只会变成噪音，
+            # 还会污染 log/notifications* 审计（那条通知的运行上下文是 unknown，
+            # 会被误读成「真实故障」）。只落业务日志，不推送。
+            logger.info("🧪 dryrun 模式：跳过结果通知，不推送「副本运行汇总」")
+        else:
+            _notify_and_log(logger, "副本运行汇总", "\n".join(summary_lines))
 
         return 0 if failed == 0 else 1
 
