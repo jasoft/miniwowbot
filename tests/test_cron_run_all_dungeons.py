@@ -206,3 +206,46 @@ def test_main_only_runs_stats_when_all_sessions_filtered(monkeypatch) -> None:
     assert "prepare_ocr_service" not in calls
     assert "run_single_flow" not in calls
     assert calls.count("run_poe_stats") == 1
+
+
+def test_main_refilters_sessions_on_each_retry(monkeypatch) -> None:
+    """重试轮必须先重新过滤：已无待执行会话时不应再空跑一轮。
+
+    2026-10-15 实测：第 1 轮跑完后剩余会话已全部完成，但主循环仍拿着最初的
+    ``pending_tasks`` 重跑 4 轮，每轮都是「启模拟器 → 会话立即退出 → 关模拟器」。
+    修复后第 2 轮即由 ``poe stats`` 判定并收尾，不再重复启动会话。
+    """
+    logger = logging.getLogger("test_main_refilter")
+    task = cron.SessionTask(
+        name="main",
+        emulator="127.0.0.1:5555",
+        logfile=Path("log") / "main.log",
+        configs=["warrior"],
+        cmd="echo test",
+    )
+    calls: list[str] = []
+    filter_results: list[list] = [[task], [task], []]
+
+    def fake_filter(_tasks, _logger):
+        calls.append("filter")
+        return filter_results.pop(0) if filter_results else []
+
+    monkeypatch.setattr(cron, "setup_logger", lambda **_kwargs: logger)
+    monkeypatch.setattr(cron, "ensure_log_dir", lambda: None)
+    monkeypatch.setattr(cron, "archive_console_log", lambda: None)
+    monkeypatch.setattr(cron, "attach_cron_file_logger", lambda: None)
+    monkeypatch.setattr(cron, "cleanup_temp_dir", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(cron, "load_sessions_from_json", lambda _path: [{"name": "main"}])
+    monkeypatch.setattr(cron, "parse_session_tasks", lambda _sessions, _logger: [task])
+    monkeypatch.setattr(cron, "filter_pending_session_tasks", fake_filter)
+    monkeypatch.setattr(cron, "prepare_ocr_service", lambda _logger: True)
+    monkeypatch.setattr(
+        cron, "run_single_flow", lambda _tasks, _logger: calls.append("flow") or False
+    )
+    monkeypatch.setattr(cron, "run_poe_stats", lambda _logger: calls.append("stats") or False)
+
+    assert cron.main() == 1
+    # 关键断言：第 2 轮起不再启动会话（改前会跑满 5 轮，即 flow == 5）
+    assert calls.count("flow") == 1, f"重试轮不应重复启动会话: {calls}"
+    assert calls.count("filter") == 3, f"每轮重试都应重新过滤: {calls}"
+    assert calls.count("stats") == 1

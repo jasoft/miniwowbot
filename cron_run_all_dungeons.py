@@ -1184,11 +1184,27 @@ def main() -> int:
         return 3
 
     for attempt in range(1, FLOW_MAX_RETRIES + 1):
+        # 每轮重试前重新过滤：上一轮可能已完成部分会话。若已无待执行会话，
+        # 再启动一轮只会得到「启模拟器 → 会话立即退出 → 关模拟器」的空转
+        # （2026-10-15 实测白跑 4 轮，每轮还多启停一次模拟器），
+        # 直接用 `poe stats` 判定整体进度即可，并让失败更快暴露。
+        current_tasks = filter_pending_session_tasks(pending_tasks, logger)
+        if not current_tasks:
+            logger.warning("⚠️ 已无待执行会话，改用 `poe stats` 判定整体进度")
+            if run_poe_stats(logger):
+                logger.info("🎉 所有副本已完成，本次流程成功")
+                return 0
+            logger.error(
+                "❌ 无待执行会话，但 `poe stats` 仍显示存在未完成副本"
+                "（疑似配置漂移：有配置选了副本却不在任何会话里）"
+            )
+            return 1
+
         logger.info(
             f"🔁 开始第 {attempt}/{FLOW_MAX_RETRIES} 次全流程执行，"
-            f"当前会话数: {len(pending_tasks)}"
+            f"当前会话数: {len(current_tasks)}"
         )
-        if run_single_flow(pending_tasks, logger):
+        if run_single_flow(current_tasks, logger):
             logger.info("🎉 所有副本已完成，本次流程成功")
             return 0
 
