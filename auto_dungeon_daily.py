@@ -68,9 +68,15 @@ FIRE_TOWER_BLUE_ROW_INDEX = 1
 FIRE_TOWER_PURPLE_REQUIRED = 40
 FIRE_TOWER_BLUE_REQUIRED = 30
 
-# 兑换页应有的行数（2026-09-18 / 09-21 两次真机实测均为 5 行）。
-# 读到的行数少于它说明 OCR 漏检了行，行序已经不可信 ——
+# 兑换页应有的**行锚点**（「兑换」按钮）个数（2026-09-18 / 09-21 两次真机实测均为 5 行）。
+# 读到的锚点数少于它说明 OCR 漏检了整行，行序已经不可信 ——
 # 宁可整轮跳过，也不能赌「漏的不是前几行」而换错物品。
+#
+# ⚠️ 判据必须是「锚点数」而不是「带券价的行数」：真机 2026-10-16 实测
+# 第 5 行是**一次性、已拥有**的物品，按钮区只显示「已拥有」、压根没有券价文字，
+# 于是带券价的行只有 4 行。旧判据把它算成「少读一行」→ 整轮跳过兑换 +
+# 误发「每日任务未完成」告警，而截图里 5 个「兑换」按钮一个不少。
+# 锚点（按钮）是行序的唯一依据，券价只是它的校验位，二者不能混为一谈。
 FIRE_TOWER_EXCHANGE_EXPECTED_ROWS = 5
 
 # 兑换页读取的重试预算。
@@ -246,6 +252,11 @@ class DailyCollectManager:
         self.config_loader = config_loader
         self.db = db
         self.logger = logging.getLogger(__name__)
+
+        # 最近一次读取兑换页时数到的**行锚点**（「兑换」按钮）个数。
+        # 由 :meth:`_load_fire_tower_exchange_states` 维护；为 None 表示
+        # 调用方直接给了行状态、没有经过页面读取（此时判据退化为按行数比较）。
+        self._exchange_anchor_count: Optional[int] = None
 
         # 任务映射：任务名称 -> (方法, 步骤key)
         self.TASK_MAPPING = {
@@ -752,7 +763,12 @@ class DailyCollectManager:
 
         Returns:
             list[EventExchangeItemState]: 兑换行状态列表，按行序排列。
+                注意：**行序不等于列表下标** —— 没有券价文字的行（真机实测
+                「已拥有」的一次性物品）会被跳过，因此返回的行数可能少于
+                页面的行锚点数。判「页面是否读全」请用
+                :meth:`_exchange_rows_complete`，它看的是行锚点数。
         """
+        self._exchange_anchor_count = None
         ocr_results, screenshot_path = self._capture_exchange_screen()
         try:
             button_items = [
@@ -766,6 +782,7 @@ class DailyCollectManager:
                 if self._is_exchange_progress_text(item.get("text") or "") and item.get("center")
             ]
             button_items.sort(key=lambda item: (item["center"][1], item["center"][0]))
+            self._exchange_anchor_count = len(button_items)
 
             states = []
             for row_index, button_item in enumerate(button_items):
@@ -800,8 +817,9 @@ class DailyCollectManager:
                 )
 
             self.logger.info(
-                "🔎 兑换页读取到 %d 行: %s",
+                "🔎 兑换页读取到 %d 行（行锚点 %d 个）: %s",
                 len(states),
+                self._exchange_anchor_count,
                 [
                     f"行{state.row_index} {state.required_tickets}张 "
                     f"{state.current_tickets}/{state.required_tickets} "
@@ -812,6 +830,34 @@ class DailyCollectManager:
             return states
         finally:
             self._cleanup_temp_screenshot(screenshot_path)
+
+    def _exchange_rows_complete(
+        self,
+        states: list[EventExchangeItemState],
+    ) -> bool:
+        """兑换页是否已读全（按**行锚点数**判断，而不是按带券价的行数）。
+
+        判据是「页面上数到几个『兑换』按钮」：按钮是行序的唯一依据，
+        漏检整行（连按钮一起丢）才会让后续行整体前移；而**有行、只是没有
+        券价文字**（真机 2026-10-16 的「已拥有」一次性物品）不影响行序，
+        不该被判成漏检。
+
+        2026-10-02/10-03 的教训（只读到 3~4 行）属于另一类：那是行**已检测到**、
+        只是文本粘连噪声被筛掉，已由 :meth:`_read_exchange_states_until_complete`
+        重读补齐 + 放宽 :data:`EXCHANGE_PROGRESS_PATTERN` 解决。
+
+        Args:
+            states: 已读取的兑换行状态。
+
+        Returns:
+            bool: 行锚点齐备时返回 True。
+        """
+        anchors = self._exchange_anchor_count
+        if anchors is None:
+            # 调用方直接给了行状态（没经过页面读取），无从知道锚点数，
+            # 退化为按行数判断 —— 与旧行为一致，宁可保守。
+            anchors = len(states)
+        return anchors >= FIRE_TOWER_EXCHANGE_EXPECTED_ROWS
 
     @staticmethod
     def _row_state(
@@ -1064,19 +1110,26 @@ class DailyCollectManager:
             self._notify_step_failure("exchange_page", "兑换页未读到任何行")
             return False
 
-        if len(states) < FIRE_TOWER_EXCHANGE_EXPECTED_ROWS:
-            # 行序来自「按钮枚举」的序号：漏检任意一行，后面的行都会整体前移，
-            # 「第 1 行」就变成了列表里靠后的行 —— 点下去会换错物品、白耗奖券
-            # （2026-09-21 真机实测：漏检前 3 行后只读到 2 行，「第 1 行」实为
-            # 列表第 4 行）。行数不足就整轮跳过，留到下次。
+        if not self._exchange_rows_complete(states):
+            # 行序来自「按钮枚举」的序号：漏检任意一整行（连「兑换」按钮一起丢），
+            # 后面的行都会整体前移，「第 1 行」就变成了列表里靠后的行 ——
+            # 点下去会换错物品、白耗奖券（2026-09-21 真机实测：漏检前 3 行后
+            # 只读到 2 行，「第 1 行」实为列表第 4 行）。
+            # 锚点不足就整轮跳过，留到下次。
+            #
+            # ⚠️ 注意不能改回 `len(states) < N`：真机 2026-10-16 的第 5 行是
+            # 「已拥有」的一次性物品、没有券价文字，行数天然只有 4，
+            # 那种情况行序仍然可信（见 :meth:`_exchange_rows_complete`）。
             self.logger.warning(
-                "⚠️ 兑换页只读到 %d 行（应有 %d 行），疑似 OCR 漏检导致行序错位，本次跳过兑换",
+                "⚠️ 兑换页只读到 %d 行、行锚点 %s 个（应有 %d 个），疑似 OCR 漏检导致行序错位，本次跳过兑换",
                 len(states),
+                self._exchange_anchor_count,
                 FIRE_TOWER_EXCHANGE_EXPECTED_ROWS,
             )
             self._notify_step_failure(
                 "exchange_incomplete_rows",
-                f"兑换页只读到 {len(states)} 行（应有 {FIRE_TOWER_EXCHANGE_EXPECTED_ROWS} 行），"
+                f"兑换页只读到 {len(states)} 行、行锚点 {self._exchange_anchor_count} 个"
+                f"（应有 {FIRE_TOWER_EXCHANGE_EXPECTED_ROWS} 个），"
                 "疑似 OCR 漏检导致行序错位，已跳过兑换避免换错",
             )
             return False
@@ -1518,6 +1571,11 @@ class DailyCollectManager:
         一条「每日任务未完成」告警（同刻另一个会话同代码路径读到 5 行，
         说明是 OCR 抖动而非页面问题）。多读一两次即可补齐。
 
+        ⚠️ 「读满了没有」不能按带券价的行数算（真机 2026-10-16 的第 5 行是
+        「已拥有」的一次性物品，天然没有券价文字），判据见
+        :meth:`_exchange_rows_complete` —— 否则会为一个**稳定**的页面形态
+        白打三次 OCR（重读永远补不齐，见 2026-10-03 的教训）。
+
         Args:
             existing: 已经读到的一次结果；为空时先自己读一次。
             max_attempts: 最多读取次数（`existing` 也计入其中）。
@@ -1528,15 +1586,16 @@ class DailyCollectManager:
                 读满时提前返回，不会白白多打 OCR。
         """
         best = list(existing) if existing else []
-        if len(best) >= FIRE_TOWER_EXCHANGE_EXPECTED_ROWS:
+        if self._exchange_rows_complete(best):
             return best
 
         reads_done = 1 if existing else 0
         while reads_done < max_attempts:
             reads_done += 1
             self.logger.warning(
-                "⚠️ 兑换页只读到 %d 行（应有 %d 行），重新读取（第 %d/%d 次）",
+                "⚠️ 兑换页只读到 %d 行、行锚点 %s 个（应有 %d 个），重新读取（第 %d/%d 次）",
                 len(best),
+                self._exchange_anchor_count,
                 FIRE_TOWER_EXCHANGE_EXPECTED_ROWS,
                 reads_done,
                 max_attempts,
@@ -1545,7 +1604,7 @@ class DailyCollectManager:
             current = self._load_fire_tower_exchange_states()
             if len(current) > len(best):
                 best = current
-            if len(best) >= FIRE_TOWER_EXCHANGE_EXPECTED_ROWS:
+            if self._exchange_rows_complete(best):
                 self.logger.info(
                     "✅ 兑换页重新读取后补齐到 %d 行（共读取 %d 次）",
                     len(best),
