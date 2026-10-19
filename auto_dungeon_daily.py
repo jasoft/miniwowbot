@@ -2267,6 +2267,15 @@ class DailyCollectManager:
         都有形如「504/5」的存量行，只按"第一个 x/y"会读到别的格子
         （2026-10-12 实测把军团宝箱的 422 当成亡灵宝箱的存量）。
 
+        **必须 ``use_cache=False``**：OCR 缓存对整屏做 dhash 比对，汉明距离
+        ≤10（64 位里的 10 位，约 16%）就判为同一张图并直接返回**旧截图**的
+        识别结果（``vibe_ocr.ocr_helper._find_similar_in_cache``）。挂机前后
+        两次读的是同一个宝库面板，画面只有那几位数字变了，距离必然远小于 10
+        ⇒ 第二次读会被旧结果顶掉，表现为「挂机 1800 秒存量纹丝不动」。
+        2026-10-19 实测：缓存条目 06:27:07 创建、06:57:15 被再次命中
+        （hit_count 1→2、没有新增条目），日志因此记成「270 → 270」。
+        存量是本流程的**判断依据 + 前后对比量**，不能来自缓存。
+
         Args:
             chest_name: 宝箱名称。
 
@@ -2283,7 +2292,7 @@ class DailyCollectManager:
             return None
         sleep(CHEST_VAULT_SETTLE_SECONDS, "等待宝库面板渲染")
 
-        items = find_all_texts()
+        items = find_all_texts(use_cache=False)
         name_pos = next(
             (it["center"] for it in items if it.get("text") == chest_name),
             None,
@@ -2407,6 +2416,17 @@ class DailyCollectManager:
                 new_stock,
                 CHEST_STOCK_TARGET,
             )
+            if new_stock <= stock:
+                # 挂了半小时一点没涨：要么游戏侧本就按其它规则累积（挂机收益
+                # 只有这么多），要么读数又被缓存顶掉。打一条显式告警，别让
+                # 这 30 分钟白烧还看不出原因。
+                self.logger.warning(
+                    "⚠️ 挂机 %d 秒后 %s 存量未增长（%d → %d），本次按现有存量开箱",
+                    CHEST_AFK_SECONDS,
+                    chest_name,
+                    stock,
+                    new_stock,
+                )
 
     def _open_chests(self, chest_name: str) -> bool:
         """开启指定宝箱。

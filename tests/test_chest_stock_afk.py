@@ -228,3 +228,52 @@ def test_afk_aborts_when_game_left_foreground(monkeypatch):
 
     with pytest.raises(auto_dungeon_daily.GameNotForegroundError):
         manager._afk_for_chest_stock(600)
+
+
+def test_read_chest_stock_bypasses_ocr_similar_cache(monkeypatch):
+    """读存量必须绕过 OCR 相似缓存，否则挂机后的复读会拿到挂机前的旧数字。
+
+    真机背景（2026-10-19）：挂机 1800 秒后复读，日志记「270 → 270」，
+    同时 `output/cache/cache.db` 里那条宝库面板条目 06:27:07 创建、
+    06:57:15 被再次命中（hit_count 1→2、没有新增条目）——第二次读根本没
+    重新识别，直接返回了半小时前的 OCR 结果。原因是 `find_all` 默认
+    `use_cache=True`，而 OCR 缓存按**整屏 dhash 汉明距离 ≤10** 判同一张图，
+    同一个宝库面板只改了几位数字，距离远小于阈值。
+    """
+    stale = [
+        {"text": "亡灵宝箱", "center": (549, 870), "confidence": 0.997},
+        {"text": "270/5", "center": (550, 904), "confidence": 0.976},
+    ]
+    fresh = [
+        {"text": "亡灵宝箱", "center": (549, 870), "confidence": 0.997},
+        {"text": "410/5", "center": (550, 904), "confidence": 0.976},
+    ]
+    seen: list[dict[str, Any]] = []
+
+    def fake_find_all_texts(*args, **kwargs):
+        seen.append(dict(kwargs))
+        # 复现真机语义：允许用缓存时会拿到旧截图的结果
+        return list(fresh) if kwargs.get("use_cache") is False else list(stale)
+
+    manager, _ = _make_manager(monkeypatch, texts=stale)
+    monkeypatch.setattr(auto_dungeon_daily, "find_all_texts", fake_find_all_texts)
+
+    assert manager._read_chest_stock("亡灵宝箱") == 410, (
+        "存量被 OCR 相似缓存顶成了旧值 —— 挂机会白烧 30 分钟且看不出原因"
+    )
+    assert seen and seen[0].get("use_cache") is False, "存量读取必须显式 use_cache=False"
+
+
+def test_zero_growth_after_afk_logs_warning(monkeypatch, caplog):
+    """挂机后存量一点没涨必须显式告警，别让这 30 分钟白烧得无声无息。"""
+    manager, _ = _make_manager(monkeypatch)
+    reads = [270, 270]
+    monkeypatch.setattr(manager, "_read_chest_stock", lambda _name: reads.pop(0))
+    monkeypatch.setattr(manager, "_afk_for_chest_stock", lambda seconds=0: None)
+
+    with caplog.at_level("WARNING", logger="auto_dungeon_daily"):
+        manager._ensure_chest_stock("亡灵宝箱")
+
+    assert any("存量未增长" in record.getMessage() for record in caplog.records), (
+        f"零增长时没有任何告警，实际日志={[r.getMessage() for r in caplog.records]}"
+    )
