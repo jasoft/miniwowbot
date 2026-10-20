@@ -44,6 +44,9 @@ FLOW_MAX_RETRIES = 5
 ORCHESTRATOR_LOGGER_NAME = "cron_run_all_dungeons"
 SESSION_START_GAP_SECONDS = 1
 SESSION_MAX_IDLE_RESTARTS = 3
+# poe 把「Poe => <任务命令>」这行横幅写到 stderr（成功时也写）。
+# 判「stderr 非空就告警」会让每天多出一条内容为空的假 WARNING，故按前缀剔除。
+POE_BANNER_PREFIX = "Poe =>"
 ADB_COMMAND_TIMEOUT_SECONDS = 15
 # OCR 服务就绪等待（容器启动需下载/加载模型，原 30 秒明显不够）
 OCR_STARTUP_WAIT_SECONDS = 300
@@ -838,6 +841,26 @@ def monitor_sessions(runtimes: Sequence[SessionRuntime], logger: logging.Logger)
         time.sleep(MONITOR_POLL_INTERVAL_SECONDS)
 
 
+def filter_poe_banner(stderr_text: str) -> str:
+    """剔除 poe 写在 stderr 上的任务横幅，只留下真正的错误信息。
+
+    ``poe`` 每次执行都会把 ``Poe => uv run check_progress.py`` 这行横幅写到
+    **stderr**（成功时也写），所以只要判「stderr 非空就告警」，就会**每天**多出一条
+    内容为空的假 WARNING（2026-10-20 体检发现，10-10~10-19 每天 1 条，10-15 跑 5 轮
+    误报 6 条）。假告警会让真故障淹没在噪声里，因此这里按行剔除横幅与被它带出来的空行。
+
+    Args:
+        stderr_text: 子进程 stderr 解码后的文本。
+
+    Returns:
+        去掉 ``Poe =>`` 横幅行后的文本；没有剩余内容时返回空字符串。
+    """
+    kept_lines = [
+        line for line in stderr_text.splitlines() if not line.strip().startswith(POE_BANNER_PREFIX)
+    ]
+    return "\n".join(line for line in kept_lines if line.strip()).strip()
+
+
 def run_poe_stats(logger: logging.Logger) -> bool:
     """执行 ``poe stats`` 并校验退出码。
 
@@ -861,11 +884,15 @@ def run_poe_stats(logger: logging.Logger) -> bool:
 
     stdout_text = decode_process_output(result.stdout)
     stderr_text = decode_process_output(result.stderr)
+    # poe 的 `Poe => ...` 横幅也走 stderr，必须剔除后再判「有没有真错误」
+    stderr_detail = filter_poe_banner(stderr_text)
 
     if stdout_text.strip():
         logger.info(f"`poe stats` 输出:\n{stdout_text.strip()}")
-    if stderr_text.strip():
-        logger.warning(f"`poe stats` 错误输出:\n{stderr_text.strip()}")
+    if stderr_detail:
+        logger.warning(f"`poe stats` 错误输出:\n{stderr_detail}")
+    elif stderr_text.strip():
+        logger.debug("`poe stats` stderr 只有 poe 自身横幅，按正常输出处理")
 
     if result.returncode == 0:
         logger.info("✅ `poe stats` 返回 0，判定全部完成")
