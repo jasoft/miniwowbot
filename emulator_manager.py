@@ -199,7 +199,8 @@ class EmulatorConnectionManager:
         for attempt in range(max_retries):
             self.logger.info(f"[Emulator] 第 {attempt + 1}/{max_retries} 次尝试连接 {emulator}")
 
-            if self.connect(emulator):
+            connect_ok = self.connect(emulator)
+            if connect_ok:
                 # 验证连接
                 if self.is_connected(emulator):
                     self.logger.info(f"[Emulator] {emulator} 连接验证成功")
@@ -211,7 +212,16 @@ class EmulatorConnectionManager:
                     self.logger.error("[Emulator] 未配置启动模拟器命令，无法自动恢复")
                     raise EmulatorConnectionError("启动模拟器命令未配置，无法自动连接模拟器")
 
-                self.logger.info("[Emulator] 连接失败，尝试启动模拟器...")
+                if connect_ok:
+                    # adb connect 本身是成功的，只是设备状态还没到 device（冷启动中）。
+                    # 过去这里统一记「连接失败」，与上一行的「[ADB] 已连接」自相矛盾，
+                    # 排查时极易误判成「模拟器起了两次」。
+                    self.logger.info(
+                        f"[Emulator] adb connect 成功但设备状态未就绪（非 device，{emulator} 可能仍在启动），"
+                        "执行幂等启动命令后继续等待..."
+                    )
+                else:
+                    self.logger.info("[Emulator] 连接失败，尝试启动模拟器...")
                 if not self._run_start_cmd():
                     self.logger.error(f"[Emulator] 启动模拟器命令执行失败: {self.start_cmd}")
                     raise EmulatorConnectionError(f"无法启动模拟器: {self.start_cmd}")
