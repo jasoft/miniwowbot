@@ -4,6 +4,7 @@ auto_dungeon 工具函数模块
 
 import logging
 import os
+import sys
 from typing import Optional
 
 from airtest.core.api import sleep as airtest_sleep
@@ -11,9 +12,32 @@ from auto_dungeon_config import STOP_FILE
 
 logger = logging.getLogger(__name__)
 
-def sleep(seconds: float, reason: str = "[需要填写原因]") -> None:
-    """sleep 的封装"""
-    logger.info(f"💤 等待 {seconds} 秒, 原因是: {reason}")
+
+def _describe_sleep_caller(depth: int = 2) -> str:
+    """返回调用栈上指定深度处的函数名，用于给未注明原因的等待补上下文。
+
+    Args:
+        depth: 相对本函数自身的栈深度。0 是本函数，1 是 ``sleep``，
+            2（默认）是真正调用 ``sleep`` 的业务函数。
+
+    Returns:
+        str: 形如 ``未注明（调用 _open_exchange_tab）`` 的描述；取不到时返回 ``未注明原因``。
+    """
+    try:
+        return f"未注明（调用 {sys._getframe(depth).f_code.co_name}）"
+    except Exception:
+        return "未注明原因"
+
+
+def sleep(seconds: float, reason: Optional[str] = None) -> None:
+    """等待指定秒数，并把等待原因写进日志。
+
+    Args:
+        seconds: 等待的秒数。
+        reason: 等待原因。省略时自动取调用方函数名，避免日志里出现
+            ``[需要填写原因]`` 这种开发期占位符（历史上每天约 150 条）。
+    """
+    logger.info(f"💤 等待 {seconds} 秒, 原因是: {reason or _describe_sleep_caller()}")
     airtest_sleep(seconds)
 
 
