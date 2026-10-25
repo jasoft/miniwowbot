@@ -145,6 +145,7 @@ def run_command(
     cmd: CommandArg,
     timeout: float,
     shell: bool = False,
+    cwd: Optional[Union[str, os.PathLike]] = None,
 ) -> CommandResult:
     """执行一条命令，保证在 ``timeout`` 秒内返回（超时则终止进程树）。
 
@@ -155,6 +156,7 @@ def run_command(
         cmd: 参数序列；``shell=True`` 时也可传整条命令字符串。
         timeout: 超时秒数。
         shell: 是否通过系统 shell 执行 ``cmd``。
+        cwd: 子进程工作目录；``None`` 表示继承当前进程。
 
     Returns:
         命令执行结果。
@@ -165,6 +167,7 @@ def run_command(
         process = subprocess.Popen(
             cmd,
             shell=shell,
+            cwd=cwd,
             stdin=subprocess.DEVNULL,
             stdout=out_file,
             stderr=err_file,

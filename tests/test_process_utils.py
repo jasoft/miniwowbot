@@ -112,6 +112,22 @@ class TestRunCommand:
         assert result.timed_out is False
         assert "shell-mode" in result.stdout_text()
 
+    def test_honours_cwd(self, tmp_path: Path):
+        """``cwd`` 必须真的作用到子进程（编排器的 poe/启动脚本要靠它定位项目根）。
+
+        不用 ``pwd`` 之类外部命令：Windows 上没有 ``pwd``，用解释器打印自己的 cwd
+        才跨平台可靠。
+        """
+        result = process_utils.run_command(
+            [sys.executable, "-c", "import os; print(os.getcwd())"],
+            timeout=30,
+            cwd=str(tmp_path),
+        )
+
+        assert result.timed_out is False
+        assert result.ok is True
+        assert Path(result.stdout_text().strip()).resolve() == tmp_path.resolve()
+
 
 @pytest.mark.skipif(os.name != "nt", reason="管道句柄继承导致的死锁是 Windows 特有行为")
 class TestRunCommandPipeHazard:

@@ -13,13 +13,13 @@
 """
 
 import logging
-import types
 
 import cron_run_all_dungeons as cron
+from process_utils import CommandResult
 
 
-def _fake_result(returncode: int, stdout: bytes = b"", stderr: bytes = b"") -> object:
-    """构造一个与 ``subprocess.run`` 返回值结构相同的假对象。
+def _fake_result(returncode: int, stdout: bytes = b"", stderr: bytes = b"") -> CommandResult:
+    """构造一个与 ``process_utils.run_command`` 返回值结构相同的假结果。
 
     Args:
         returncode: 假退出码。
@@ -27,9 +27,15 @@ def _fake_result(returncode: int, stdout: bytes = b"", stderr: bytes = b"") -> o
         stderr: 假标准错误（字节）。
 
     Returns:
-        带 ``returncode`` / ``stdout`` / ``stderr`` 三个属性的简单对象。
+        未被判定超时的 :class:`CommandResult`。
     """
-    return types.SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
+    return CommandResult(
+        command=("poe", "stats"),
+        returncode=returncode,
+        stdout=stdout,
+        stderr=stderr,
+        timed_out=False,
+    )
 
 
 def _warnings(caplog) -> list[str]:
@@ -47,8 +53,8 @@ def _warnings(caplog) -> list[str]:
 def test_poe_banner_only_does_not_warn(monkeypatch, caplog) -> None:
     """stderr 只有 poe 横幅且退出码为 0 时，不应产生任何 WARNING。"""
     monkeypatch.setattr(
-        cron.subprocess,
-        "run",
+        cron,
+        "run_command",
         lambda *args, **kwargs: _fake_result(0, b"PASS\n", b"Poe => uv run check_progress.py\n"),
     )
     logger = logging.getLogger("test_poe_banner_only")
@@ -61,8 +67,8 @@ def test_poe_banner_only_does_not_warn(monkeypatch, caplog) -> None:
 def test_poe_banner_only_with_failure_still_warns_returncode(monkeypatch, caplog) -> None:
     """失败但 stderr 只有横幅时，只保留「返回 N」这条告警，不额外报「错误输出」。"""
     monkeypatch.setattr(
-        cron.subprocess,
-        "run",
+        cron,
+        "run_command",
         lambda *args, **kwargs: _fake_result(1, b"", b"Poe => uv run check_progress.py\n\n"),
     )
     logger = logging.getLogger("test_poe_banner_only_failure")
@@ -78,8 +84,8 @@ def test_poe_banner_only_with_failure_still_warns_returncode(monkeypatch, caplog
 def test_real_stderr_error_is_still_reported(monkeypatch, caplog) -> None:
     """stderr 里除横幅外还有真实错误时必须保留 WARNING，并带上错误正文。"""
     monkeypatch.setattr(
-        cron.subprocess,
-        "run",
+        cron,
+        "run_command",
         lambda *args, **kwargs: _fake_result(
             1,
             b"",
@@ -100,8 +106,8 @@ def test_real_stderr_error_is_still_reported(monkeypatch, caplog) -> None:
 def test_stderr_error_is_reported_even_when_exit_code_is_zero(monkeypatch, caplog) -> None:
     """退出码为 0 但 stderr 有真实告警（如 uv 警告）时仍应记录，不能静默丢弃。"""
     monkeypatch.setattr(
-        cron.subprocess,
-        "run",
+        cron,
+        "run_command",
         lambda *args, **kwargs: _fake_result(
             0, b"PASS\n", b"Poe => uv run check_progress.py\nwarning: deprecated flag\n"
         ),

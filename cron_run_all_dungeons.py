@@ -27,11 +27,11 @@ import dotenv
 
 from emulator_control import (
     EmulatorRestartConfig,
-    decode_process_output,
     restart_emulator,
 )
 from cleanup_cache import cleanup_temp_dir
 from logger_config import attach_file_handler_to_loggers, setup_logger
+from process_utils import run_command
 from run_dungeons import filter_pending_configs
 
 SCRIPT_DIR = Path(__file__).parent
@@ -55,6 +55,20 @@ DOCKER_DESKTOP_WAIT_SECONDS = 300
 DOCKER_POLL_INTERVAL_SECONDS = 5
 DOCKER_CONTAINER_NAME = "paddlex"
 DOCKER_DESKTOP_EXE = r"C:\Program Files\Docker\Docker\Docker Desktop.exe"
+# 编排器内部的子进程调用一律走 ``process_utils.run_command``（临时文件收输出，
+# 免疫「孙进程持管道 → 调用方永久挂死」）。这里给每条命令一个**有界**超时：
+# 编排器自己**没有看门狗**（看门狗只监控会话日志），一旦挂死只能等计划任务的
+# 72 小时上限。2026-10-25 实测 ``docker info`` 在 Docker Desktop 冷启动时
+# 烧满 20 秒才返回，正是这条路径。
+POE_STATS_TIMEOUT_SECONDS = 180
+DOCKER_INFO_TIMEOUT_SECONDS = 20
+DOCKER_INSPECT_TIMEOUT_SECONDS = 30
+OCR_START_SCRIPT_TIMEOUT_SECONDS = 300
+# tmux 是 Linux/macOS 的会话载体（Windows 走 PowerShell 窗口）。tmux 客户端会连
+# 常驻的 tmux server，「派生常驻孙进程」正是管道死锁的成因，故同样走 run_command。
+TMUX_COMMAND_TIMEOUT_SECONDS = 15
+# 自定义关闭命令通常是 `python scripts/bluestack-tool.py stop --id N`，内部还会调 adb。
+EMULATOR_SHUTDOWN_TIMEOUT_SECONDS = 60
 
 if not IS_WINDOWS:
     os.environ["PATH"] = f"/opt/homebrew/bin:{os.environ.get('PATH', '')}"
@@ -369,10 +383,14 @@ def launch_tmux(session: str, cmd: str, logger: logging.Logger) -> bool:
         是否启动成功。
     """
     try:
-        has = subprocess.run(["tmux", "has-session", "-t", session], capture_output=True)
+        has = run_command(
+            ["tmux", "has-session", "-t", session], timeout=TMUX_COMMAND_TIMEOUT_SECONDS
+        )
         if has.returncode == 0:
-            subprocess.run(["tmux", "kill-session", "-t", session], capture_output=True)
-        result = subprocess.run(
+            run_command(
+                ["tmux", "kill-session", "-t", session], timeout=TMUX_COMMAND_TIMEOUT_SECONDS
+            )
+        result = run_command(
             [
                 "tmux",
                 "new-session",
@@ -383,13 +401,12 @@ def launch_tmux(session: str, cmd: str, logger: logging.Logger) -> bool:
                 str(SCRIPT_DIR),
                 cmd,
             ],
-            capture_output=True,
+            timeout=TMUX_COMMAND_TIMEOUT_SECONDS,
         )
         if result.returncode == 0:
             logger.info(f"🧰 tmux 会话已启动: {session}")
             return True
-        stderr = result.stderr.decode() if isinstance(result.stderr, bytes) else str(result.stderr)
-        logger.error(f"❌ 启动 tmux 失败: {stderr}")
+        logger.error(f"❌ 启动 tmux 失败: {result.stderr_text()}")
     except Exception as exc:
         logger.error(f"❌ tmux 异常: {exc}")
     return False
@@ -406,7 +423,7 @@ def kill_tmux_session(session: str, logger: logging.Logger) -> None:
         None
     """
     try:
-        subprocess.run(["tmux", "kill-session", "-t", session], capture_output=True)
+        run_command(["tmux", "kill-session", "-t", session], timeout=TMUX_COMMAND_TIMEOUT_SECONDS)
     except Exception as exc:
         logger.warning(f"⚠️ 停止 tmux 会话 {session} 失败: {exc}")
 
@@ -420,7 +437,9 @@ def is_tmux_session_alive(session: str) -> bool:
     Returns:
         会话是否存在。
     """
-    result = subprocess.run(["tmux", "has-session", "-t", session], capture_output=True)
+    result = run_command(
+        ["tmux", "has-session", "-t", session], timeout=TMUX_COMMAND_TIMEOUT_SECONDS
+    )
     return result.returncode == 0
 
 
@@ -489,11 +508,9 @@ def stop_powershell(
     try:
         if IS_WINDOWS and process.pid:
             # Windows 下优先使用 taskkill，确保子进程树（uv/python）一并终止。
-            result = subprocess.run(
+            result = run_command(
                 ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                capture_output=True,
-                text=False,
-                timeout=15,
+                timeout=ADB_COMMAND_TIMEOUT_SECONDS,
             )
             if result.returncode == 0:
                 logger.info(f"🧹 会话 {session} 进程树已终止 (pid={process.pid})")
@@ -562,16 +579,19 @@ def stop_emulator(task: SessionTask, logger: logging.Logger) -> None:
     if task.emulator_shutdown_cmd:
         logger.info(f"🛑 执行自定义关闭命令: {task.emulator_shutdown_cmd}")
         try:
-            result = subprocess.run(
+            result = run_command(
                 task.emulator_shutdown_cmd,
+                timeout=EMULATOR_SHUTDOWN_TIMEOUT_SECONDS,
                 shell=True,
-                capture_output=True,
-                text=False,
-                timeout=60,
             )
-            stdout = decode_process_output(result.stdout).strip()
-            stderr = decode_process_output(result.stderr).strip()
-            if result.returncode == 0:
+            stdout = result.stdout_text().strip()
+            stderr = result.stderr_text().strip()
+            if result.timed_out:
+                logger.warning(
+                    f"⚠️ 自定义关闭命令超时（>{EMULATOR_SHUTDOWN_TIMEOUT_SECONDS}s），"
+                    "转用 ADB 兜底"
+                )
+            elif result.returncode == 0:
                 logger.info(f"✅ 自定义关闭命令成功: {stdout or 'OK'}")
                 return
             else:
@@ -590,15 +610,14 @@ def stop_emulator(task: SessionTask, logger: logging.Logger) -> None:
 
     for cmd, action_name in commands:
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=False,
-                timeout=ADB_COMMAND_TIMEOUT_SECONDS,
-            )
-            output = decode_process_output(result.stdout).strip()
-            error = decode_process_output(result.stderr).strip()
-            if result.returncode == 0:
+            result = run_command(cmd, timeout=ADB_COMMAND_TIMEOUT_SECONDS)
+            output = result.stdout_text().strip()
+            error = result.stderr_text().strip()
+            if result.timed_out:
+                logger.warning(
+                    f"⚠️ 模拟器 {emulator} {action_name} 超时（>{ADB_COMMAND_TIMEOUT_SECONDS}s）"
+                )
+            elif result.returncode == 0:
                 message = output or "OK"
                 logger.info(f"🛑 模拟器 {emulator} {action_name} 成功: {message}")
             else:
@@ -607,10 +626,6 @@ def stop_emulator(task: SessionTask, logger: logging.Logger) -> None:
         except FileNotFoundError:
             logger.error("❌ 未找到 adb 命令，无法执行模拟器停止")
             return
-        except subprocess.TimeoutExpired:
-            logger.warning(
-                f"⚠️ 模拟器 {emulator} {action_name} 超时（>{ADB_COMMAND_TIMEOUT_SECONDS}s）"
-            )
         except Exception as exc:
             logger.warning(f"⚠️ 模拟器 {emulator} {action_name} 异常: {exc}")
 
@@ -872,18 +887,23 @@ def run_poe_stats(logger: logging.Logger) -> bool:
     """
     logger.info("📊 执行 `poe stats` 校验副本是否全部完成...")
     try:
-        result = subprocess.run(
+        result = run_command(
             ["poe", "stats"],
+            timeout=POE_STATS_TIMEOUT_SECONDS,
             cwd=str(SCRIPT_DIR),
-            capture_output=True,
-            text=False,
         )
     except Exception as exc:
         logger.error(f"❌ 执行 `poe stats` 异常: {exc}")
         return False
 
-    stdout_text = decode_process_output(result.stdout)
-    stderr_text = decode_process_output(result.stderr)
+    if result.timed_out:
+        # 超时等于「不知道打完没有」。既不能判成功（会让编排器收尾后重试都没做），
+        # 也不能把进程树留在后台 —— run_command 已经 taskkill /T 了。
+        logger.error(f"❌ `poe stats` 超时（>{POE_STATS_TIMEOUT_SECONDS}s），无法判定副本完成情况")
+        return False
+
+    stdout_text = result.stdout_text()
+    stderr_text = result.stderr_text()
     # poe 的 `Poe => ...` 横幅也走 stderr，必须剔除后再判「有没有真错误」
     stderr_detail = filter_poe_banner(stderr_text)
 
@@ -926,19 +946,29 @@ def check_ocr_health(logger: logging.Logger) -> bool:
 def is_docker_daemon_ready() -> bool:
     """检查 Docker 守护进程是否可用。
 
+    走 :func:`process_utils.run_command`（不用管道），超时以 ``timed_out`` 表达，
+    不向调用方抛异常、也不会被 docker CLI 派生的孙进程拖住。
+
     Returns:
         守护进程可用返回 ``True``。
     """
     try:
-        result = subprocess.run(["docker", "info"], capture_output=True, timeout=20)
-        if result.returncode != 0:
-            logging.getLogger(__name__).warning(
-                f"⚠️ docker info 返回码 {result.returncode}，守护进程未就绪"
-            )
-        return result.returncode == 0
+        result = run_command(["docker", "info"], timeout=DOCKER_INFO_TIMEOUT_SECONDS)
     except Exception as exc:
         logging.getLogger(__name__).warning(f"⚠️ docker info 执行异常: {type(exc).__name__}: {exc}")
         return False
+
+    if result.timed_out:
+        logging.getLogger(__name__).warning(
+            f"⚠️ docker info 超时（>{DOCKER_INFO_TIMEOUT_SECONDS}s），判定守护进程未就绪"
+        )
+        return False
+
+    if result.returncode != 0:
+        logging.getLogger(__name__).warning(
+            f"⚠️ docker info 返回码 {result.returncode}，守护进程未就绪"
+        )
+    return result.returncode == 0
 
 
 def ensure_docker_daemon(logger: logging.Logger) -> bool:
@@ -1006,20 +1036,26 @@ def ocr_container_exists(logger: logging.Logger) -> bool:
         容器存在返回 ``True``；不存在或查询失败返回 ``False``。
     """
     try:
-        inspect = subprocess.run(
+        inspect = run_command(
             ["docker", "inspect", "-f", "{{.State.Status}}", DOCKER_CONTAINER_NAME],
-            capture_output=True,
-            timeout=30,
+            timeout=DOCKER_INSPECT_TIMEOUT_SECONDS,
         )
     except Exception as exc:
         logger.error(f"❌ 查询容器状态异常: {exc}")
+        return False
+
+    if inspect.timed_out:
+        logger.error(
+            f"❌ 查询容器状态超时（>{DOCKER_INSPECT_TIMEOUT_SECONDS}s），"
+            f"无法确认 {DOCKER_CONTAINER_NAME} 是否存在"
+        )
         return False
 
     if inspect.returncode != 0:
         logger.warning(f"⚠️ OCR 容器 {DOCKER_CONTAINER_NAME} 不存在")
         return False
 
-    status = decode_process_output(inspect.stdout).strip().lower()
+    status = inspect.stdout_text().strip().lower()
     if status == "running":
         logger.info(f"✅ OCR 容器 {DOCKER_CONTAINER_NAME} 正在运行")
     else:
@@ -1059,16 +1095,25 @@ def launch_ocr_service(logger: logging.Logger) -> bool:
             return False
 
         logger.info(f"🚀 执行脚本: {script_path}")
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd=str(SCRIPT_DIR))
+        result = run_command(
+            cmd,
+            timeout=OCR_START_SCRIPT_TIMEOUT_SECONDS,
+            cwd=str(SCRIPT_DIR),
+        )
+
+        if result.timed_out:
+            logger.error(f"❌ 启动脚本超时（>{OCR_START_SCRIPT_TIMEOUT_SECONDS}s）: {script_path}")
+            return False
 
         if result.returncode == 0:
-            logger.info(f"✅ 启动脚本执行成功\n{result.stdout.strip()}")
+            logger.info(f"✅ 启动脚本执行成功\n{result.stdout_text().strip()}")
             return True
-        else:
-            logger.error(
-                f"❌ 启动脚本失败 (Exit {result.returncode}):\nStdout: {result.stdout}\nStderr: {result.stderr}"
-            )
-            return False
+
+        logger.error(
+            f"❌ 启动脚本失败 (Exit {result.returncode}):\n"
+            f"Stdout: {result.stdout_text()}\nStderr: {result.stderr_text()}"
+        )
+        return False
 
     except Exception as exc:
         logger.error(f"❌ 启动 OCR 服务异常: {exc}")
