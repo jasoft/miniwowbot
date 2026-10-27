@@ -123,6 +123,9 @@ def test_execute_task_event_rewards_missing_entry_does_not_mark_step(monkeypatch
     monkeypatch.setattr(auto_dungeon_daily, "back_to_main", lambda: None)
     monkeypatch.setattr(auto_dungeon_daily, "find_text_and_click", lambda *args, **kwargs: True)
     monkeypatch.setattr(auto_dungeon_daily, "text_exists", lambda *args, **kwargs: None)
+    # 「读不到卡片」现在会重试打开面板（2026-10-27 修复），这里必须打桩，
+    # 否则会去调真实的 OCR 链路。
+    monkeypatch.setattr(auto_dungeon_daily, "find_all_texts", lambda *args, **kwargs: [])
 
     assert manager.execute_task("领取主题奖励") is False
     fake_db.mark_daily_step_completed.assert_not_called()

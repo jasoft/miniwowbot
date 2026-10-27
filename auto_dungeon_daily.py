@@ -52,6 +52,20 @@ from coordinates import (
 
 FIRE_TOWER_EVENT_NAME = "fire_tower_ticket_exchange"
 
+# 「领取主题奖励」里重新打开活动面板的尝试次数与每次的等待秒数。
+#
+# 2026-10-27 06:02 真机：OCR 把右侧「活动」图标与旁边一条聊天飘字框成**同一个**
+# 检测框（text='暴击：（;)活动'、center=(585,235)），而该图标 10-16~10-26 十天真机
+# 坐标稳定在 (667~671, 234~235) —— 取框中心点击偏了 84 像素，面板根本没打开，
+# 于是「未识别到目标活动卡片」→ 整个步骤判失败，当天的券兑换也被一并跳过。
+#
+# 判据：**面板没打开 ≠ 活动卡片不存在**。重试落点优先取「文本恰好等于『活动』」
+# 或**最窄**的检测框（同框噪声只会让框变宽、把中心推走）。
+# 重试不会把已打开的面板点关：面板一旦真的打开，那个图标就被它盖住，
+# 第二次查找必然落空，直接返回失败。
+ACTIVITY_PANEL_RETRY_ATTEMPTS = 2
+ACTIVITY_PANEL_SETTLE_SECONDS = 1.2
+
 # 物品标识按**位置**命名而非颜色：每期活动可换的碎片会更换，
 # 但那两行在列表里的位置固定不变，因此位置才是稳定的身份。
 FIRE_TOWER_PURPLE_ITEM_KEY = "purple_first"
@@ -1884,6 +1898,102 @@ class DailyCollectManager:
         self.logger.warning("⚠️ 主题奖励: 未读到物资宝箱「领取」按钮，本次未领取")
         return False
 
+    @staticmethod
+    def _bbox_width(element: dict[str, Any]) -> float:
+        """返回 OCR 检测框的宽度（无法计算时返回正无穷，排序时排到最后）。
+
+        Args:
+            element: OCR 结果字典，可能带 ``bbox`` 多边形。
+
+        Returns:
+            检测框的像素宽度；取不到坐标时返回 ``float("inf")``。
+        """
+        bbox = element.get("bbox") or []
+        xs = [point[0] for point in bbox if point]
+        if len(xs) < 2:
+            return float("inf")
+        return float(max(xs) - min(xs))
+
+    def _find_clean_activity_entry(self) -> Optional[dict[str, Any]]:
+        """查找「活动」入口，优先取未被邻近文字污染的检测框。
+
+        OCR 偶尔会把「活动」图标与旁边一条聊天/战斗飘字框进同一个检测框
+        （2026-10-27 实测读成 ``'暴击：（;)活动'``），此时框中心已经离开图标本身，
+        点下去打不开面板。同框噪声只会让框变宽、把中心推走，因此这里优先选
+        「文本恰好等于『活动』」的框，其次选**宽度最小**的框。
+
+        Returns:
+            命中的 OCR 结果字典；找不到或查询异常时返回 ``None``（诊断路径不得
+            反过来把整轮流程炸掉）。
+        """
+        try:
+            candidates = find_all_texts("活动", regions=[3], use_cache=False)
+        except Exception as exc:
+            self.logger.warning("⚠️ 主题奖励: 重新查找「活动」入口失败: %s", exc)
+            return None
+
+        matched = [item for item in candidates if "活动" in (item.get("text") or "")]
+        if not matched:
+            return None
+        matched.sort(
+            key=lambda item: (
+                (item.get("text") or "").strip() != "活动",
+                self._bbox_width(item),
+            )
+        )
+        return matched[0]
+
+    def _reopen_activity_panel(
+        self,
+        event_names: list[str],
+        first_click: Optional[dict[str, Any]] = None,
+    ) -> Optional[dict[str, Any]]:
+        """重试打开活动面板并返回命中的活动卡片。
+
+        用于「点过入口但读不到卡片」的场景：面板没打开与卡片不存在是两件事，
+        前者重试一次往往就能恢复（见 :data:`ACTIVITY_PANEL_RETRY_ATTEMPTS`）。
+
+        Args:
+            event_names: 目标活动名列表。
+            first_click: 第一次点击命中的元素，只用于日志对照，便于看出落点是否偏移。
+
+        Returns:
+            命中的活动卡片 OCR 结果；重试预算用尽仍未打开时返回 ``None``。
+        """
+        for attempt in range(1, ACTIVITY_PANEL_RETRY_ATTEMPTS + 1):
+            entry = self._find_clean_activity_entry()
+            if not entry:
+                self.logger.warning(
+                    "⚠️ 主题奖励: 第 %d 次重试未找到「活动」入口（首次落点 %s）",
+                    attempt,
+                    self._summarize_match_result(first_click),
+                )
+                return None
+
+            self.logger.info(
+                "👆 主题奖励: 第 %d 次重试点击活动入口 text=%r center=%s",
+                attempt,
+                entry.get("text"),
+                entry.get("center"),
+            )
+            touch(entry["center"])
+            sleep(ACTIVITY_PANEL_SETTLE_SECONDS)
+
+            result = text_exists(
+                event_names,
+                regions=[2, 3, 5, 6, 8, 9],
+                use_cache=False,
+            )
+            self.logger.info(
+                "🔎 主题奖励: 第 %d 次重试后卡片搜索结果=%s",
+                attempt,
+                self._summarize_match_result(result),
+            )
+            if result:
+                return result
+
+        return None
+
     def _claim_event_rewards(self) -> bool:
         """领取各种主题奖励。
 
@@ -1921,6 +2031,10 @@ class DailyCollectManager:
             "🔎 主题奖励: 活动卡片搜索结果=%s",
             self._summarize_match_result(res),
         )
+        if not res:
+            # 「没读到卡片」不等于「没有卡片」：面板可能压根没打开（见
+            # ACTIVITY_PANEL_RETRY_ATTEMPTS 说明），先重试打开面板再判失败。
+            res = self._reopen_activity_panel(event_names, first_click=activity_clicked)
         if not res:
             self.logger.warning("⚠️ 主题奖励: 未识别到目标活动卡片，本次不记录完成")
             back_to_main()
