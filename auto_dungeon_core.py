@@ -52,6 +52,7 @@ from auto_dungeon_ui import (
 from auto_dungeon_utils import check_stop_signal, sleep
 from coordinates import SKILL_POSITIONS as DEFAULT_SKILL_POSITIONS
 from database import DungeonProgressDB
+from database.dungeon_db import DAILY_TASK_ZONE_NAME
 from error_dialog_monitor import ErrorDialogMonitor
 from logger_config import setup_logger_from_config
 from system_config_loader import load_system_config
@@ -162,9 +163,22 @@ def process_dungeon(
 
 
 def count_remaining_selected_dungeons(db: DungeonProgressDB) -> int:
-    """统计未完成的选定副本数量"""
+    """统计未完成的选定**副本**数量（不含「日常任务」）。
+
+    口径说明：「日常任务」是 ``config_loader`` 从 ``daily_tasks`` 合成并并入
+    ``zone_dungeons`` 的伪区域，只为「执行时要遍历到它」而存在，它**不是副本**。
+    旧实现用 ``get_zone_dungeons()`` 统计，于是只要有一个日常步骤没做成，
+    「第 N 轮结束仍有 1 个副本未完成」这条告警就会误报（2026-10-27 真机：
+    副本 11/11 全通，那 1 项其实是失败的日常任务 ``small_cookie``）。
+
+    Args:
+        db: 副本进度库。
+
+    Returns:
+        未完成的选定副本数量；配置未初始化时返回 0。
+    """
     zone_dungeons = (
-        _container.config_loader.get_zone_dungeons() if _container.config_loader else None
+        _container.config_loader.get_dungeon_zones() if _container.config_loader else None
     )
     if zone_dungeons is None:
         logger.warning("⚠️ 配置未初始化，无法计算剩余副本")
@@ -178,6 +192,29 @@ def count_remaining_selected_dungeons(db: DungeonProgressDB) -> int:
             if not db.is_dungeon_completed(zone_name, dungeon_dict["name"]):
                 remaining += 1
     return remaining
+
+
+def count_incomplete_daily_tasks(db: DungeonProgressDB) -> int:
+    """统计今日未完成的选定日常任务数量（不参与副本口径计数）。
+
+    Args:
+        db: 副本进度库。
+
+    Returns:
+        未完成的选定日常任务数量；配置未初始化或该配置没有日常任务时返回 0。
+    """
+    config_loader = _container.config_loader
+    if config_loader is None:
+        return 0
+
+    daily_tasks = config_loader.get_zone_dungeons().get(DAILY_TASK_ZONE_NAME, [])
+    incomplete = 0
+    for task in daily_tasks:
+        if not task.get("selected", True):
+            continue
+        if not db.is_dungeon_completed(DAILY_TASK_ZONE_NAME, task["name"]):
+            incomplete += 1
+    return incomplete
 
 
 def show_progress_statistics(db: DungeonProgressDB) -> Tuple[int, int, int]:
@@ -578,6 +615,15 @@ def main():
                 logger.warning(
                     f"⚠️ 已达到最大轮数 {max_iterations}，仍有 {remaining} 个副本未完成；为避免卡住已优雅退出"
                 )
+
+        # 日常任务不在副本口径里（见 count_remaining_selected_dungeons 的说明），
+        # 但「今天有步骤没做成」必须留一句总账，否则只能靠翻告警才知道。
+        incomplete_daily = count_incomplete_daily_tasks(db)
+        if incomplete_daily > 0:
+            logger.info(
+                "ℹ️ 今日尚有 %d 个日常任务未完成（已在执行时逐条告警，不计入副本口径）",
+                incomplete_daily,
+            )
 
         logger.info("\n" + "=" * 60)
         logger.info(f"🎉 全部完成！今天共通关 {db.get_today_completed_count()} 个副本")
