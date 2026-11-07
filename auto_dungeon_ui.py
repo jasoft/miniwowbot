@@ -102,6 +102,77 @@ def switch_to(section_name: str) -> Optional[Dict[str, Any]]:
     return find_text_and_click(section_name, regions=[7, 8, 9])
 
 
+#: 底部导航栏「战斗」页签的文案。
+BATTLE_NAV_TEXT = "战斗"
+
+#: 底部导航栏的起始 y 坐标（基准 720x1280）。
+#:
+#: 「战斗」这个词在真机上有两个落点：底部导航栏的页签（真机实测稳定在
+#: ``(361, 1243)`` / ``(362, 1245)``）和（可能存在）战斗界面里的按钮。页签本身是
+#: **角色面板的开关（toggle）** —— 点一次展开、再点一次收起，``weekly_soul_land``
+#: 里的 ``NAV_BATTLE`` 注释也明确写了「也用来关面板」。因此"点一下战斗"这种写法
+#: 的后果取决于**奇偶性**：点两次等于没点，点一次就会把角色面板展开并盖住战斗画面。
+BATTLE_NAV_BAND_Y = 1180
+
+
+def tap_battle_entry_if_not_nav(timeout: float = 1) -> bool:
+    """点击「战斗」按钮，但**绝不**点击底部导航栏的「战斗」页签。
+
+    背景见 :data:`BATTLE_NAV_BAND_Y`：那个页签是角色面板的开关，点开之后面板会
+    遮住战斗画面，``is_main_world()``（靠主世界「礼包」模板判定）就再也命中不了，
+    战斗循环会一路空转到 180 秒超时，进而触发「超时重启」重跑整轮（约 4 分钟）。
+    2026-10-26 / 10-27 / 10-28 / 11-06 共 5 次真机战斗超时的错误截图里，画面上
+    都是「角色面板 + 底部『战斗』页签高亮」这一组特征。
+
+    这里不再"盲点"，而是先取到命中的坐标再判断：命中的 y 落在底部导航栏内就
+    **只记日志、不点击**。这样避免了用奇偶性去赌面板的开合状态 —— 既然无法确认
+    点之前面板是开是关，就不去碰这个开关。
+
+    Args:
+        timeout: 文本查找超时秒数。
+
+    Returns:
+        bool: True 表示真的点了「战斗」（命中的不是导航页签）；False 表示没点
+        （没找到，或只匹配到导航页签）。
+    """
+    ga = get_container().game_actions
+    if not ga:
+        logger.error("❌ GameActions 未初始化")
+        return False
+
+    try:
+        element = ga.find(
+            BATTLE_NAV_TEXT,
+            regions=[8],
+            raise_exception=False,
+            timeout=timeout,
+        )
+    except Exception as exc:  # OCR/截图异常不应炸掉战斗流程
+        logger.warning(f"⚠️ 查找「{BATTLE_NAV_TEXT}」失败: {exc}")
+        return False
+
+    if not element:
+        logger.info(f"ℹ️ 未找到「{BATTLE_NAV_TEXT}」按钮，跳过点击")
+        return False
+
+    _, center_y = element.center
+    if center_y >= BATTLE_NAV_BAND_Y:
+        logger.info(
+            f"ℹ️ 「{BATTLE_NAV_TEXT}」只匹配到底部导航页签 at {element.center}"
+            f"（y≥{BATTLE_NAV_BAND_Y}，它是角色面板开关），跳过点击以免遮挡战斗画面"
+        )
+        return False
+
+    try:
+        element.click()
+    except Exception as exc:
+        logger.warning(f"⚠️ 点击「{BATTLE_NAV_TEXT}」失败: {exc}")
+        return False
+
+    logger.info(f"👆 点击了「{BATTLE_NAV_TEXT}」按钮 at {element.center}")
+    return True
+
+
 # 「卖垃圾」的尝试次数与重试间隔。
 # 真机实测「整理售卖」偶发点不到（2026-07-13 / 08-30 / 09-18 / 10-02，约三周一次；
 # 2026-10-02 法师小号实例（已下线）那次在 2 分钟后的下一轮卖垃圾就正常了）。旧实现直接抛异常，

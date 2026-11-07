@@ -73,7 +73,7 @@ def _patch_combat_environment(monkeypatch, *, main_world_reached: bool) -> None:
         monkeypatch: pytest 的 monkeypatch fixture。
         main_world_reached: True 时第一次就判定已回主界面（走成功分支）。
     """
-    monkeypatch.setattr(auto_dungeon_combat, "find_text_and_click_safe", lambda *a, **k: None)
+    monkeypatch.setattr(auto_dungeon_combat, "tap_battle_entry_if_not_nav", lambda *a, **k: None)
     monkeypatch.setattr(auto_dungeon_combat, "wait", lambda *a, **k: True)
     monkeypatch.setattr(auto_dungeon_combat, "check_stop_signal", lambda: False)
     monkeypatch.setattr(auto_dungeon_combat, "is_main_world", lambda: main_world_reached)

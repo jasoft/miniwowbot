@@ -13,7 +13,7 @@ from auto_dungeon_navigation import (
     focus_and_click_dungeon,
 )
 from auto_dungeon_combat import auto_combat
-from auto_dungeon_ui import click_free_button, find_text_and_click_safe, sell_trashes
+from auto_dungeon_ui import click_free_button, sell_trashes, tap_battle_entry_if_not_nav
 from auto_dungeon_account import select_character
 from auto_dungeon_daily import execute_daily_collect
 STATES = [
@@ -218,7 +218,12 @@ class DungeonStateMachine:
             return False
 
         self.logger.info(f"⚔️ 状态机: 进入副本战斗 - {dungeon_name}")
-        find_text_and_click_safe("战斗", regions=[8])
+        # 不要退回 ``find_text_and_click_safe("战斗", regions=[8])``：那会盲点底部导航
+        # 的「战斗」页签（= 角色面板开关），而 ``auto_combat`` 里原本也点了一次，
+        # 两次点击靠"开一次、关一次"的奇偶性互相抵消。一旦其中一次被进场动画吞掉，
+        # 面板就会留在屏幕上盖住战斗画面 → 战斗循环空转到 180 秒超时（2026-10-26 ~
+        # 11-06 实测 5 次）。改成按坐标判断，绝不点那个页签。
+        tap_battle_entry_if_not_nav()
         auto_combat(completed_dungeons=completed, total_dungeons=total)
         return True
 
