@@ -307,14 +307,34 @@ def test_item_key_is_derived_from_row_index() -> None:
     assert resolve(2) == "row_2"
 
 
-def test_warn_when_row_price_differs_from_observation() -> None:
+def _fake_alert_logger(alerts: list[str]) -> MagicMock:
+    """构造一个只收集 WARNING 文案的假 logger。
+
+    ``DailyCollectManager.logger`` 与 ``logging.getLogger(__name__)`` 是**同一个
+    对象**，直接对它赋值（``manager.logger.warning = ...``）会把这个模块级
+    logger 的 ``warning`` 方法永久替换成普通函数 —— 之后 `auto_dungeon_daily`
+    打出的所有 WARNING 都不再进入 logging 机制，同一次 pytest 运行里后续的
+    告警断言会集体失效（假绿/假红）。因此只能替换**实例持有的 logger 引用**。
+
+    Args:
+        alerts: 用于收集 WARNING 文案的列表，按原样追加。
+
+    Returns:
+        仅拦截 WARNING 的 MagicMock logger。
+    """
+    fake_logger = MagicMock()
+    fake_logger.warning.side_effect = lambda message, *args: alerts.append(message % args)
+    return fake_logger
+
+
+def test_warn_when_row_price_differs_from_observation(monkeypatch) -> None:
     """券价与历史观测不符时只告警、不改变行为（可能本期换了碎片）。"""
     manager = auto_dungeon_daily.DailyCollectManager(
         config_loader=MagicMock(),
         db=MagicMock(),
     )
     alerts: list[str] = []
-    manager.logger.warning = lambda message, *args: alerts.append(message % args)
+    monkeypatch.setattr(manager, "logger", _fake_alert_logger(alerts))
     states = [
         _make_state(row_index=0, required_tickets=50, current_tickets=50),
         _make_state(row_index=1, required_tickets=30, current_tickets=30),
@@ -326,14 +346,14 @@ def test_warn_when_row_price_differs_from_observation() -> None:
     assert "第 1 行" in alerts[0] and "50" in alerts[0]
 
 
-def test_no_warn_when_layout_matches_observation() -> None:
+def test_no_warn_when_layout_matches_observation(monkeypatch) -> None:
     """券价与观测一致时不产生告警噪音。"""
     manager = auto_dungeon_daily.DailyCollectManager(
         config_loader=MagicMock(),
         db=MagicMock(),
     )
     alerts: list[str] = []
-    manager.logger.warning = lambda message, *args: alerts.append(message % args)
+    monkeypatch.setattr(manager, "logger", _fake_alert_logger(alerts))
     states = [
         _make_state(row_index=0, required_tickets=40, current_tickets=10),
         _make_state(row_index=1, required_tickets=30, current_tickets=10),
