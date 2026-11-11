@@ -424,6 +424,8 @@ def send_pushover_notification(
     message: str,
     priority: int = 0,
     html: bool = False,
+    *,
+    enrich_context: bool = True,
     **kwargs,
 ) -> bool:
     """发送 Pushover 通知
@@ -433,6 +435,9 @@ def send_pushover_notification(
         message: 通知内容
         priority: 优先级 (-1, 0, 1, 2)
         html: 是否使用 HTML 格式（支持更丰富的文本格式）
+        enrich_context: 是否叠加 ``[config | emulator]`` 前缀。编排器/体检这类
+            **全局结论**必须传 ``False``，否则会显示成 ``[unknown | unknown]``
+            并被误读成某个会话的问题。该参数只控制本地拼装，不会进 API 载荷。
         **kwargs: 其他 Pushover 参数 (sound, url, etc.)
 
     Returns:
@@ -477,7 +482,10 @@ def send_pushover_notification(
     try:
         from pushover_complete import PushoverAPI
 
-        enriched_title, enriched_message = _enrich_message(title, message)
+        if enrich_context:
+            enriched_title, enriched_message = _enrich_message(title, message)
+        else:
+            enriched_title, enriched_message = title, message
 
         api = PushoverAPI(config["app_key"])
 
@@ -570,6 +578,8 @@ def send_notification(
     level: str = "active",
     priority: int = 0,
     html: bool = False,
+    *,
+    enrich_context: bool = True,
     **kwargs,
 ) -> bool:
     """统一的发送通知接口
@@ -583,15 +593,26 @@ def send_notification(
         level: Bark 通知级别 (active, timeSensitive, passive)
         priority: Pushover 优先级 (-1, 0, 1, 2)
         html: 是否使用 HTML 格式（Pushover）
+        enrich_context: 是否叠加 ``[config | emulator]`` 上下文前缀。
+            编排器/体检这类全局结论传 ``False``，避免出现 ``[unknown | unknown]``。
         **kwargs: 其他服务特定参数
 
     Returns:
         是否发送成功
     """
     if provider == "bark":
-        return send_bark_notification(title, message, level=level, **kwargs)
+        return send_bark_notification(
+            title, message, level=level, enrich_context=enrich_context, **kwargs
+        )
     elif provider == "pushover":
-        return send_pushover_notification(title, message, priority=priority, html=html, **kwargs)
+        return send_pushover_notification(
+            title,
+            message,
+            priority=priority,
+            html=html,
+            enrich_context=enrich_context,
+            **kwargs,
+        )
     elif provider == "auto":
         # 自动选择：根据配置尝试可用的服务
         sc = _get_notification_config()
@@ -601,16 +622,28 @@ def send_notification(
         if pushover_config is not None and sc is not None and sc.is_bark_enabled():
             # 两者都配置了，默认使用 Pushover
             return send_pushover_notification(
-                title, message, priority=priority, html=html, **kwargs
+                title,
+                message,
+                priority=priority,
+                html=html,
+                enrich_context=enrich_context,
+                **kwargs,
             )
         elif pushover_config is not None:
             # 只有 Pushover
             return send_pushover_notification(
-                title, message, priority=priority, html=html, **kwargs
+                title,
+                message,
+                priority=priority,
+                html=html,
+                enrich_context=enrich_context,
+                **kwargs,
             )
         elif sc is not None and sc.is_bark_enabled():
             # 只有 Bark
-            return send_bark_notification(title, message, level=level, **kwargs)
+            return send_bark_notification(
+                title, message, level=level, enrich_context=enrich_context, **kwargs
+            )
         else:
             logger.warning("⚠️ 没有配置任何通知服务")
             # 委托给具体 provider 的分支已由它自己记账，这里只记「谁都没接」的情况

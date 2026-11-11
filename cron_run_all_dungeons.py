@@ -55,6 +55,15 @@ DOCKER_DESKTOP_WAIT_SECONDS = 300
 DOCKER_POLL_INTERVAL_SECONDS = 5
 DOCKER_CONTAINER_NAME = "paddlex"
 DOCKER_DESKTOP_EXE = r"C:\Program Files\Docker\Docker\Docker Desktop.exe"
+# Docker Desktop 的**主进程**镜像名：用来区分「没启动」与「在跑但引擎无响应」。
+# 这两种状态需要完全不同的恢复动作（前者拉起 GUI，后者只能重启引擎）——
+# 2026-11-11 06:05 就是把它俩混为一谈：进程 10-30 起一直在跑，代码却反复
+# Popen 一个已在运行的 GUI（空操作），白等 300 秒后中止整轮。
+DOCKER_DESKTOP_PROCESS_NAME = "Docker Desktop.exe"
+# `docker desktop restart` 是官方 CLI（4.95 起随 Desktop 提供），比杀进程更安全。
+DOCKER_RESTART_TIMEOUT_SECONDS = 120
+# 诊断类命令（`docker desktop status` / `wsl --version`）只需快速返回。
+DOCKER_DIAGNOSTIC_TIMEOUT_SECONDS = 20
 # 编排器内部的子进程调用一律走 ``process_utils.run_command``（临时文件收输出，
 # 免疫「孙进程持管道 → 调用方永久挂死」）。这里给每条命令一个**有界**超时：
 # 编排器自己**没有看门狗**（看门狗只监控会话日志），一旦挂死只能等计划任务的
@@ -971,11 +980,101 @@ def is_docker_daemon_ready() -> bool:
     return result.returncode == 0
 
 
-def ensure_docker_daemon(logger: logging.Logger) -> bool:
-    """确保 Docker 守护进程可用，必要时拉起 Docker Desktop。
+def docker_desktop_process_running() -> bool:
+    """检查 Docker Desktop 主进程是否已在运行。
 
-    计划任务在清晨触发时 Docker Desktop 常常尚未启动（未设置开机自启），
-    此处主动拉起并轮询等待，避免 OCR 服务缺失导致整轮空跑。
+    只回答「进程在不在」，不回答「引擎好不好用」—— 这两件事必须分开判断：
+    进程在跑但引擎无响应时，再 ``Popen`` 一次 GUI 是**空操作**。
+
+    Returns:
+        检测到 ``Docker Desktop.exe`` 返回 ``True``；否则（含检测失败）``False``。
+    """
+    try:
+        result = run_command(
+            ["tasklist", "/FI", f"IMAGENAME eq {DOCKER_DESKTOP_PROCESS_NAME}", "/NH"],
+            timeout=DOCKER_DIAGNOSTIC_TIMEOUT_SECONDS,
+        )
+    except Exception as exc:
+        logging.getLogger(__name__).warning(
+            f"⚠️ 查询 Docker Desktop 进程异常: {type(exc).__name__}: {exc}"
+        )
+        return False
+
+    if result.timed_out or result.returncode != 0:
+        return False
+    return DOCKER_DESKTOP_PROCESS_NAME.lower() in result.stdout_text().lower()
+
+
+def restart_docker_engine(logger: logging.Logger) -> bool:
+    """用官方 CLI 重启 Docker Desktop（进程在跑但引擎无响应时使用）。
+
+    比 ``taskkill`` 安全：由 Desktop 自己按序停引擎、重启后端与 WSL 发行版。
+    命令本身有超时，失败只记日志、不抛异常 —— 调用方仍会继续轮询判定。
+
+    Args:
+        logger: 日志对象。
+
+    Returns:
+        命令被成功受理（返回码 0）时 ``True``。
+    """
+    try:
+        result = run_command(
+            ["docker", "desktop", "restart"], timeout=DOCKER_RESTART_TIMEOUT_SECONDS
+        )
+    except Exception as exc:
+        logger.error(f"❌ 重启 Docker Desktop 异常: {type(exc).__name__}: {exc}")
+        return False
+
+    if result.timed_out:
+        logger.error(f"❌ `docker desktop restart` 超时（>{DOCKER_RESTART_TIMEOUT_SECONDS}s）")
+        return False
+    if result.returncode != 0:
+        logger.error(
+            f"❌ `docker desktop restart` 失败 (Exit {result.returncode}): "
+            f"{result.stderr_text().strip()[:400]}"
+        )
+        return False
+
+    logger.info("✅ 已下发 `docker desktop restart`")
+    return True
+
+
+def log_docker_diagnostics(logger: logging.Logger) -> None:
+    """落一条 Docker/WSL 侧的诊断快照，供下次直接定位（永不抛异常）。
+
+    2026-11-11 那次中止只留下「docker info 超时」13 条，真正的原因
+    （``wsl.exe --version`` 失败导致引擎 ``starting -> stopping``）藏在
+    Docker Desktop 自己的日志里，事后才翻出来。把这两条命令的结果直接记进
+    编排日志，下次一眼可见。
+
+    Args:
+        logger: 日志对象。
+    """
+    probes = (
+        ("docker desktop status", ["docker", "desktop", "status"]),
+        ("wsl --version", ["wsl", "--version"]),
+    )
+    for label, cmd in probes:
+        try:
+            result = run_command(cmd, timeout=DOCKER_DIAGNOSTIC_TIMEOUT_SECONDS)
+        except Exception as exc:
+            logger.warning(f"⚠️ 诊断 {label} 执行异常: {type(exc).__name__}: {exc}")
+            continue
+        if result.timed_out:
+            logger.warning(f"⚠️ 诊断 {label}: 超时（>{DOCKER_DIAGNOSTIC_TIMEOUT_SECONDS}s）")
+            continue
+        detail = " ".join(result.stdout_text().split())[:400]
+        logger.warning(f"⚠️ 诊断 {label}: rc={result.returncode} {detail}")
+
+
+def ensure_docker_daemon(logger: logging.Logger) -> bool:
+    """确保 Docker 守护进程可用，按状态选择恢复动作。
+
+    两种「不可用」需要完全不同的处理，混为一谈就会像 2026-11-11 那样白等：
+
+    - **进程没起来**：``Popen`` 拉起 GUI，等引擎就绪；
+    - **进程在跑但引擎无响应**（系统刚从睡眠恢复、WSL 未就绪时常见）：
+      再拉起一次 GUI 是空操作，必须 ``docker desktop restart``。
 
     Args:
         logger: 日志对象。
@@ -996,16 +1095,23 @@ def ensure_docker_daemon(logger: logging.Logger) -> bool:
         logger.error(f"❌ 未找到 Docker Desktop: {desktop_exe}")
         return False
 
-    logger.warning("⏳ Docker 守护进程未运行，尝试启动 Docker Desktop...")
-    try:
-        subprocess.Popen(
-            [str(desktop_exe)],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+    if docker_desktop_process_running():
+        logger.warning(
+            "⚠️ Docker Desktop 进程在运行但引擎无响应"
+            "（常见于系统刚唤醒、WSL 未就绪），改为重启引擎而不是再启动一次 GUI"
         )
-    except Exception as exc:
-        logger.error(f"❌ 启动 Docker Desktop 失败: {exc}")
-        return False
+        restart_docker_engine(logger)
+    else:
+        logger.warning("⏳ 未检测到 Docker Desktop 进程，尝试启动 Docker Desktop...")
+        try:
+            subprocess.Popen(
+                [str(desktop_exe)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception as exc:
+            logger.error(f"❌ 启动 Docker Desktop 失败: {exc}")
+            return False
 
     start_time = time.time()
     while time.time() - start_time < DOCKER_DESKTOP_WAIT_SECONDS:
@@ -1015,6 +1121,7 @@ def ensure_docker_daemon(logger: logging.Logger) -> bool:
         time.sleep(DOCKER_POLL_INTERVAL_SECONDS)
 
     logger.error(f"❌ Docker 守护进程等待超时（>{DOCKER_DESKTOP_WAIT_SECONDS}s）")
+    log_docker_diagnostics(logger)
     return False
 
 
@@ -1168,6 +1275,49 @@ def prepare_ocr_service(logger: logging.Logger) -> bool:
     return False
 
 
+def notify_ocr_unavailable(logger: logging.Logger) -> bool:
+    """OCR 不可用导致整轮中止时推送告警 —— 必须让人知道。
+
+    2026-11-11 那轮在 06:11 中止，``log/notifications`` 一条记录都没有：
+    整天 22 个副本静默归零，收件人只能靠自己发现。编排器级的失败是一次
+    「全局结论」，因此用 ``enrich_context=False`` 去掉 ``[config | emulator]``
+    前缀 —— 否则会显示成 ``[unknown | unknown]``，让人误以为是某个会话的问题。
+
+    本函数绝不抛异常：告警失败不能反过来把退出码搞乱。
+
+    Args:
+        logger: 日志对象。
+
+    Returns:
+        告警发送成功返回 ``True``；任何失败（含未配置通道）返回 ``False``。
+    """
+    message = (
+        "编排器在「准备 OCR 服务」阶段判定不可用，本次未执行任何副本。\n"
+        "常见原因：Docker Desktop 引擎无响应 / WSL 未就绪（系统刚唤醒）。\n"
+        "请检查后按需手动补跑：\n"
+        "uv run run_dungeons.py --emulator 192.168.1.150:5555 --session main "
+        "--config mage --config warrior"
+    )
+    try:
+        from auto_dungeon_notification import send_notification
+
+        ok = send_notification(
+            "🛑 副本自动化中止：OCR 不可用",
+            message,
+            level="timeSensitive",
+            enrich_context=False,
+        )
+    except Exception as exc:
+        logger.warning(f"⚠️ 发送 OCR 不可用告警失败: {type(exc).__name__}: {exc}")
+        return False
+
+    if ok:
+        logger.info("📱 已推送「OCR 不可用，本次中止」告警")
+    else:
+        logger.warning("⚠️ 「OCR 不可用，本次中止」告警未送达（通道未配置或发送失败）")
+    return ok
+
+
 def run_single_flow(tasks: Sequence[SessionTask], logger: logging.Logger) -> bool:
     """执行一次完整流程并返回是否成功完成。
 
@@ -1253,6 +1403,7 @@ def main() -> int:
 
     if not prepare_ocr_service(logger):
         logger.error("❌ OCR 服务不可用，终止本次运行（避免空跑多轮重试）")
+        notify_ocr_unavailable(logger)
         return 3
 
     for attempt in range(1, FLOW_MAX_RETRIES + 1):
