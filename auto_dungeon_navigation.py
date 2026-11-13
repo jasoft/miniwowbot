@@ -72,6 +72,37 @@ CHARACTER_SELECTION_FOREGROUND_CHECK_INTERVAL_SECONDS = 5.0
 #: ``start_app`` 后约 5~6 秒游戏才把 Activity 显示到前台。
 CHARACTER_SELECTION_FOREGROUND_LOST_LIMIT = 4
 
+#: 判定「画面未铺满整屏」时，**黑带**（整行几乎全黑）占全屏横带的比例阈值。
+#:
+#: 2026-11-13 06:06~06:09 实测：模拟器冷启动（guest 06:06:00 才开始启动、06:06:09
+#: 才 ``Ready``），脚本 06:06:23 就启动了游戏。随后游戏渲染 surface 的**尺寸错乱**：
+#: 屏幕上半 480px 纯黑（行均值 0.00），角色选择界面被压进下半 800px，画面整体
+#: 垂直压缩到约 60%。脚本自己落下的错误截图里，那一屏的「进入游戏」按钮红色区域
+#: 是 **257x28**（宽高比 9.18），而模板 ``images/enter_game_button.png`` 是
+#: **200x50**（宽高比 4.00）—— 形状被压扁，模板匹配最高只有 **0.37**，远低于阈值，
+#: 于是 180 秒都不命中，白耗 3 分钟后靠「超时重启」重开游戏才在 16 秒进入界面。
+#:
+#: 这类"画面没铺满屏幕"与"全黑"是**两种不同的东西**：全黑 = 还在加载，值得再等
+#: （见 :data:`BLANK_SCREEN_MEAN_THRESHOLD`）；**半屏黑 = 渲染尺寸已经错了，等多久
+#: 都不会自己变好**，唯一有效的恢复是重开游戏。
+SCREEN_BROKEN_DARK_BAND_RATIO = 0.30
+
+#: 单条横带被视为「黑带」的平均亮度阈值（0~255）。
+SCREEN_BROKEN_BAND_MEAN_THRESHOLD = 8.0
+
+#: 把屏幕沿纵向切成多少条横带做统计。
+SCREEN_BROKEN_BAND_COUNT = 16
+
+#: 连续多少次探测到「画面渲染不完整」才提前结束等待。
+#:
+#: 取 4 次（配合 5 秒间隔约 20 秒）：既要压住"游戏正在切换场景、某一帧刚好是黑边"
+#: 的瞬态，又要比 180 秒的盲等快一个数量级。2026-11-13 的异常状态持续了整整
+#: 180 秒（重启游戏后 16 秒即正常），20 秒足以抓住它。
+SCREEN_BROKEN_LIMIT = 4
+
+#: 等待角色选择界面时，探测「画面是否铺满整屏」的间隔（秒）。
+SCREEN_BROKEN_CHECK_INTERVAL_SECONDS = 5.0
+
 #: 最近一次截图失败的原因，供通知正文引用（``None`` 表示最近一次成功）
 _last_screenshot_error: str | None = None
 
@@ -83,6 +114,17 @@ class GameNotForegroundError(TimeoutError):
     一旦探测到游戏被切到后台或已退出，唯一有效的恢复手段就是重新走一遍
     「关闭游戏 → 启动游戏 → 等角色选择界面」，而这恰好是 ``main_wrapper``
     捕获 :class:`TimeoutError` 后做的事。
+    """
+
+
+class ScreenRenderBrokenError(TimeoutError):
+    """画面渲染不完整（大片黑边 / 画面被压扁），继续等待不可能自愈。
+
+    与 :class:`GameNotForegroundError` 同理继承 :class:`TimeoutError`，以便**复用**
+    ``main_wrapper`` 已有的「关闭游戏 → 启动游戏 → 等角色选择界面」恢复路径：
+    渲染 surface 尺寸错了，只有重开游戏（重建 surface）才会恢复。
+
+    判据见 :data:`SCREEN_BROKEN_DARK_BAND_RATIO`。
     """
 
 
@@ -243,15 +285,52 @@ def save_error_screenshot(operation_name: str) -> str:
 BLANK_SCREEN_MEAN_THRESHOLD = 8.0
 
 
+def _snapshot_grayscale():
+    """截图并返回灰度像素数组。
+
+    刻意复用 ``snapshot(filename=...)`` + PIL 这条**已验证可用**的截图链路
+    （与 :func:`save_error_screenshot` 一致），而不是 ``device.snapshot()`` 的数组
+    返回值 —— 后者在不同 airtest / 模拟器组合下返回类型并不统一。临时文件用完即删。
+
+    任何异常都返回 ``None``：本函数只服务**辅助判据**，不能因为诊断本身失败而
+    改变主流程行为。
+
+    Returns:
+        numpy.ndarray | None: 灰度二维数组；无设备、截图失败或解析失败时返回 ``None``。
+    """
+    if not _has_connected_device():
+        return None
+
+    tmp_path = ""
+    try:
+        fd, tmp_path = tempfile.mkstemp(suffix=".png")
+        os.close(fd)
+        snapshot(filename=tmp_path)
+
+        if not os.path.isfile(tmp_path) or os.path.getsize(tmp_path) == 0:
+            return None
+
+        from PIL import Image
+        import numpy as np
+
+        with Image.open(tmp_path).convert("L") as image:
+            return np.asarray(image, dtype=np.uint8).copy()
+    except Exception as e:  # noqa: BLE001 - 纯辅助判据，任何异常都不该影响主流程
+        logger.debug(f"灰度截图失败（按无法判定处理）: {type(e).__name__}: {e}")
+        return None
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:  # pragma: no cover - 清理失败无需处理
+                pass
+
+
 def screenshot_is_blank(threshold: float = BLANK_SCREEN_MEAN_THRESHOLD) -> bool:
     """判断当前画面是否几乎全黑（游戏正在切换场景 / 加载 / 广告过渡）。
 
     动机见 :data:`BLANK_SCREEN_MEAN_THRESHOLD`：黑屏时 OCR 必然读不到任何文字，
     调用方若把它当成"目标文字不存在"，就会误判并触发不必要的重量级恢复。
-
-    实现上刻意复用 ``snapshot(filename=...)`` + PIL 这条**已验证可用**的截图链路
-    （与 :func:`save_error_screenshot` 一致），而不是 ``device.snapshot()`` 的数组
-    返回值 —— 后者在不同 airtest / 模拟器组合下返回类型并不统一。临时文件用完即删。
 
     任何异常都按「不是黑屏」处理（返回 ``False``）：本函数只是**辅助判据**，
     不能因为诊断本身失败而改变主流程行为。
@@ -262,38 +341,75 @@ def screenshot_is_blank(threshold: float = BLANK_SCREEN_MEAN_THRESHOLD) -> bool:
     Returns:
         bool: 画面几乎全黑返回 ``True``；画面正常或无法判定返回 ``False``。
     """
-    if not _has_connected_device():
+    pixels = _snapshot_grayscale()
+    if pixels is None:
         return False
 
-    tmp_path = ""
-    try:
-        fd, tmp_path = tempfile.mkstemp(suffix=".png")
-        os.close(fd)
-        snapshot(filename=tmp_path)
+    mean_brightness = float(pixels.mean())
+    if mean_brightness < threshold:
+        logger.debug(f"🌑 检测到黑屏帧（平均亮度 {mean_brightness:.2f} < {threshold}）")
+        return True
+    return False
 
-        if not os.path.isfile(tmp_path) or os.path.getsize(tmp_path) == 0:
-            return False
 
-        from PIL import Image
-        import numpy as np
+def screen_render_is_broken(
+    dark_band_ratio_threshold: float = SCREEN_BROKEN_DARK_BAND_RATIO,
+) -> bool | None:
+    """判断当前画面是否「渲染不完整」—— 大片黑边、画面被压扁。
 
-        with Image.open(tmp_path).convert("L") as image:
-            pixels = np.asarray(image, dtype=np.uint8)
+    为什么需要它：2026-11-13 06:06~06:09，角色选择界面**其实已经画出来了**
+    （错误截图里"选择角色"标题、8 个职业图标、"进入游戏"按钮全都可读），但
+    上半屏 480px 是纯黑、界面被压进下半 800px，整体垂直压缩到约 60%。于是
+    「进入游戏」按钮的红色区域变成 257x28（宽高比 9.18），与模板的 200x50
+    （宽高比 4.00）对不上，模板匹配最高只有 0.37 —— ``wait`` 整整 180 秒都不命中。
+    脚本当时对"画面已经坏了"毫无感知，只能盲等超时。
 
-        mean_brightness = float(pixels.mean())
-        if mean_brightness < threshold:
-            logger.debug(f"🌑 检测到黑屏帧（平均亮度 {mean_brightness:.2f} < {threshold}）")
-            return True
+    判据设计（与"全黑"严格区分）：
+
+    * 整屏平均亮度低于 :data:`BLANK_SCREEN_MEAN_THRESHOLD` ⇒ 这是**还在加载**，
+      返回 ``False``，交给调用方继续等（不该当成渲染错误）。
+    * 否则把屏幕纵向切成 :data:`SCREEN_BROKEN_BAND_COUNT` 条横带，统计平均亮度
+      低于 :data:`SCREEN_BROKEN_BAND_MEAN_THRESHOLD` 的横带占比；达到
+      ``dark_band_ratio_threshold`` 即判为渲染不完整。
+
+    三态返回与 :func:`is_game_foreground` 一致：只有**明确**判出错才返回 ``True``，
+    无法判定（无设备 / 截图失败）一律 ``None``，调用方不得把 ``None`` 当 ``True``。
+
+    Args:
+        dark_band_ratio_threshold: 黑带占比阈值，达到即判为渲染不完整。
+
+    Returns:
+        bool | None: ``True`` 渲染不完整；``False`` 画面正常（含"全黑加载中"）；
+        ``None`` 无法判定。
+    """
+    pixels = _snapshot_grayscale()
+    if pixels is None:
+        return None
+
+    mean_brightness = float(pixels.mean())
+    if mean_brightness < BLANK_SCREEN_MEAN_THRESHOLD:
+        # 全黑 = 还在加载，语义上不是"渲染坏了"，交给原有超时逻辑。
         return False
-    except Exception as e:  # noqa: BLE001 - 纯辅助判据，任何异常都不该影响主流程
-        logger.debug(f"检测黑屏失败（按非黑屏处理）: {type(e).__name__}: {e}")
-        return False
-    finally:
-        if tmp_path and os.path.exists(tmp_path):
-            try:
-                os.remove(tmp_path)
-            except Exception:  # pragma: no cover - 清理失败无需处理
-                pass
+
+    height = pixels.shape[0]
+    band_height = height // SCREEN_BROKEN_BAND_COUNT
+    if band_height < 1:
+        return None
+
+    dark_bands = 0
+    for index in range(SCREEN_BROKEN_BAND_COUNT):
+        band = pixels[index * band_height : (index + 1) * band_height]
+        if float(band.mean()) < SCREEN_BROKEN_BAND_MEAN_THRESHOLD:
+            dark_bands += 1
+
+    ratio = dark_bands / SCREEN_BROKEN_BAND_COUNT
+    if ratio >= dark_band_ratio_threshold:
+        logger.debug(
+            f"🖼️ 画面渲染不完整：黑带 {dark_bands}/{SCREEN_BROKEN_BAND_COUNT} "
+            f"（{ratio:.0%}），整屏均值 {mean_brightness:.1f}"
+        )
+        return True
+    return False
 
 
 def open_map() -> None:
@@ -336,6 +452,12 @@ def is_on_character_selection(timeout: int = 30) -> bool:
     次明确探测到它不在前台**时，直接抛 :class:`GameNotForegroundError` 提前结束等待 ——
     此时角色选择界面不可能出现，盲等 180 秒纯属浪费（2026-10-10 实测白耗约 27 分钟）。
 
+    另按 ``SCREEN_BROKEN_CHECK_INTERVAL_SECONDS`` 探测**画面是否铺满整屏**：连续
+    ``SCREEN_BROKEN_LIMIT`` 次判为"大片黑边 / 画面被压扁"时抛
+    :class:`ScreenRenderBrokenError`。2026-11-13 06:06~06:09 实测：界面其实已经画出来了，
+    但渲染 surface 尺寸错乱（上半屏 480px 纯黑、画面垂直压缩到约 60%），「进入游戏」
+    按钮形状变形导致模板匹配最高只有 0.37，脚本盲等满 180 秒才靠超时重启恢复。
+
     超时未命中时会落一张错误截图（并记录超时瞬间的前台应用），让"游戏卡在哪个画面"
     有据可查，而不是只能靠模拟器日志反推。
 
@@ -348,6 +470,8 @@ def is_on_character_selection(timeout: int = 30) -> bool:
     Raises:
         GameNotForegroundError: 游戏曾被看到在前台、之后又明确被顶到后台（继承
             ``TimeoutError``，会走 ``main_wrapper`` 已有的「重启游戏」恢复路径）。
+        ScreenRenderBrokenError: 画面渲染不完整（大片黑边），继续等待不可能自愈
+            （同样继承 ``TimeoutError``，复用同一条恢复路径）。
     """
     logger.info(f"🔍 等待进入角色选择界面...(最长 {timeout} 秒)")
     start_time = time.time()
@@ -355,8 +479,10 @@ def is_on_character_selection(timeout: int = 30) -> bool:
     transient_errors: List[str] = []
     last_heartbeat = start_time
     last_foreground_check = start_time
+    last_render_check = start_time
     seen_game_foreground = False
     foreground_lost_streak = 0
+    render_broken_streak = 0
 
     while True:
         remaining = deadline - time.time()
@@ -416,6 +542,34 @@ def is_on_character_selection(timeout: int = 30) -> bool:
                     logger.error(f"❌ {message}")
                     save_error_screenshot("character_selection_foreground_lost")
                     raise GameNotForegroundError(message)
+
+        # 渲染感知：前台是对的，但**画面本身没铺满屏幕**（大片黑边 / 整体被压扁）时，
+        # 模板永远匹配不上 —— 等多久都不会自己变好，因为渲染 surface 的尺寸已经错了。
+        # 2026-11-13 实测：界面内容全都画出来了，仅因上半屏 480px 纯黑、画面垂直压缩到
+        # 约 60%，「进入游戏」按钮从 200x50 变成 257x28，模板匹配最高 0.37，盲等 180 秒。
+        # 这里同样复用「超时 → 重启游戏」的恢复路径（重开游戏会重建 surface）。
+        #
+        # ``None``（无设备 / 截图失败）不计数也不清零：诊断本身失败时不该改变任何行为。
+        if now - last_render_check >= SCREEN_BROKEN_CHECK_INTERVAL_SECONDS:
+            last_render_check = now
+            broken = screen_render_is_broken()
+            if broken is True:
+                render_broken_streak += 1
+                logger.warning(
+                    f"⚠️ 画面渲染不完整（第 {render_broken_streak}/{SCREEN_BROKEN_LIMIT} 次探测），"
+                    f"前台: {describe_foreground()}"
+                )
+                if render_broken_streak >= SCREEN_BROKEN_LIMIT:
+                    message = (
+                        f"画面渲染不完整：连续 {render_broken_streak} 次探测都发现大片黑边 / "
+                        "画面被压扁（渲染 surface 尺寸错乱），模板匹配不可能命中，"
+                        "提前结束等待以复用「超时 → 重启游戏」的恢复路径"
+                    )
+                    logger.error(f"❌ {message}")
+                    save_error_screenshot("character_selection_render_broken")
+                    raise ScreenRenderBrokenError(message)
+            elif broken is False:
+                render_broken_streak = 0
 
     detail = ""
     if transient_errors:
