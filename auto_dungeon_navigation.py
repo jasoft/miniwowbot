@@ -103,6 +103,28 @@ SCREEN_BROKEN_LIMIT = 4
 #: 等待角色选择界面时，探测「画面是否铺满整屏」的间隔（秒）。
 SCREEN_BROKEN_CHECK_INTERVAL_SECONDS = 5.0
 
+#: 刚进入「等待角色选择界面」后的**加载宽限期**（秒），期内不做渲染判据探测。
+#:
+#: 2026-11-14 实测：本函数共探测 3 次「画面渲染不完整」，**3 次全是假的**，且全部落在
+#: 「启动游戏」后 6~13 秒内 —— 06:07:23 启动、06:07:32 与 06:07:36 连续两次判黑，
+#: 06:07:49（+26 秒）模板命中；06:24:30 启动、06:24:36 判黑一次，06:24:45（+16 秒）
+#: 命中。两次都没有重启游戏，`render_broken_streak` 被随后的 ``False`` 清零。
+#:
+#: 机理：游戏刚被拉起时渲染 surface 还没按实际窗口尺寸铺开（冷启动时要等 guest
+#: 把窗口尺寸回调打完），这一阶段**不是全黑**（splash / loading 图有内容），于是
+#: 被判据当成"半屏黑 = surface 尺寸错乱"。也就是说 :func:`screen_render_is_broken`
+#: 在启动阶段**无法区分「还在铺画面」与「尺寸真的错了」** —— 而后者恰恰是它唯一
+#: 该管的事（2026-11-13 那次的特征是该状态持续了整整 180 秒）。
+#:
+#: 危险性在于余量太薄：今天两次启动分别在 **+16 秒 / +26 秒** 才进角色选择，其中
+#: 一次已连续判黑 2 次；只要加载再慢几秒就会凑满 ``SCREEN_BROKEN_LIMIT``（4 次），
+#: 把**正常启动**当成渲染错乱去重启游戏 —— 这正是判据本身要防的反向误杀。
+#:
+#: 取 20 秒的依据：实测"判黑窗口"结束于启动后 14~17 秒，取 20 秒把正常加载整段
+#: 排除在外，同时把 2026-11-13 那类真故障的发现时间从 180 秒压到约 20+15=35 秒
+#: （远小于编排器 180 秒的日志停滞阈值，不会招来看门狗）。
+SCREEN_BROKEN_GRACE_SECONDS = 20.0
+
 #: 最近一次截图失败的原因，供通知正文引用（``None`` 表示最近一次成功）
 _last_screenshot_error: str | None = None
 
@@ -457,6 +479,8 @@ def is_on_character_selection(timeout: int = 30) -> bool:
     :class:`ScreenRenderBrokenError`。2026-11-13 06:06~06:09 实测：界面其实已经画出来了，
     但渲染 surface 尺寸错乱（上半屏 480px 纯黑、画面垂直压缩到约 60%），「进入游戏」
     按钮形状变形导致模板匹配最高只有 0.37，脚本盲等满 180 秒才靠超时重启恢复。
+    首次探测推迟到 ``SCREEN_BROKEN_GRACE_SECONDS`` 之后 —— 游戏刚启动的加载阶段
+    surface 还没铺开，此时判"渲染错乱"是假阳性（2026-11-14 实测 3 次全假）。
 
     超时未命中时会落一张错误截图（并记录超时瞬间的前台应用），让"游戏卡在哪个画面"
     有据可查，而不是只能靠模拟器日志反推。
@@ -549,27 +573,32 @@ def is_on_character_selection(timeout: int = 30) -> bool:
         # 约 60%，「进入游戏」按钮从 200x50 变成 257x28，模板匹配最高 0.37，盲等 180 秒。
         # 这里同样复用「超时 → 重启游戏」的恢复路径（重开游戏会重建 surface）。
         #
+        # 前 ``SCREEN_BROKEN_GRACE_SECONDS`` 秒**不做探测**：游戏刚被拉起时 surface 还在
+        # 按窗口尺寸重排，这一阶段画面本来就可能"半屏黑"，此时判"渲染错乱"是假阳性
+        # （2026-11-14 实测 3 次探测全假，均在启动后 6~13 秒内，随后自行恢复）。
+        #
         # ``None``（无设备 / 截图失败）不计数也不清零：诊断本身失败时不该改变任何行为。
-        if now - last_render_check >= SCREEN_BROKEN_CHECK_INTERVAL_SECONDS:
-            last_render_check = now
-            broken = screen_render_is_broken()
-            if broken is True:
-                render_broken_streak += 1
-                logger.warning(
-                    f"⚠️ 画面渲染不完整（第 {render_broken_streak}/{SCREEN_BROKEN_LIMIT} 次探测），"
-                    f"前台: {describe_foreground()}"
-                )
-                if render_broken_streak >= SCREEN_BROKEN_LIMIT:
-                    message = (
-                        f"画面渲染不完整：连续 {render_broken_streak} 次探测都发现大片黑边 / "
-                        "画面被压扁（渲染 surface 尺寸错乱），模板匹配不可能命中，"
-                        "提前结束等待以复用「超时 → 重启游戏」的恢复路径"
+        if now - start_time >= SCREEN_BROKEN_GRACE_SECONDS:
+            if now - last_render_check >= SCREEN_BROKEN_CHECK_INTERVAL_SECONDS:
+                last_render_check = now
+                broken = screen_render_is_broken()
+                if broken is True:
+                    render_broken_streak += 1
+                    logger.warning(
+                        f"⚠️ 画面渲染不完整（第 {render_broken_streak}/{SCREEN_BROKEN_LIMIT} 次探测），"
+                        f"前台: {describe_foreground()}"
                     )
-                    logger.error(f"❌ {message}")
-                    save_error_screenshot("character_selection_render_broken")
-                    raise ScreenRenderBrokenError(message)
-            elif broken is False:
-                render_broken_streak = 0
+                    if render_broken_streak >= SCREEN_BROKEN_LIMIT:
+                        message = (
+                            f"画面渲染不完整：连续 {render_broken_streak} 次探测都发现大片黑边 / "
+                            "画面被压扁（渲染 surface 尺寸错乱），模板匹配不可能命中，"
+                            "提前结束等待以复用「超时 → 重启游戏」的恢复路径"
+                        )
+                        logger.error(f"❌ {message}")
+                        save_error_screenshot("character_selection_render_broken")
+                        raise ScreenRenderBrokenError(message)
+                elif broken is False:
+                    render_broken_streak = 0
 
     detail = ""
     if transient_errors:

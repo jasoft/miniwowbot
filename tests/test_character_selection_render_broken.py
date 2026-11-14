@@ -23,6 +23,8 @@
     3. 提前结束时必须落错误截图（否则下次又只能靠 Player.log 反推）；
     4. **"全黑"不得被当成"渲染坏了"** —— 全黑是还在加载，语义完全不同，
        误判会让正常的加载过程多挨一次重启。
+    5. **启动后的加载宽限期内不得探测** —— 加载态同样是"半屏黑"，2026-11-14 实测
+       3 次探测全假；余量薄到"加载再慢几秒就会误重启正常启动"。
 
 反证设计（重要）：
     本文件所有对**新增符号**（常量 / 判据函数 / 异常类）的打桩都带 ``create=True``，
@@ -120,6 +122,8 @@ def _patched_environment(fake_wait, render_result, save_mock=None):
         # 以下是新增符号：必须 create=True，才能让旧代码也跑起来。
         patch.object(nav, "SCREEN_BROKEN_CHECK_INTERVAL_SECONDS", 0.02, create=True),
         patch.object(nav, "SCREEN_BROKEN_LIMIT", 3, create=True),
+        # 宽限期置 0 = 立刻开始探测，本文件其余用例都只关心「探测到之后」的行为。
+        patch.object(nav, "SCREEN_BROKEN_GRACE_SECONDS", 0.0, create=True),
         patch.object(nav, "screen_render_is_broken", return_value=render_result, create=True),
         save_mock,
         patch.object(nav, "is_game_foreground", return_value=True),
@@ -223,6 +227,48 @@ def test_screen_render_is_broken_accepts_normal_frame():
     shot = _synthetic_screen(height=1280, dark_rows=0)
     with patch.object(nav, "_snapshot_grayscale", return_value=shot, create=True):
         assert probe() is False
+
+
+def test_render_probe_skipped_during_loading_grace():
+    """游戏刚启动的加载宽限期内，不得做渲染判据探测。
+
+    背景（2026-11-14 06:05 那轮）：11-13 新增的渲染判据当天共探测 3 次，**3 次全是
+    假阳性**，且都落在「启动游戏」后 6~13 秒 —— 冷启动时 surface 还在按窗口尺寸重排，
+    画面本来就可能"半屏黑"，随后自行恢复（+16 秒 / +26 秒进入角色选择）。真正危险的
+    是余量：其中一次已连续判黑 2 次，加载再慢几秒就会凑满 ``SCREEN_BROKEN_LIMIT``，
+    把**正常启动**当成渲染错乱去重启游戏。
+
+    构造：宽限期 10 秒 > 超时 1 秒，整个等待期都在宽限期内；判据桩恒返回 ``True``。
+    旧代码会在第一次探测后开始连续计数并提前抛异常 —— 本条用例即以
+    ``pytest.fail`` 明确指出"加载期不该提前结束等待"（行为缺失，不是机械失败）。
+    改后应当一次都不探测，正常超时返回 ``False``。
+    """
+    from contextlib import ExitStack
+    from unittest.mock import MagicMock
+
+    probe = MagicMock(return_value=True)
+    with ExitStack() as stack:
+        for ctx in _patched_environment(_NeverMatchWait(), True):
+            stack.enter_context(ctx)
+        # 后进先生效：这两条覆盖 _patched_environment 里的同名桩。
+        stack.enter_context(patch.object(nav, "screen_render_is_broken", probe, create=True))
+        stack.enter_context(patch.object(nav, "SCREEN_BROKEN_GRACE_SECONDS", 10.0, create=True))
+        try:
+            result = nav.is_on_character_selection(timeout=1)
+        except ScreenRenderBrokenError as exc:
+            pytest.fail(f"加载宽限期内不该判为渲染错乱并提前结束等待（旧行为）：{exc}")
+
+    assert result is False, "宽限期跑满仍未命中时应正常超时返回 False"
+    assert probe.call_count == 0, (
+        f"加载宽限期内不应做渲染探测，实际探测了 {probe.call_count} 次"
+        "（启动阶段的半屏黑是加载态，不是 surface 尺寸错乱）"
+    )
+    # 常量守护：宽限期 + 检测窗口仍须远小于编排器 180 秒的日志停滞阈值，
+    # 否则"推迟探测"本身就会把发现真故障的时间顶到看门狗阈值之上。
+    grace = getattr(nav, "SCREEN_BROKEN_GRACE_SECONDS", None)
+    assert grace is not None, "行为缺失：navigation 未提供「加载宽限期」常量"
+    total = grace + nav.SCREEN_BROKEN_LIMIT * nav.SCREEN_BROKEN_CHECK_INTERVAL_SECONDS
+    assert total < 180, f"宽限期+检测窗口 {total} 秒不应逼近看门狗阈值 180 秒"
 
 
 def test_render_check_constants_are_below_watchdog_threshold():
