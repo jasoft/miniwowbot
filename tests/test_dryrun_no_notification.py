@@ -97,3 +97,45 @@ def test_non_dryrun_still_notifies(monkeypatch, tmp_path: Path) -> None:
 
     assert rc == 0
     assert "副本运行汇总" in notified, f"真实运行必须推送汇总，实际 {notified}"
+
+
+def test_dryrun_emulator_failure_does_not_notify(monkeypatch, tmp_path: Path) -> None:
+    """dryrun 下「模拟器准备失败」也不得推送（失败分支曾被漏掉）。
+
+    2026-11-16 实证：冒烟时 ``adb`` 不在 PATH，本分支真的推了一条
+    ``[unknown | 192.168.1.150:5555] 副本运行错误`` 并写进通知审计。
+    上面那条 dryrun 用例把 ``_ensure_emulator_ready`` 打桩成成功，
+    因此永远走不到这里 —— 这正是「约定只覆盖一半调用点」的典型。
+    """
+    notified: list = []
+    _patch_common(monkeypatch, tmp_path, notified)
+    monkeypatch.setattr(run_dungeons, "_ensure_emulator_ready", lambda _emu, _logger: False)
+
+    rc = run_dungeons.run_configs(
+        configs=["warrior"],
+        emulator="127.0.0.1:5555",
+        session="main",
+        logfile=tmp_path / "main.log",
+        dryrun=True,
+    )
+
+    assert rc == 1, "模拟器准备失败应返回 1"
+    assert notified == [], f"dryrun 下失败分支也不应推送，实际推送了 {notified}"
+
+
+def test_non_dryrun_emulator_failure_still_notifies(monkeypatch, tmp_path: Path) -> None:
+    """反向不变量：真实运行遇到模拟器准备失败，必须照常告警。"""
+    notified: list = []
+    _patch_common(monkeypatch, tmp_path, notified)
+    monkeypatch.setattr(run_dungeons, "_ensure_emulator_ready", lambda _emu, _logger: False)
+
+    rc = run_dungeons.run_configs(
+        configs=["warrior"],
+        emulator="127.0.0.1:5555",
+        session="main",
+        logfile=tmp_path / "main.log",
+        dryrun=False,
+    )
+
+    assert rc == 1
+    assert "副本运行错误" in notified, f"真实故障必须告警，实际 {notified}"

@@ -34,7 +34,14 @@ ES_CONTINUOUS = 0x80000000
 ES_SYSTEM_REQUIRED = 0x00000001
 
 
-def _notify_and_log(logger: logging.Logger, title: str, message: str, **kwargs: object) -> bool:
+def _notify_and_log(
+    logger: logging.Logger,
+    title: str,
+    message: str,
+    *,
+    dryrun: bool = False,
+    **kwargs: object,
+) -> bool:
     """发送通知，并把「发没发、成没成」写进主流程日志。
 
     早期这三处通知都写成 ``try: send_notification(...) except Exception: pass``：
@@ -42,15 +49,31 @@ def _notify_and_log(logger: logging.Logger, title: str, message: str, **kwargs: 
     通知本身的完整审计由 ``auto_dungeon_notification`` 落到
     ``log/notifications.log``，这里保证**业务日志里也有迹可循**。
 
+    ``dryrun`` 是**唯一的** dryrun 消音闸门：dryrun 没有真实执行任何副本，
+    推给用户的任何一条都是噪音，而且会写进 ``log/notifications*`` 审计、
+    运行上下文还是 ``unknown``，排查时极易被误读成真实故障。
+
+    2026-11-16 实证：冒烟时 ``adb`` 不在 PATH，走「模拟器准备失败」分支，
+    后者此前没有 dryrun 判断，于是真的推了一条
+    ``[unknown | 192.168.1.150:5555] 副本运行错误`` 并落了审计 ——
+    「dryrun 不发通知」这条约定原本只覆盖了结尾的「副本运行汇总」，
+    失败分支被漏掉（2026-10-15 那次也踩过同类）。做成参数即从机制上堵住：
+    以后无论再加多少调用点，只要传了 ``dryrun`` 就不会发。
+
     Args:
         logger: 日志对象。
         title: 通知标题。
         message: 通知内容。
+        dryrun: 为 ``True`` 时只落业务日志，不发送、不写通知审计。
         **kwargs: 透传给 ``send_notification`` 的参数（如 ``provider``、``priority``）。
 
     Returns:
-        bool: 是否成功送达。
+        bool: 是否成功送达；dryrun 下恒为 ``False``（未发送）。
     """
+    if dryrun:
+        logger.info(f"🧪 dryrun 模式：跳过通知「{title}」（不推送、不写通知审计）")
+        return False
+
     try:
         ok = send_notification(title, message, **kwargs)
     except Exception as exc:
@@ -367,7 +390,7 @@ def run_configs(
     if not cfgs:
         logger = setup_logger(name="run_dungeons", level="INFO", use_color=False)
         logger.error("❌ 未提供任何配置，必须显式传入 --config")
-        _notify_and_log(logger, "副本运行汇总", "未提供任何配置，任务未执行")
+        _notify_and_log(logger, "副本运行汇总", "未提供任何配置，任务未执行", dryrun=dryrun)
         return 2
 
     pending_cfgs = filter_pending_configs(cfgs, logger)
@@ -380,7 +403,7 @@ def run_configs(
         # 确保模拟器已启动
         if not _ensure_emulator_ready(emulator, logger):
             logger.error("❌ 无法启动或连接模拟器，任务终止")
-            _notify_and_log(logger, "副本运行错误", f"无法启动模拟器 {emulator}")
+            _notify_and_log(logger, "副本运行错误", f"无法启动模拟器 {emulator}", dryrun=dryrun)
             return 1
 
         total = len(pending_cfgs)
@@ -439,13 +462,7 @@ def run_configs(
         for name, dur in per_durations:
             summary_lines.append(f"• {name}: {format_duration_zh(dur)}")
         summary_lines.append(f"总耗时: {format_duration_zh(duration)}")
-        if dryrun:
-            # dryrun 没有真实执行任何副本，此时推送「副本运行汇总」只会变成噪音，
-            # 还会污染 log/notifications* 审计（那条通知的运行上下文是 unknown，
-            # 会被误读成「真实故障」）。只落业务日志，不推送。
-            logger.info("🧪 dryrun 模式：跳过结果通知，不推送「副本运行汇总」")
-        else:
-            _notify_and_log(logger, "副本运行汇总", "\n".join(summary_lines))
+        _notify_and_log(logger, "副本运行汇总", "\n".join(summary_lines), dryrun=dryrun)
 
         return 0 if failed == 0 else 1
 
