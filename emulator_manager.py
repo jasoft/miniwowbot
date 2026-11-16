@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import errno
 import logging
 import os
 import subprocess
@@ -21,6 +22,30 @@ import adb_runner
 # 单条 adb 命令的超时（秒）。冷启动期间 adb 客户端可能要先拉起 server，
 # 但超时保护必须真实生效 —— 见 process_utils 模块 docstring 的管道死锁说明。
 ADB_COMMAND_TIMEOUT = adb_runner.DEFAULT_ADB_TIMEOUT
+
+# Windows 上「可执行文件不存在」的 winerror 值（ERROR_FILE_NOT_FOUND）。
+_WINERROR_FILE_NOT_FOUND = 2
+
+
+def is_missing_executable(exc: BaseException) -> bool:
+    """判断异常是否表示「adb 可执行文件根本不存在」。
+
+    这类失败**重试毫无意义**：PATH 里没有 adb，等 15 秒再试一次也还是没有。
+    必须与「模拟器没启动好」区分开，否则会白等 6 轮 15 秒、还报出
+    「无法连接模拟器」这种把排查方向带偏的结论。
+
+    Args:
+        exc: 调用 adb 时捕获到的异常。
+
+    Returns:
+        bool: 是「找不到可执行文件」返回 ``True``。
+    """
+    if isinstance(exc, FileNotFoundError):
+        return True
+    if getattr(exc, "winerror", None) == _WINERROR_FILE_NOT_FOUND:
+        return True
+    return getattr(exc, "errno", None) == errno.ENOENT
+
 
 # ==================== 模块级 Logger ====================
 # 外部可通过 `from emulator_manager import logger` 导入并修改此 logger
@@ -65,6 +90,9 @@ class EmulatorConnectionManager:
         """
         self.logger = logger
         self.adb_path = self._resolve_adb_path()
+        # adb 可执行文件是否确认不存在。一旦置 True，后续重试/重启模拟器都没有意义，
+        # 必须立刻中止，把结论落在「环境 PATH」而不是「模拟器坏了」。
+        self.adb_missing = False
         self.start_cmd = start_cmd
 
         # 初始化状态
@@ -80,6 +108,20 @@ class EmulatorConnectionManager:
             return adb_path
         self.logger.warning("[ADB] 未找到 ADB，使用默认命令")
         return "adb"
+
+    def _mark_adb_missing(self, exc: BaseException) -> None:
+        """记录「adb 可执行文件不存在」，且只告警一次。
+
+        Args:
+            exc: 触发该判定的异常。
+        """
+        if self.adb_missing:
+            return
+        self.adb_missing = True
+        self.logger.error(
+            f"[ADB] 找不到可执行文件 {self.adb_path!r}（{exc}）："
+            "这是 PATH 环境问题，重试与重启模拟器都不可能修好它"
+        )
 
     def _run_start_cmd(self) -> bool:
         """执行启动命令"""
@@ -122,7 +164,10 @@ class EmulatorConnectionManager:
                         devices[parts[0]] = parts[1]
             return devices
         except Exception as exc:
-            self.logger.error(f"[ADB] 获取设备列表失败: {exc}")
+            if is_missing_executable(exc):
+                self._mark_adb_missing(exc)
+            else:
+                self.logger.error(f"[ADB] 获取设备列表失败: {exc}")
             return {}
 
     def get_adb_devices(self) -> dict[str, str]:
@@ -161,10 +206,20 @@ class EmulatorConnectionManager:
             self.logger.warning(f"[ADB] 连接失败: {error_detail}")
             return False
         except Exception as exc:
-            self.logger.warning(f"[ADB] 连接异常: {exc}")
+            if is_missing_executable(exc):
+                self._mark_adb_missing(exc)
+            else:
+                self.logger.warning(f"[ADB] 连接异常: {exc}")
             return False
 
     # ==================== 模拟器连接保障 ====================
+
+    def _log_adb_unavailable(self) -> None:
+        """输出「adb 不可用」的收尾结论（调用方据此中止流程）。"""
+        self.logger.error(
+            f"[Emulator] ADB 不可用，中止连接与模拟器重启：{self.adb_path!r} 不存在，"
+            "根因在运行环境（PATH / 工作目录），不是模拟器状态"
+        )
 
     def ensure_connected(
         self,
@@ -195,6 +250,13 @@ class EmulatorConnectionManager:
             self.logger.info(f"[Emulator] {emulator} 已连接")
             return True
 
+        # adb 根本不存在时立刻收手：继续 6 轮 × 15 秒只会白等，
+        # 最后再报一句「无法连接模拟器」把排查方向彻底带偏
+        # （2026-11-16 实测：冒烟 shell 的 PATH 里没有 adb，白转 75 秒）。
+        if self.adb_missing:
+            self._log_adb_unavailable()
+            return False
+
         # 尝试直接连接
         for attempt in range(max_retries):
             self.logger.info(f"[Emulator] 第 {attempt + 1}/{max_retries} 次尝试连接 {emulator}")
@@ -205,6 +267,10 @@ class EmulatorConnectionManager:
                 if self.is_connected(emulator):
                     self.logger.info(f"[Emulator] {emulator} 连接验证成功")
                     return True
+
+            if self.adb_missing:
+                self._log_adb_unavailable()
+                return False
 
             # 如果还有重试次数，尝试启动模拟器
             if attempt < max_retries - 1:
