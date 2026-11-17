@@ -34,6 +34,18 @@ dependencies = [
 [dependency-groups]
 dev = ["pyright>=1.1.407", "pytest>=9.0.2", "pytest-asyncio>=1.3.0"]
 
+[tool.uv.sources]
+# vibe-ocr 必须用本地源码，不能用 PyPI 上的同名轮子。
+#
+# 为什么（2026-11-17 体检）：本地库 `E:\Projects\pythonlib\vibe-ocr` 修过三处能力
+# —— 缓存 TTL 过期（272846f）、find(exact=)（3421221）、OCR 请求瞬态 502 重试（ca2b365），
+# 而 PyPI 上同名 0.1.6 轮子**一个都没有**（版本号没跟着 bump，属于同名不同物）。
+# 之前靠手工 `uv pip install -e` 维持 editable，只要有人跑一次 `uv sync`（计划任务的
+# `uv run` 会自动同步）就会静默退回轮子，于是重试与 TTL 一起消失：
+# 一次 502 就退化成「这次没读到」，过期缓存永远不复用（10-24、09 月的旧病根）。
+# 写进 sources 之后，`uv sync` 反而会把本地版装回来，且库再修会自动生效。
+vibe-ocr = { path = "../pythonlib/vibe-ocr", editable = true }
+
 [tool.ruff]
 line-length = 100
 
