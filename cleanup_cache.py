@@ -68,6 +68,78 @@ def cleanup_temp_dir(temp_dir=None, max_age_hours=24.0, logger=None):
     return removed, failed, freed
 
 
+def cleanup_ocr_sidecars(output_dir=None, max_age_hours=24.0, logger=None):
+    """删除 ``output`` 根目录下滞留超过 ``max_age_hours`` 的 OCR 结果 sidecar。
+
+    ``vibe_ocr.OcrHelper.find_all_matching_texts()`` / ``get_all_texts_from_image()``
+    每次调用都会把识别结果写成 ``<截图名>_res.json`` 落到 ``output_dir``，
+    并在**同一次调用内**立刻读回来用，用完不删。项目侧从不读取这些文件
+    （全仓只有 ``cleanup_cache.py`` 会碰它们），因此它们纯属中间产物，
+    每轮运行会新增 8~10 个并永久堆积。
+
+    本函数按 mtime 兜底清理，只动 ``output`` **根目录**下
+    ``*_res.json`` 且未被 ``cache_`` 前缀标记的文件：
+
+    - 子目录（``output/cache``、``output/temp``）一律不递归，避免碰到缓存数据库
+      同目录下的 ``cache_<id>_res.json``；
+    - 只删滞留超时的旧文件，因此不会影响本次/并发会话正在写的 sidecar。
+
+    Args:
+        output_dir: OCR 输出目录路径，默认 ``output``。
+        max_age_hours: 判定为可删除的最小滞留小时数。
+        logger: 可选日志对象；未提供时使用 ``print`` 输出。
+
+    Returns:
+        ``(removed, failed, freed_bytes)`` 三元组。
+    """
+    if output_dir is None:
+        output_dir = "output"
+
+    def _log(level, msg):
+        if logger is not None:
+            try:
+                getattr(logger, level)(msg)
+                return
+            except Exception:
+                pass
+        print(msg)
+
+    if not os.path.isdir(output_dir):
+        return 0, 0, 0
+
+    deadline = time.time() - max_age_hours * 3600
+    removed = 0
+    failed = 0
+    freed = 0
+
+    for filename in os.listdir(output_dir):
+        if not filename.endswith("_res.json"):
+            continue
+        if filename.startswith("cache_"):
+            continue
+        filepath = os.path.join(output_dir, filename)
+        try:
+            if not os.path.isfile(filepath):
+                continue
+            if os.path.getmtime(filepath) > deadline:
+                continue
+            size = os.path.getsize(filepath)
+            os.remove(filepath)
+            removed += 1
+            freed += size
+        except Exception as exc:
+            failed += 1
+            _log("warning", f"⚠️ 清理 OCR 结果文件失败: {filename} - {exc}")
+
+    if removed or failed:
+        _log(
+            "info",
+            f"🧹 清理 OCR 结果残留: 删除 {removed} 个 / 失败 {failed} 个，"
+            f"释放 {freed / 1024 / 1024:.2f} MB",
+        )
+    return removed, failed, freed
+
+
 def cleanup_output_directory(full_clean=False):
     """
     清理 output 目录，重组缓存结构

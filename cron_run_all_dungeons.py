@@ -29,7 +29,7 @@ from emulator_control import (
     EmulatorRestartConfig,
     restart_emulator,
 )
-from cleanup_cache import cleanup_temp_dir
+from cleanup_cache import cleanup_ocr_sidecars, cleanup_temp_dir
 from logger_config import attach_file_handler_to_loggers, setup_logger
 from process_utils import run_command
 from run_dungeons import filter_pending_configs
@@ -1375,6 +1375,14 @@ def main() -> int:
         cleanup_temp_dir(str(SCRIPT_DIR / "output" / "temp"), logger=logger)
     except Exception as exc:  # 清理失败绝不能阻断主流程
         logger.warning(f"⚠️ 清理残留临时截图失败（已忽略）: {exc}")
+
+    # 同上，兜底清理 OCR 结果 sidecar（output 根目录下的 *_res.json）。
+    # vibe-ocr 每次 find_all_matching_texts 都会写一个并在同一次调用内读回，
+    # 用完不删；项目侧从不读取，纯中间产物，不清就每天新增 8~10 个永久堆积。
+    try:
+        cleanup_ocr_sidecars(str(SCRIPT_DIR / "output"), logger=logger)
+    except Exception as exc:  # 清理失败绝不能阻断主流程
+        logger.warning(f"⚠️ 清理 OCR 结果残留失败（已忽略）: {exc}")
 
     sessions = load_sessions_from_json(SCRIPT_DIR / "emulators.json")
     if not sessions:
