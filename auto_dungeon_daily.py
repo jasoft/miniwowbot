@@ -216,7 +216,14 @@ SOUL_TOWER_CLAIMABLE_MARK = "可签到"
 SOUL_TOWER_CLAIMED_MARK = "解锁"
 SOUL_TOWER_PROGRESS_MARK = "累计签到"
 # 签到页「一键签到」按钮（底部居中）的固定坐标兜底。
-SOUL_TOWER_ONE_KEY_FALLBACK = (368, 1015)
+#
+# 取值依据：日志里 OCR 真正读到的「键签到」共 5 次，坐标为
+# (369, 1052) / (371, 1052) / (369, 1052) / (371, 1052) / (369, 1052)，
+# 中心约 (370, 1052)；同期的底部标签行「签到」一直是 (138, 1025)，
+# 说明面板布局未变。旧值 (368, 1015) 比按钮中心高 37px、落在按钮上沿之外，
+# 2026-09-24 起 8 次兜底里有 5 次点不中（点完仍能读到「可签到」），
+# 只能靠后面补点格子救回，多耗约 13 秒并产生一条误导性告警。
+SOUL_TOWER_ONE_KEY_FALLBACK = (370, 1052)
 # 签到日历第一个格子（第 1 天）图标的固定坐标兜底：
 # 状态文字（解锁/可签到）偶尔不渲染，此时先点它刷新显示再复读。
 SOUL_TOWER_FIRST_SLOT_FALLBACK = (76, 250)
@@ -1530,8 +1537,13 @@ class DailyCollectManager:
                 self.logger.warning("⚠️ 灵魂之塔: 既无「可签到」也无「解锁」，无法确认签到状态")
                 return False
 
-        if not find_text_and_click_safe("键签到", regions=[8], use_cache=False, timeout=3):
-            self.logger.info("ℹ️ 灵魂之塔: 未读到「一键签到」，固定坐标兜底")
+        pressed_by_ocr = bool(
+            find_text_and_click_safe("键签到", regions=[8], use_cache=False, timeout=3)
+        )
+        if not pressed_by_ocr:
+            self.logger.info(
+                "ℹ️ 灵魂之塔: 未读到「一键签到」，固定坐标兜底 %s", SOUL_TOWER_ONE_KEY_FALLBACK
+            )
             touch(SOUL_TOWER_ONE_KEY_FALLBACK)
         sleep(2, "等待签到请求完成")
         self._close_soul_tower_reward_popup()
@@ -1539,7 +1551,12 @@ class DailyCollectManager:
         # 成功判据 = 复读页面，「可签到」格子确实消失
         remain = self._find_soul_tower_claimable_slot()
         if remain:
-            self.logger.warning("⚠️ 灵魂之塔: 一键签到后仍有「可签到」格子，补点该格子（仅一次）")
+            # 兜底坐标点不中时，「仍可签到」与「一键签到没生效」是两码事，
+            # 告警必须写清是按哪条路径点的，否则会把坐标问题误读成签到失败。
+            pressed_via = "一键签到" if pressed_by_ocr else "固定坐标兜底"
+            self.logger.warning(
+                "⚠️ 灵魂之塔: %s后仍有「可签到」格子，补点该格子（仅一次）", pressed_via
+            )
             remain.click()
             sleep(2, "等待补点签到完成")
             self._close_soul_tower_reward_popup()

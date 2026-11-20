@@ -194,3 +194,65 @@ def test_soul_tower_state_not_rendered_clicks_first_slot(monkeypatch) -> None:
     assert failures == []
     assert state["refreshed"] is True
     assert "键签到" in world.clicks
+
+
+def test_one_key_fallback_coordinate_matches_ocr_verified_center() -> None:
+    """「一键签到」固定坐标兜底必须落在 OCR 历史命中的按钮中心附近。
+
+    日志里 OCR 真正读到「键签到」的 5 次坐标是 (369~371, 1052)，中心约
+    ``(370, 1052)``；同期底部「签到」标签一直是 ``(138, 1025)``，说明面板布局
+    没变。旧值 ``(368, 1015)`` 比按钮中心高 37px、落在按钮上沿之外，2026-09-24
+    起 8 次兜底中有 5 次点不中，只能靠补点格子救回。此用例把「坐标必须覆盖
+    OCR 实测中心」钉住，防止回退到那个已知点不中的值。
+    """
+    x, y = auto_dungeon_daily.SOUL_TOWER_ONE_KEY_FALLBACK
+    assert abs(x - 370) <= 8, f"兜底坐标 x={x} 偏离 OCR 命中中心 370"
+    assert abs(y - 1052) <= 8, f"兜底坐标 y={y} 偏离 OCR 命中中心 1052"
+
+
+class _CapturingLogger:
+    """只记录日志文本的桩 logger，不落真实 handler。"""
+
+    def __init__(self) -> None:
+        self.records: list[tuple[str, str]] = []
+
+    def _add(self, level: str, msg: str, args: tuple) -> None:
+        """按 %-格式化记录一条日志。"""
+        self.records.append((level, msg % args if args else msg))
+
+    def info(self, msg, *args, **kwargs) -> None:
+        """记录 INFO。"""
+        self._add("info", msg, args)
+
+    def warning(self, msg, *args, **kwargs) -> None:
+        """记录 WARNING。"""
+        self._add("warning", msg, args)
+
+    def error(self, msg, *args, **kwargs) -> None:
+        """记录 ERROR。"""
+        self._add("error", msg, args)
+
+    def warnings(self) -> list[str]:
+        """返回全部 WARNING 文本。"""
+        return [text for level, text in self.records if level == "warning"]
+
+
+def test_soul_tower_fallback_warning_names_the_actual_click_path(monkeypatch) -> None:
+    """OCR 读不到「一键签到」时，告警要说明走的是兜底坐标，而非「一键签到后」。
+
+    2026-11-20 真机：兜底坐标点不中，页面仍有「可签到」，告警却写成
+    「一键签到后仍有…」，把「坐标没点中」记成了「签到没生效」，
+    容易把人引向错误的排查方向。
+    """
+    world = World({"灵魂之塔", "兑换", "累计签到", "可签到"})
+    manager, _failures = _make_manager(monkeypatch, world)
+    capture = _CapturingLogger()
+    manager.logger = capture  # type: ignore[assignment]
+
+    assert manager.execute_task("灵魂之塔签到") is False
+    assert auto_dungeon_daily.SOUL_TOWER_ONE_KEY_FALLBACK in world.touches
+    assert "键签到" not in world.clicks
+
+    warnings = capture.warnings()
+    assert any("固定坐标兜底后仍有" in text for text in warnings), warnings
+    assert not any("一键签到后仍有" in text for text in warnings), warnings
